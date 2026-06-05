@@ -41,6 +41,9 @@ CREATE POLICY "signals_workspace_crud" ON signals
   FOR ALL TO authenticated
   USING (campaign_id IN (
     SELECT id FROM campaigns WHERE workspace_id IN (SELECT get_user_workspace_ids())
+  ))
+  WITH CHECK (campaign_id IN (
+    SELECT id FROM campaigns WHERE workspace_id IN (SELECT get_user_workspace_ids())
   ));
 
 -- leads: users can read leads for their campaigns

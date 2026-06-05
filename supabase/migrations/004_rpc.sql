@@ -22,6 +22,12 @@ BEGIN
     RAISE EXCEPTION 'workspace_not_found';
   END IF;
 
+  -- Prevent double-charging
+  PERFORM 1 FROM leads WHERE id = p_lead_id AND credit_charged = true;
+  IF FOUND THEN
+    RAISE EXCEPTION 'lead_already_charged';
+  END IF;
+
   -- Check free plan limits
   IF v_plan = 'free' AND v_free_used = true THEN
     RAISE EXCEPTION 'free_converter_exhausted';
@@ -30,6 +36,18 @@ BEGIN
   -- Check credits
   IF v_credits <= 0 THEN
     RAISE EXCEPTION 'insufficient_credits';
+  END IF;
+
+  -- Verify all 4 levels are green before marking verified
+  PERFORM 1 FROM leads
+  WHERE id = p_lead_id
+    AND verify_signal = true
+    AND verify_company = true
+    AND verify_contact = true
+    AND verify_email = true;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'lead_not_fully_verified';
   END IF;
 
   -- Mark lead as verified and charge credit atomically

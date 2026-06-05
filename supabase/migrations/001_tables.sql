@@ -52,6 +52,8 @@ CREATE TABLE signals (
   UNIQUE(campaign_id, source_url)
 );
 
+CREATE INDEX idx_signals_campaign ON signals(campaign_id);
+
 -- leads
 CREATE TABLE leads (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -101,8 +103,6 @@ CREATE TABLE client_context_chunks (
   content text NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now()
 );
-
-CREATE INDEX idx_signals_campaign ON signals(campaign_id);
 
 -- conversations
 CREATE TABLE conversations (
