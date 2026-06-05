@@ -8,6 +8,6 @@ export function ok<T>(data: T): ApiResponse<T> {
   return { success: true, data };
 }
 
-export function err(error: string): ApiResponse<never> {
+export function err(error: string): ApiResponse<undefined> {
   return { success: false, error };
 }
