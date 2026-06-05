@@ -192,22 +192,39 @@ async function processLead(
     return false;
   }
 
-  // Generate message (failure does NOT block the verified lead)
-  try {
-    const { subject, body } = await generateMessage(lead as { id: string; company_name: string | null; contact_name: string | null; contact_role: string | null; email: string | null }, signal, campaign);
-    await supabase.from("messages").insert({
-      lead_id: leadId,
-      subject,
-      body,
-      generation_failed: false,
-    });
-  } catch (msgErr) {
+  // Generate message with retry (failure does NOT block the verified lead)
+  let messageGenerated = false;
+  let lastMsgErr: unknown;
+  const MSG_DELAYS = [1000, 2000, 4000];
+
+  for (let attempt = 0; attempt <= 3; attempt++) {
+    try {
+      const { subject, body } = await generateMessage(lead as { id: string; company_name: string | null; contact_name: string | null; contact_role: string | null; email: string | null }, signal, campaign);
+      await supabase.from("messages").insert({
+        lead_id: leadId,
+        subject,
+        body,
+        generation_failed: false,
+      });
+      messageGenerated = true;
+      break;
+    } catch (msgErr) {
+      lastMsgErr = msgErr;
+      if (attempt < 3) {
+        await new Promise((r) => setTimeout(r, MSG_DELAYS[attempt]));
+      }
+    }
+  }
+
+  if (!messageGenerated) {
+    log("error", { leadId, err: String(lastMsgErr) }, "Message generation failed after 3 retries — lead stays verified");
     await supabase.from("messages").insert({
       lead_id: leadId,
       body: "",
       generation_failed: true,
+    }).catch((insertErr: unknown) => {
+      log("error", { leadId, err: String(insertErr) }, "Failed to record message generation failure");
     });
-    log("error", { leadId, err: String(msgErr) }, "Message generation failed");
   }
 
   log("info", { leadId }, "Lead verified");
