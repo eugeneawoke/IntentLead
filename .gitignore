@@ -1,0 +1,33 @@
+# IDE / agents
+.claude/
+.agents/
+.kiro/
+.windsurf/
+.cursor/
+
+# Internal documents
+MEMORY.md
+PLAN.md
+TODO.md
+DECISIONS.md
+EVIDENCE.md
+AGENTS.md
+BUILD_PROMPT.md
+MASTER_BUILD_PROMPT.md
+AI_MODELS_AUDIT.md
+PRICING_DESIGN.md
+docs/plans/
+docs/superpowers/
+
+# Secrets / runtime
+.env
+.env.local
+*.pid
+*.log
+
+# Dependencies
+node_modules/
+.next/
+
+# Worktrees
+.worktrees/
