@@ -40,7 +40,14 @@ export function LeadCard({ lead }: LeadCardProps) {
   }
 
   const messageText = lead.message?.body ?? "";
-  const mailtoLink = `mailto:${lead.email ?? ""}?subject=${encodeURIComponent(lead.message?.subject ?? "")}&body=${encodeURIComponent(messageText)}`;
+  const parts: string[] = [];
+  if (lead.message?.subject) {
+    parts.push(`subject=${encodeURIComponent(lead.message.subject.replace(/\n/g, ' '))}`);
+  }
+  if (messageText) {
+    parts.push(`body=${encodeURIComponent(messageText)}`);
+  }
+  const mailtoLink = `mailto:${encodeURIComponent(lead.email ?? '')}${parts.length ? '?' + parts.join('&') : ''}`;
 
   return (
     <div

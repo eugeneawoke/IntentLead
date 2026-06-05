@@ -11,13 +11,25 @@ export default function CampaignPage() {
   const [loading, setLoading] = useState(true);
 
   async function loadLeads() {
-    const res = await fetch(`/api/leads?campaignId=${id}&status=verified`);
-    const json = await res.json() as { success: boolean; data?: { leads: Lead[]; total: number } };
-    if (json.success && json.data) {
-      setLeads(json.data.leads);
-      setTotal(json.data.total);
+    // Basic UUID validation to prevent URL injection
+    if (!id || !/^[0-9a-f-]{36}$/i.test(id)) return;
+
+    try {
+      const res = await fetch(`/api/leads?campaignId=${encodeURIComponent(id)}&status=verified`);
+      if (!res.ok) {
+        setLoading(false);
+        return;
+      }
+      const json = await res.json() as { success: boolean; data?: { leads: Lead[]; total: number } };
+      if (json.success && json.data) {
+        setLeads(json.data.leads);
+        setTotal(json.data.total);
+      }
+    } catch {
+      // Network error — fail silently, keep polling
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   useEffect(() => {
