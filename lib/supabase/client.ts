@@ -1,4 +1,5 @@
 import { createBrowserClient, createServerClient } from "@supabase/ssr";
+import { createClient } from "@supabase/supabase-js";
 import type { CookieOptions } from "@supabase/ssr";
 
 export function getBrowserClient() {
@@ -25,7 +26,6 @@ export function getServerClient(
 }
 
 export function getServiceClient() {
-  const { createClient } = require("@supabase/supabase-js");
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!

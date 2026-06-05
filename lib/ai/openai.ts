@@ -11,15 +11,14 @@ export async function openaiWithRetry<T>(
   context: string
 ): Promise<T> {
   let lastError: unknown;
-  for (let attempt = 0; attempt <= RETRY_DELAYS.length; attempt++) {
+  for (let attempt = 0; attempt < 4; attempt++) {
     try {
-      const result = await fn();
-      return result;
+      return await fn();
     } catch (err) {
       lastError = err;
       const status = (err as { status?: number }).status;
       if (status && NO_RETRY_CODES.includes(status)) throw err;
-      if (attempt < RETRY_DELAYS.length) {
+      if (attempt < 3) {
         logger.warn({ context, attempt, status }, "OpenAI retry");
         await new Promise((r) => setTimeout(r, RETRY_DELAYS[attempt]));
       }
