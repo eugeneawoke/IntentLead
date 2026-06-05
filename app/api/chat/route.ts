@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
         role: "user",
         content: body.message,
       })
-    ).catch(() => {});
+    ).catch((e) => logger.warn({ conversationId: body.conversationId, error: String(e) }, "Failed to save conversation message"));
   }
 
   const workspaceId = workspace.id;
@@ -126,13 +126,13 @@ export async function POST(req: NextRequest) {
             role: "assistant",
             content: text,
           })
-        ).catch(() => {});
+        ).catch((e) => logger.warn({ conversationId: body.conversationId, error: String(e) }, "Failed to save conversation message"));
 
         // Store meaningful assistant responses as RAG chunks
         if (text.length > 50) {
           await upsertChunks(workspaceId, [
             { content: text, source: "chat" },
-          ]).catch(() => {});
+          ]).catch((e) => logger.warn({ workspaceId, error: String(e) }, "Failed to save RAG chunks"));
         }
       }
     },

@@ -14,6 +14,11 @@ export async function upsertChunks(
     input: texts,
   });
 
+  if (embeddingResponse.data.length !== texts.length) {
+    logger.error({ workspaceId, expected: texts.length, got: embeddingResponse.data.length }, "Embedding count mismatch");
+    return;
+  }
+
   const supabase = getServiceClient();
   const rows = chunks.map((chunk, i) => ({
     workspace_id: workspaceId,
@@ -37,6 +42,11 @@ export async function queryChunks(
     model: "text-embedding-3-small",
     input: [query],
   });
+
+  if (!embeddingResponse.data[0]?.embedding) {
+    logger.error({ workspaceId }, "Empty embedding response for query");
+    return [];
+  }
   const embedding = embeddingResponse.data[0].embedding;
 
   const supabase = getServiceClient();
