@@ -8,12 +8,12 @@
   --bg: #0A0C0F;
   --surface: #14181D;
   --surface-2: #1C2129;
-  --border: oklch(0.922 0 0);
+  --border: #262C35;
   --border-strong: #353D49;
   --text: #F4F6F8;
   --text-muted: #9AA4B2;
   --text-faint: #5B6675;
-  --accent: oklch(0.97 0 0);
+  --accent: #A3E635;
   --accent-hover: #B6F04C;
   --accent-press: #8FD11F;
   --accent-fg: #0A0C0F;
