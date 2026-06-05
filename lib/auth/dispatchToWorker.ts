@@ -7,6 +7,9 @@ export function dispatchToWorker(campaignId: string): void {
     logger.error({ campaignId }, "WORKER_URL or WORKER_SECRET not configured");
     return;
   }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
+
   // Fire and forget — do NOT await
   fetch(`${workerUrl}/internal/run-pipeline`, {
     method: "POST",
@@ -15,7 +18,11 @@ export function dispatchToWorker(campaignId: string): void {
       "X-Internal-Key": workerSecret,
     },
     body: JSON.stringify({ campaignId }),
-  }).catch((dispatchErr) => {
-    logger.error({ campaignId, err: String(dispatchErr) }, "Worker dispatch failed");
+    signal: controller.signal,
+  }).catch((fetchErr) => {
+    clearTimeout(timeout);
+    logger.error({ campaignId, err: String(fetchErr) }, "Worker dispatch failed");
+  }).then(() => {
+    clearTimeout(timeout);
   });
 }

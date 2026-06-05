@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth/requireUser";
-import { getServiceClient } from "@/lib/supabase/client";
 import { err } from "@/lib/utils/response";
 import { logger } from "@/lib/utils/logger";
 import type { Lead } from "@/types/lead";
+
+function escapeCsvCell(val: unknown): string {
+  if (val == null) return '';
+  const str = String(val);
+  // Prevent formula injection (leading =, +, -, @, tab, carriage return)
+  const sanitized = /^[=+\-@\t\r]/.test(str) ? `'${str}` : str;
+  return `"${sanitized.replace(/"/g, '""')}"`;
+}
 
 function toCsv(leads: Lead[]): string {
   const headers = [
@@ -14,14 +21,14 @@ function toCsv(leads: Lead[]): string {
   const rows = leads.map(l =>
     headers.map(h => {
       const val = (l as unknown as Record<string, unknown>)[h];
-      return val == null ? "" : `"${String(val).replace(/"/g, '""')}"`;
+      return escapeCsvCell(val);
     }).join(",")
   );
   return [headers.join(","), ...rows].join("\n");
 }
 
 export async function POST(req: NextRequest) {
-  const { user, response } = await requireUser();
+  const { user, supabase, response } = await requireUser();
   if (response) return response;
 
   let body: { campaignId: string; format?: string };
@@ -35,8 +42,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(err("campaignId is required"), { status: 400 });
   }
 
-  const supabase = getServiceClient();
-
+  // RLS policy leads_workspace_read scopes results to user's workspaces automatically
   const { data: leads, error } = await supabase
     .from("leads")
     .select("*")
@@ -45,17 +51,19 @@ export async function POST(req: NextRequest) {
     .order("intent_score", { ascending: false });
 
   if (error) {
-    logger.error({ campaignId: body.campaignId, error: error.message }, "Export failed");
+    logger.error({ campaignId: body.campaignId, userId: user.id, error: error.message }, "Export failed");
     return NextResponse.json(err("Export failed"), { status: 500 });
   }
 
   const csv = toCsv((leads ?? []) as Lead[]);
 
+  const safeCampaignId = body.campaignId.replace(/[^a-zA-Z0-9-]/g, '');
+
   return new NextResponse(csv, {
     status: 200,
     headers: {
       "Content-Type": "text/csv",
-      "Content-Disposition": `attachment; filename="leads-${body.campaignId}.csv"`,
+      "Content-Disposition": `attachment; filename="leads-${safeCampaignId}.csv"`,
     },
   });
 }
