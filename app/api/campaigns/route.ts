@@ -7,27 +7,17 @@ import { logger } from "@/lib/utils/logger";
 import type { CreateCampaignInput } from "@/types/campaign";
 
 export async function GET(_req: NextRequest) {
-  const { user, response } = await requireUser();
+  const { user, supabase, response } = await requireUser();
   if (response) return response;
 
-  const supabase = getServiceClient();
-  // Get user's workspace(s)
-  const { data: workspaces } = await supabase
-    .from("workspaces")
-    .select("id")
-    .eq("owner_id", user!.id);
-
-  const workspaceIds = (workspaces ?? []).map((w: { id: string }) => w.id);
-  if (!workspaceIds.length) return NextResponse.json(ok({ campaigns: [] }));
-
+  // RLS policy campaigns_workspace_crud scopes to user's workspaces automatically
   const { data: campaigns, error } = await supabase
     .from("campaigns")
     .select("*")
-    .in("workspace_id", workspaceIds)
     .order("created_at", { ascending: false });
 
   if (error) {
-    logger.error({ userId: user!.id, error: error.message }, "Failed to list campaigns");
+    logger.error({ userId: user.id, error: error.message }, "Failed to list campaigns");
     return NextResponse.json(err("Failed to fetch campaigns"), { status: 500 });
   }
 
@@ -35,10 +25,10 @@ export async function GET(_req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const { user, response } = await requireUser();
+  const { user, supabase, response } = await requireUser();
   if (response) return response;
 
-  if (!checkRateLimit(`campaigns:${user!.id}`, 20, 60_000)) {
+  if (!checkRateLimit(`campaigns:${user.id}`, 20, 60_000)) {
     return NextResponse.json(err("Rate limit exceeded"), { status: 429 });
   }
 
@@ -49,23 +39,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(err("Invalid JSON"), { status: 400 });
   }
 
-  const supabase = getServiceClient();
-
-  // Ensure workspace exists for user
+  // Workspace lookup/creation requires service client (user may not have workspace yet)
+  const adminSupabase = getServiceClient();
   let workspaceId: string;
-  const { data: existingWs } = await supabase
+  const { data: existingWs } = await adminSupabase
     .from("workspaces")
     .select("id")
-    .eq("owner_id", user!.id)
+    .eq("owner_id", user.id)
     .single();
 
   if (existingWs) {
     workspaceId = existingWs.id;
   } else {
     // Create default workspace on first campaign
-    const { data: newWs, error: wsErr } = await supabase
+    const { data: newWs, error: wsErr } = await adminSupabase
       .from("workspaces")
-      .insert({ owner_id: user!.id, name: "My Workspace" })
+      .insert({ owner_id: user.id, name: "My Workspace" })
       .select()
       .single();
     if (wsErr || !newWs) {
@@ -74,6 +63,7 @@ export async function POST(req: NextRequest) {
     workspaceId = newWs.id;
   }
 
+  // Campaign insert via session client — RLS CHECK policy enforces workspace ownership
   const { data: campaign, error } = await supabase
     .from("campaigns")
     .insert({
@@ -90,7 +80,7 @@ export async function POST(req: NextRequest) {
     .single();
 
   if (error) {
-    logger.error({ userId: user!.id, error: error.message }, "Failed to create campaign");
+    logger.error({ userId: user.id, error: error.message }, "Failed to create campaign");
     return NextResponse.json(err("Failed to create campaign"), { status: 500 });
   }
 

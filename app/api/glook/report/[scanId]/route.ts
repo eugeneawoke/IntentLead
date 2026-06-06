@@ -13,19 +13,23 @@ export async function GET(
 
   const { scanId } = await params;
 
+  // Glook `scans` table has public SELECT RLS — service client reads without restriction.
+  // User auth verified above; scan data is not sensitive (public audit results).
   const supabase = getServiceClient();
 
-  // TODO: уточнить поля schema Glook — читаем из общей Supabase
-  // Glook schema fields unknown — stub with best-guess field names
   const { data: scan, error } = await supabase
-    .from("scans") // TODO: verify actual Glook table name
-    .select("id, url, pain_points, business_context, created_at")
+    .from("scans")
+    .select("id, url, status, results, created_at")
     .eq("id", scanId)
     .single();
 
   if (error || !scan) {
     logger.warn({ scanId, userId: user!.id }, "Glook scan not found");
     return NextResponse.json(err("Scan not found"), { status: 404 });
+  }
+
+  if (scan.status !== "done") {
+    return NextResponse.json(err("Scan not ready"), { status: 202 });
   }
 
   return NextResponse.json(ok({ scan }));

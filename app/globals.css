@@ -53,12 +53,32 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  --foreground-muted: 0 0% 80%;
+  /* HSL channel values — used as: hsl(var(--green)) */
+  --green:  150 80% 42%;  /* emerald — как в оригинальном DataGridHero */
+  --pink:   300 100% 70%;
+  --cyan:   180 100% 60%;
+  --yellow: 50 100% 60%;
+  --orange: 25 100% 60%;
+  --font-7xl: 4.5rem;
+  --font-lg: 1.125rem;
+  --font-bold: 800;
+  --shadow-md: 0 0 20px rgba(0, 0, 0, 0.5);
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
   background-color: var(--bg);
   color: var(--text);
-  font-family: "Inter", system-ui, sans-serif;
+  font-family: var(--font-sans, "DM Sans", system-ui, sans-serif);
+}
+
+/* Display font — Space Grotesk для заголовков */
+h1, h2, h3, .font-display {
+  font-family: var(--font-display, "Space Grotesk", system-ui, sans-serif);
 }
 
 @theme inline {
@@ -102,6 +122,60 @@ body {
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* ── DataGridHero animation ──────────────────────── */
+@keyframes cell-pulse {
+  from { opacity: var(--opacity-min, 0.05); }
+  to   { opacity: var(--opacity-max, 0.6);  }
+}
+
+/* ── DataGridHero layout ──────────────────────────── */
+.data-grid-hero {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+.grid-container {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  --mouse-x: 50%;
+  --mouse-y: 50%;
+  --mouse-glow-opacity: 0;
+}
+
+.grid-container::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    380px circle at var(--mouse-x) var(--mouse-y),
+    rgba(163, 230, 53, 0.10),
+    transparent 70%
+  );
+  opacity: var(--mouse-glow-opacity);
+  pointer-events: none;
+  z-index: 1;
+  transition: opacity 0.3s ease;
+}
+
+.grid-cell {
+  border-radius: 2px;
+  aspect-ratio: 1;
+}
+
+.hero-content {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 1.5rem;
 }
 
 .dark {
