@@ -123,6 +123,9 @@ function Dock() {
         },
       };
     }
+    if (item.id === "pricing") {
+      return { ...item, onClick: () => router.push("/pricing") };
+    }
     return { ...item, onClick: () => handleNav(item.id) };
   });
 
