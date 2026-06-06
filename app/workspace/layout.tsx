@@ -1,10 +1,12 @@
 import Sidebar from "@/components/workspace/Sidebar";
+import { requireUserSC } from "@/lib/auth/requireUserSC";
 
-export default function WorkspaceLayout({
+export default async function WorkspaceLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  await requireUserSC();
   return (
     <div
       className="flex h-screen"
