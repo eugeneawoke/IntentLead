@@ -16,11 +16,13 @@ export const metadata: Metadata = {
     description: "Signal → Company → Email → Message. Pay only for leads that pass all 4 verification levels.",
     siteName: "IntentLead AI",
     type: "website",
+    images: [{ url: "/og.png", width: 1200, height: 630 }],
   },
   twitter: {
     card: "summary_large_image",
     title: "IntentLead AI — Find people ready to buy",
     description: "Signal → Company → Email → Message.",
+    images: ["/og.png"],
   },
 };
 
