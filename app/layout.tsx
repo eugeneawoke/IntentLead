@@ -9,8 +9,19 @@ const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], variable: "--font-displ
 const dmSans = DM_Sans({ subsets: ["latin"], variable: "--font-sans", weight: ["400", "500", "600"] });
 
 export const metadata: Metadata = {
-  title: "IntentLead AI",
-  description: "Find people ready to buy. Signal → Company → Email → Message.",
+  title: "IntentLead AI — Find people ready to buy",
+  description: "Signal → Company → Email → Message. Pay only for leads that pass all 4 verification levels.",
+  openGraph: {
+    title: "IntentLead AI — Find people ready to buy",
+    description: "Signal → Company → Email → Message. Pay only for leads that pass all 4 verification levels.",
+    siteName: "IntentLead AI",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "IntentLead AI — Find people ready to buy",
+    description: "Signal → Company → Email → Message.",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
