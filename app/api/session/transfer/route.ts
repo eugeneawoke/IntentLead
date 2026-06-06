@@ -57,12 +57,16 @@ export async function POST(req: NextRequest) {
 
   // Save messages
   if (anonSession.messages && anonSession.messages.length > 0) {
-    const msgs = anonSession.messages.map((m) => ({
+    const MAX_MESSAGES = 50;
+    const safeMsgs = anonSession.messages.slice(0, MAX_MESSAGES).map((m) => ({
       conversation_id: conversation.id,
-      role: m.role,
-      content: m.content,
+      role: m.role === "assistant" ? "assistant" : "user", // ensure valid enum
+      content: String(m.content).slice(0, 10000),
     }));
-    await supabase.from("conversation_messages").insert(msgs);
+    const { error: msgsErr } = await supabase.from("conversation_messages").insert(safeMsgs);
+    if (msgsErr) {
+      logger.error({ userId: user!.id, error: String(msgsErr) }, "Failed to save messages during anon transfer");
+    }
   }
 
   // Create draft campaign if intake has content
@@ -71,7 +75,7 @@ export async function POST(req: NextRequest) {
   let campaignId: string | null = null;
 
   if (hasMeaningfulIntake) {
-    const { data: campaign } = await supabase
+    const { data: campaign, error: campErr } = await supabase
       .from("campaigns")
       .insert({
         workspace_id: workspace.id,
@@ -87,6 +91,9 @@ export async function POST(req: NextRequest) {
       .select("id")
       .single();
 
+    if (campErr) {
+      logger.warn({ userId: user!.id, error: String(campErr) }, "Failed to create campaign during anon transfer");
+    }
     if (campaign) {
       campaignId = campaign.id;
       await supabase
