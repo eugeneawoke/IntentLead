@@ -122,29 +122,38 @@ export async function POST(req: NextRequest) {
         });
     }
 
-    if (messagesUsed >= limit) {
-      return NextResponse.json(
-        err(`Daily message limit reached (${limit}/day on your plan). Limit resets at midnight UTC.`),
-        { status: 429 }
-      );
-    }
-
-    // Increment counter fire-and-forget
-    void supabase
+    // Atomic increment: PostgreSQL UPDATE with WHERE guard — only succeeds if under limit.
+    // Returns 0 rows when already at/over limit, preventing races between concurrent requests.
+    const { data: incRows, error: incErr } = await supabase
       .from("workspaces")
       .update({ chat_messages_today: messagesUsed + 1 })
       .eq("id", workspace.id)
-      .then(({ error }) => {
-        if (error) {
-          logger.warn({ workspaceId: workspace!.id, error: error.message }, "Failed to increment daily message counter");
-        }
-      });
+      .lte("chat_messages_today", limit - 1)
+      .select("id");
+
+    if (incErr || !incRows || incRows.length === 0) {
+      return NextResponse.json(
+        err("Daily message limit reached. Limit resets at midnight UTC."),
+        { status: 429 }
+      );
+    }
   }
 
   // Load conversation history
   let messages: Array<{ role: "user" | "assistant"; content: string }> = [];
 
   if (body.conversationId) {
+    // IDOR guard: verify conversation belongs to this workspace before loading
+    const { data: conv } = await supabase
+      .from("conversations")
+      .select("id")
+      .eq("id", body.conversationId)
+      .eq("workspace_id", workspace.id)
+      .single();
+    if (!conv) {
+      return NextResponse.json(err("Conversation not found"), { status: 404 });
+    }
+
     const { data: history } = await supabase
       .from("conversation_messages")
       .select("role, content")
