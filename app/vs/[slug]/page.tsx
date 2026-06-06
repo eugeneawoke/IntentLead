@@ -50,6 +50,8 @@ export default async function VsSlugPage({
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)" }}>
       <main style={{ maxWidth: 720, margin: "0 auto", padding: "64px 24px" }}>
+
+        {/* Back link */}
         <div style={{ marginBottom: 32 }}>
           <Link
             href="/vs"
@@ -67,40 +69,56 @@ export default async function VsSlugPage({
           </Link>
         </div>
 
-        <p style={{ fontSize: 11, color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.15em", fontWeight: 600, margin: "0 0 8px" }}>
-          vs
-        </p>
-        <h1
-          style={{
-            fontSize: "clamp(24px, 4vw, 40px)",
-            fontWeight: 800,
-            color: "var(--text)",
-            margin: "0 0 16px",
-            fontFamily: "var(--font-display, 'Space Grotesk', sans-serif)",
-          }}
-        >
-          IntentLead AI vs {c.name}
-        </h1>
+        {/* Header */}
+        <div style={{ marginBottom: 40 }}>
+          <div style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+            background: "rgba(163,230,53,0.08)",
+            border: "1px solid rgba(163,230,53,0.2)",
+            borderRadius: 999,
+            padding: "4px 14px",
+            fontSize: 12,
+            fontWeight: 600,
+            color: "var(--accent)",
+            letterSpacing: "0.06em",
+            textTransform: "uppercase",
+            marginBottom: 16,
+          }}>
+            vs {c.name}
+          </div>
+          <h1
+            style={{
+              fontSize: "clamp(28px, 5vw, 44px)",
+              fontWeight: 800,
+              letterSpacing: "-0.02em",
+              color: "var(--text)",
+              margin: "0 0 8px",
+              fontFamily: "var(--font-display, 'Space Grotesk', sans-serif)",
+            }}
+          >
+            IntentLead AI vs {c.name}
+          </h1>
+        </div>
 
         {/* TL;DR */}
         <div
           style={{
-            background: "var(--surface)",
-            border: "1px solid var(--border)",
-            borderRadius: 12,
-            padding: "16px 20px",
-            marginBottom: 48,
-            fontSize: 14,
+            borderLeft: "3px solid var(--accent)",
+            paddingLeft: 20,
+            marginBottom: 56,
+            fontSize: 15,
             color: "var(--text-muted)",
-            lineHeight: 1.7,
+            lineHeight: 1.8,
           }}
         >
-          <strong style={{ color: "var(--text)" }}>TL;DR — </strong>
+          <strong style={{ color: "var(--text)", display: "block", marginBottom: 4 }}>The short version</strong>
           {c.tldr}
         </div>
 
         {/* Comparison table */}
-        <section style={{ marginBottom: 48 }}>
+        <section style={{ marginBottom: 56 }}>
           <h2
             style={{
               fontSize: 18,
@@ -112,84 +130,115 @@ export default async function VsSlugPage({
           >
             Feature comparison
           </h2>
-          <div style={{ overflowX: "auto" }}>
+          <div style={{ overflowX: "auto", borderRadius: 12, border: "1px solid var(--border)" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead>
-                <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                  <th style={{ textAlign: "left", padding: "8px 12px 12px 0", color: "var(--text-muted)", fontWeight: 500 }}>Feature</th>
-                  <th style={{ textAlign: "center", padding: "8px 12px 12px", color: "var(--accent)", fontWeight: 600 }}>IntentLead</th>
-                  <th style={{ textAlign: "center", padding: "8px 0 12px 12px", color: "var(--text-muted)", fontWeight: 500 }}>{c.name}</th>
+                <tr style={{
+                  position: "sticky",
+                  top: 0,
+                  background: "var(--bg)",
+                  zIndex: 10,
+                  borderBottom: "1px solid var(--border)",
+                }}>
+                  <th style={{ textAlign: "left", padding: "14px 16px", color: "var(--text-muted)", fontWeight: 500 }}>Feature</th>
+                  <th style={{ textAlign: "center", padding: "14px 16px", color: "var(--accent)", fontWeight: 700 }}>IntentLead</th>
+                  <th style={{ textAlign: "center", padding: "14px 16px", color: "var(--text-muted)", fontWeight: 500 }}>{c.name}</th>
                 </tr>
               </thead>
               <tbody>
                 {c.features.map((f, i) => (
-                  <tr key={i} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-                    <td style={{ padding: "10px 12px 10px 0", color: "var(--text-muted)" }}>{f.label}</td>
-                    <td style={{ textAlign: "center", padding: "10px 12px" }}>
+                  <tr
+                    key={i}
+                    style={{
+                      borderBottom: "1px solid rgba(255,255,255,0.04)",
+                      background: i % 2 === 1 ? "rgba(255,255,255,0.02)" : "transparent",
+                    }}
+                  >
+                    <td style={{ padding: "11px 16px", color: "var(--text-muted)" }}>{f.label}</td>
+                    <td style={{
+                      textAlign: "center",
+                      padding: "11px 16px",
+                      borderLeft: "1px solid rgba(163,230,53,0.12)",
+                      borderRight: "1px solid rgba(163,230,53,0.12)",
+                    }}>
                       <FeatureValue value={f.intentlead} />
                     </td>
-                    <td style={{ textAlign: "center", padding: "10px 0 10px 12px" }}>
+                    <td style={{ textAlign: "center", padding: "11px 16px" }}>
                       <FeatureValue value={f.competitor} />
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            <p style={{ fontSize: 11, color: "var(--text-faint)", margin: "8px 0 0" }}>
-              As of {new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" })}. Pricing and features may change.
-            </p>
           </div>
+          <p style={{ fontSize: 11, color: "var(--text-faint)", margin: "10px 0 0" }}>
+            As of {new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" })}. Pricing and features may change.
+          </p>
         </section>
 
         {/* Strengths */}
-        <section style={{ marginBottom: 40 }}>
-          <h2 style={{ fontSize: 16, fontWeight: 600, color: "var(--text)", margin: "0 0 16px", fontFamily: "var(--font-display, 'Space Grotesk', sans-serif)" }}>
+        <section style={{ marginBottom: 48 }}>
+          <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--text)", margin: "0 0 16px", fontFamily: "var(--font-display, 'Space Grotesk', sans-serif)" }}>
             Where {c.name} is strong
           </h2>
-          <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {c.strengths.map((s) => (
-              <li key={s} style={{ display: "flex", gap: 10, fontSize: 14, color: "var(--text-muted)", lineHeight: 1.5 }}>
-                <span style={{ color: "var(--text-muted)", flexShrink: 0 }}>+</span>
+              <span key={s} style={{
+                background: "rgba(163,230,53,0.06)",
+                border: "1px solid rgba(163,230,53,0.15)",
+                color: "var(--text-muted)",
+                borderRadius: 8,
+                padding: "8px 14px",
+                fontSize: 13,
+                lineHeight: 1.5,
+              }}>
                 {s}
-              </li>
+              </span>
             ))}
-          </ul>
+          </div>
         </section>
 
         {/* Weaknesses */}
-        <section style={{ marginBottom: 40 }}>
-          <h2 style={{ fontSize: 16, fontWeight: 600, color: "var(--text)", margin: "0 0 16px", fontFamily: "var(--font-display, 'Space Grotesk', sans-serif)" }}>
+        <section style={{ marginBottom: 48 }}>
+          <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--text)", margin: "0 0 16px", fontFamily: "var(--font-display, 'Space Grotesk', sans-serif)" }}>
             Where it falls short
           </h2>
-          <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {c.weaknesses.map((w) => (
-              <li key={w} style={{ display: "flex", gap: 10, fontSize: 14, color: "var(--text-muted)", lineHeight: 1.5 }}>
-                <span style={{ color: "var(--text-muted)", flexShrink: 0 }}>−</span>
+              <span key={w} style={{
+                background: "var(--surface)",
+                border: "1px solid var(--border)",
+                color: "var(--text-muted)",
+                borderRadius: 8,
+                padding: "8px 14px",
+                fontSize: 13,
+                lineHeight: 1.5,
+              }}>
                 {w}
-              </li>
+              </span>
             ))}
-          </ul>
+          </div>
         </section>
 
         {/* Who it's for */}
-        <section style={{ marginBottom: 48 }}>
-          <h2 style={{ fontSize: 16, fontWeight: 600, color: "var(--text)", margin: "0 0 16px", fontFamily: "var(--font-display, 'Space Grotesk', sans-serif)" }}>
+        <section style={{ marginBottom: 56 }}>
+          <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--text)", margin: "0 0 16px", fontFamily: "var(--font-display, 'Space Grotesk', sans-serif)" }}>
             Who should use what
           </h2>
           <div style={{ display: "grid", gap: 12, gridTemplateColumns: "1fr 1fr" }}>
-            <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, padding: "16px" }}>
-              <p style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "20px" }}>
+              <p style={{ fontSize: 11, fontWeight: 700, color: "var(--text-faint)", margin: "0 0 10px", textTransform: "uppercase", letterSpacing: "0.08em" }}>
                 Choose {c.name} if:
               </p>
-              <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0, lineHeight: 1.6 }}>
+              <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0, lineHeight: 1.7 }}>
                 {c.whoFor.competitor}
               </p>
             </div>
-            <div style={{ background: "rgba(163,230,53,0.05)", border: "1px solid rgba(163,230,53,0.2)", borderRadius: 10, padding: "16px" }}>
-              <p style={{ fontSize: 12, fontWeight: 600, color: "var(--accent)", margin: "0 0 8px", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            <div style={{ background: "rgba(163,230,53,0.05)", border: "1px solid rgba(163,230,53,0.2)", borderRadius: 12, padding: "20px" }}>
+              <p style={{ fontSize: 11, fontWeight: 700, color: "var(--accent)", margin: "0 0 10px", textTransform: "uppercase", letterSpacing: "0.08em" }}>
                 Choose IntentLead if:
               </p>
-              <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0, lineHeight: 1.6 }}>
+              <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0, lineHeight: 1.7 }}>
                 {c.whoFor.intentlead}
               </p>
             </div>
@@ -200,17 +249,21 @@ export default async function VsSlugPage({
         <div
           style={{
             background: "var(--surface)",
-            border: "1px solid var(--border)",
-            borderRadius: 16,
-            padding: "32px 28px",
+            border: "1px solid rgba(163,230,53,0.3)",
+            borderRadius: 20,
+            padding: "40px 32px",
             textAlign: "center",
+            boxShadow: "0 0 60px rgba(163,230,53,0.06)",
           }}
         >
-          <h2 style={{ fontSize: 20, fontWeight: 700, color: "var(--text)", margin: "0 0 8px", fontFamily: "var(--font-display, 'Space Grotesk', sans-serif)" }}>
+          <div style={{ fontSize: 12, color: "var(--accent)", fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 16 }}>
+            Start for free
+          </div>
+          <h2 style={{ fontSize: 24, fontWeight: 800, color: "var(--text)", margin: "0 0 10px", fontFamily: "var(--font-display, 'Space Grotesk', sans-serif)" }}>
             Try IntentLead free
           </h2>
-          <p style={{ fontSize: 14, color: "var(--text-muted)", margin: "0 0 20px" }}>
-            10 verified leads, no credit card required. See the difference intent makes.
+          <p style={{ fontSize: 14, color: "var(--text-muted)", margin: "0 0 24px", lineHeight: 1.6 }}>
+            10 verified leads, no credit card. See the difference intent makes.
           </p>
           <Link
             href={`/?utm_source=vs&utm_medium=organic&utm_campaign=comparison&utm_content=${slug}`}
@@ -218,9 +271,9 @@ export default async function VsSlugPage({
               display: "inline-block",
               background: "var(--accent)",
               color: "var(--accent-fg)",
-              padding: "12px 28px",
-              borderRadius: 10,
-              fontSize: 14,
+              padding: "13px 32px",
+              borderRadius: 12,
+              fontSize: 15,
               fontWeight: 700,
               textDecoration: "none",
             }}
