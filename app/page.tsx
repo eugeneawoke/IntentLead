@@ -5,6 +5,7 @@ import PricingSection from "@/components/landing/PixelPricingCard";
 import BackgroundBoxes from "@/components/ui/background-boxes";
 import LandingComposer from "@/components/landing/LandingComposer";
 import HeroSection from "@/components/landing/HeroSection";
+import { Footer } from "@/components/layout/Footer";
 
 export default function Home() {
   return (
@@ -51,6 +52,7 @@ export default function Home() {
       </section>
 
       {/* ── FOOTER ───────────────────────────────── */}
+      <Footer />
       <BackgroundBoxes />
     </main>
   );
