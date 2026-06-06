@@ -1,6 +1,9 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Footer } from "@/components/layout/Footer";
+import LandingComposer from "@/components/landing/LandingComposer";
+import BackgroundBoxes from "@/components/ui/background-boxes";
 
 export const metadata: Metadata = {
   title: "Pricing — IntentLead AI",
@@ -91,6 +94,19 @@ const FAQS = [
     q: "What sources do you use for signals?",
     a: "Reddit, Hacker News, GitHub, Stack Overflow, VK, Telegram, Habr, vc.ru, Google Reviews, Yelp, 2GIS, Yandex Business, and Foursquare. The sources used depend on your business type (SaaS vs local vs enterprise).",
   },
+];
+
+const COMPARISON: Array<{ feature: string; free: boolean | string; starter: boolean | string; growth: boolean | string; agency: boolean | string }> = [
+  { feature: "Verified leads", free: "10 (one-time)", starter: "30/mo", growth: "100/mo", agency: "300/mo" },
+  { feature: "4-level verification", free: true, starter: true, growth: true, agency: true },
+  { feature: "Credit guarantee (pay only on verified)", free: true, starter: true, growth: true, agency: true },
+  { feature: "Personalized email message", free: true, starter: true, growth: true, agency: true },
+  { feature: "CSV export", free: false, starter: true, growth: true, agency: true },
+  { feature: "Plan mode (outreach sequences)", free: "20 msg/day", starter: "100 msg/day", growth: "300 msg/day", agency: "Unlimited" },
+  { feature: "Strategy mode (ICP refinement)", free: "20 msg/day", starter: "100 msg/day", growth: "300 msg/day", agency: "Unlimited" },
+  { feature: "Team members", free: "1", starter: "1", growth: "3", agency: "10" },
+  { feature: "Priority pipeline", free: false, starter: false, growth: true, agency: true },
+  { feature: "API access", free: false, starter: false, growth: false, agency: true },
 ];
 
 function PlanCard({ plan }: { plan: typeof PLANS[0] }) {
@@ -242,19 +258,42 @@ export default function PricingPage() {
           </p>
         </div>
 
-        {/* Plan grid */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-            gap: 16,
-            marginBottom: 64,
-          }}
-        >
+        {/* Plan grid — responsive 4-col */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-16">
           {PLANS.map((plan) => (
             <PlanCard key={plan.name} plan={plan} />
           ))}
         </div>
+
+        {/* Comparison table */}
+        <section className="mb-16 overflow-x-auto">
+          <h2 style={{ fontSize: 20, fontWeight: 700, color: "var(--text)", margin: "0 0 24px", fontFamily: "var(--font-display, 'Space Grotesk', sans-serif)" }}>
+            Compare plans
+          </h2>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                <th style={{ textAlign: "left", padding: "10px 12px 10px 0", color: "var(--text-muted)", fontWeight: 500, minWidth: 180 }}>Feature</th>
+                <th style={{ textAlign: "center", padding: "10px 12px", color: "var(--text-muted)", fontWeight: 500 }}>Free</th>
+                <th style={{ textAlign: "center", padding: "10px 12px", color: "var(--text-muted)", fontWeight: 500 }}>Starter</th>
+                <th style={{ textAlign: "center", padding: "10px 12px", color: "var(--accent)", fontWeight: 600 }}>Growth</th>
+                <th style={{ textAlign: "center", padding: "10px 0 10px 12px", color: "var(--text-muted)", fontWeight: 500 }}>Agency</th>
+              </tr>
+            </thead>
+            <tbody>
+              {COMPARISON.map((row) => (
+                <tr key={row.feature} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                  <td style={{ padding: "10px 12px 10px 0", color: "var(--text-muted)" }}>{row.feature}</td>
+                  {(["free", "starter", "growth", "agency"] as const).map((plan) => (
+                    <td key={plan} style={{ textAlign: "center", padding: "10px 12px", color: row[plan] === true ? "var(--accent)" : row[plan] === false ? "var(--text-faint)" : "var(--text-muted)", fontWeight: row[plan] === true || row[plan] === false ? 700 : 400, fontSize: typeof row[plan] === "string" ? 12 : 14 }}>
+                      {row[plan] === true ? "✓" : row[plan] === false ? "—" : row[plan]}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
 
         {/* FAQ */}
         <div style={{ maxWidth: 640, margin: "0 auto" }}>
@@ -283,30 +322,24 @@ export default function PricingPage() {
           </div>
         </div>
 
-        {/* CTA */}
-        <div style={{ textAlign: "center", marginTop: 64, padding: "40px 0", borderTop: "1px solid var(--border)" }}>
-          <p style={{ fontSize: 16, color: "var(--text-muted)", margin: "0 0 16px" }}>
-            Not sure? Start free — no credit card required.
+        {/* Try free — AI chat */}
+        <div style={{ marginTop: 80, borderTop: "1px solid var(--border)", paddingTop: 64, textAlign: "center" }}>
+          <h2 style={{ fontSize: "clamp(28px, 4vw, 48px)", fontWeight: 800, letterSpacing: "-0.02em", color: "var(--text)", margin: "0 0 12px", fontFamily: "var(--font-display, 'Space Grotesk', sans-serif)" }}>
+            Start finding leads for free
+          </h2>
+          <p style={{ color: "var(--text-muted)", fontSize: 16, margin: "0 0 32px" }}>
+            10 verified leads on us. No card required.
           </p>
-          <Link
-            href="/"
-            style={{
-              display: "inline-block",
-              background: "var(--accent)",
-              color: "var(--accent-fg)",
-              padding: "12px 28px",
-              borderRadius: 12,
-              fontSize: 14,
-              fontWeight: 700,
-              textDecoration: "none",
-            }}
-          >
-            Get 10 free verified leads →
-          </Link>
+          <div className="w-full max-w-3xl mx-auto">
+            <Suspense>
+              <LandingComposer variant="fat" composerId="pricing" />
+            </Suspense>
+          </div>
         </div>
       </div>
 
       <Footer />
+      <BackgroundBoxes />
     </main>
   );
 }
