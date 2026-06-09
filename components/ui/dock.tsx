@@ -1,9 +1,8 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { Home, Zap, CreditCard, MessageSquare } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
-import { getBrowserClient } from "@/lib/supabase/client";
-import type { User } from "@supabase/supabase-js";
+import { useUser } from "@/lib/auth/UserContext";
 
 // ── Types ─────────────────────────────────────────────
 interface DockIconProps {
@@ -64,21 +63,7 @@ function DockIcon({ icon: Icon, label, badge, onClick }: DockIconProps) {
 function Dock() {
   const router = useRouter();
   const pathname = usePathname();
-  const [user, setUser] = useState<User | null>(null);
-
-  useEffect(() => {
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL) return;
-    try {
-      const supabase = getBrowserClient();
-      supabase.auth.getSession().then(({ data: { session } }) => setUser(session?.user ?? null));
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
-        setUser(session?.user ?? null);
-      });
-      return () => subscription.unsubscribe();
-    } catch {
-      // Supabase not configured — stay logged out
-    }
-  }, []);
+  const user = useUser();
 
   // On non-landing pages: navigate to /#section instead of scroll
   const handleNav = (id: string) => {

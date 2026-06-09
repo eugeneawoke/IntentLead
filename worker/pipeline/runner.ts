@@ -218,13 +218,14 @@ async function processLead(
 
   if (!messageGenerated) {
     log("error", { leadId, err: String(lastMsgErr) }, "Message generation failed after 3 retries — lead stays verified");
-    await supabase.from("messages").insert({
+    const { error: insertErr } = await supabase.from("messages").insert({
       lead_id: leadId,
       body: "",
       generation_failed: true,
-    }).catch((insertErr: unknown) => {
-      log("error", { leadId, err: String(insertErr) }, "Failed to record message generation failure");
     });
+    if (insertErr) {
+      log("error", { leadId, err: String(insertErr) }, "Failed to record message generation failure");
+    }
   }
 
   log("info", { leadId }, "Lead verified");

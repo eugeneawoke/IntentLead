@@ -1,35 +1,17 @@
 "use client";
-import { useState, useEffect } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { getBrowserClient } from "@/lib/supabase/client";
 import { useAuthModal } from "@/components/auth/AuthModalContext";
 import { useLang } from "@/lib/i18n/LangContext";
-import type { User } from "@supabase/supabase-js";
+import { useUser } from "@/lib/auth/UserContext";
 
 // FluidGlassPill loads client-only (no SSR — Three.js needs browser)
 const FluidGlassPill = dynamic(() => import("./FluidGlassPill"), { ssr: false });
 
 export default function SiteHeader() {
-  const [user, setUser] = useState<User | null>(null);
+  const user = useUser();
   const { lang, setLang, t } = useLang();
   const { openModal } = useAuthModal();
-
-  useEffect(() => {
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL) return;
-    try {
-      const supabase = getBrowserClient();
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        setUser(session?.user ?? null);
-      });
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
-        setUser(session?.user ?? null);
-      });
-      return () => subscription.unsubscribe();
-    } catch {
-      // Supabase not configured
-    }
-  }, []);
 
   return (
     <header
