@@ -342,7 +342,7 @@ export default function ComparePage() {
               Full feature comparison
             </h2>
             <p style={{ fontSize: 14, color: "var(--text-muted)", margin: 0 }}>
-              Scroll or use arrows to compare all 5 alternatives. Click &ldquo;Full comparison&rdquo; for a detailed head-to-head.
+              Compare IntentLead AI vs all 5 alternatives. Click &ldquo;Full comparison&rdquo; for a detailed head-to-head.
             </p>
           </div>
           <CompareTableScroll />

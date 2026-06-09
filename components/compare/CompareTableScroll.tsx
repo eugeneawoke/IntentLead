@@ -2,7 +2,6 @@
 
 import React, { useRef, useState, useEffect } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 import { getBrowserClient } from "@/lib/supabase/client";
 import { useAuthModal } from "@/components/auth/AuthModalContext";
 import type { User } from "@supabase/supabase-js";
@@ -10,11 +9,11 @@ import type { User } from "@supabase/supabase-js";
 // ── Data ──────────────────────────────────────────────────────────────────────
 
 const COMPETITORS = [
-  { name: "Apollo.io",     slug: "apollo",    price: "$49/mo" },
+  { name: "Apollo.io",     slug: "apollo",    price: "$49/user" },
   { name: "Hunter.io",     slug: "hunter",    price: "$34/mo" },
-  { name: "Clay",          slug: "clay",      price: "$149/mo" },
+  { name: "Clay",          slug: "clay",      price: "$167/mo" },
   { name: "Instantly.ai",  slug: "instantly", price: "$37/mo" },
-  { name: "Lemlist",       slug: "lemlist",   price: "$39/mo" },
+  { name: "Lemlist",       slug: "lemlist",   price: "$55/mo" },
 ] as const;
 
 type CellValue = "yes" | "no" | "limited" | "agency" | string;
@@ -104,11 +103,11 @@ const ROWS: Row[] = [
   },
   {
     feature: "Free tier available",
-    values: ["yes", "limited", "yes", "no", "yes", "no"],
+    values: ["yes", "limited", "yes", "limited", "no", "no"],
   },
   {
     feature: "Starts at (per month)",
-    values: ["$0", "$49", "$34", "$149", "$37", "$39"],
+    values: ["$0", "$49", "$34", "$167", "$37", "$55"],
   },
 ];
 
@@ -240,9 +239,9 @@ function GetStartedButton() {
 export function CompareTableScroll() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
-  const [canScrollRight, setCanScrollRight] = useState(true);
+  const [canScrollRight, setCanScrollRight] = useState(false);
 
-  function updateArrows() {
+  function updateFades() {
     const el = scrollRef.current;
     if (!el) return;
     setCanScrollLeft(el.scrollLeft > 8);
@@ -252,54 +251,40 @@ export function CompareTableScroll() {
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    updateArrows();
-    el.addEventListener("scroll", updateArrows, { passive: true });
-    window.addEventListener("resize", updateArrows);
+    updateFades();
+    el.addEventListener("scroll", updateFades, { passive: true });
+    window.addEventListener("resize", updateFades);
     return () => {
-      el.removeEventListener("scroll", updateArrows);
-      window.removeEventListener("resize", updateArrows);
+      el.removeEventListener("scroll", updateFades);
+      window.removeEventListener("resize", updateFades);
     };
   }, []);
 
-  function scrollBy(delta: number) {
-    scrollRef.current?.scrollBy({ left: delta, behavior: "smooth" });
-  }
-
   return (
     <div style={{ position: "relative" }}>
-      {/* Left arrow */}
-      <button
-        onClick={() => scrollBy(-280)}
-        aria-label="Scroll left"
+      {/* Left fade — signals scrollability */}
+      <div
+        aria-hidden
         style={{
-          position: "absolute", left: -20, top: "50%", transform: "translateY(-50%)",
-          zIndex: 10, width: 36, height: 36, borderRadius: "50%",
-          background: "var(--surface-2)", border: "1px solid var(--border-strong)",
-          color: "var(--text)", cursor: "pointer", display: "flex",
-          alignItems: "center", justifyContent: "center",
-          opacity: canScrollLeft ? 1 : 0.2, pointerEvents: canScrollLeft ? "auto" : "none",
-          transition: "opacity 0.2s",
+          position: "absolute", left: 0, top: 0, bottom: 0, width: 64, zIndex: 4,
+          background: "linear-gradient(to right, var(--bg) 30%, transparent)",
+          pointerEvents: "none",
+          opacity: canScrollLeft ? 1 : 0,
+          transition: "opacity 0.25s",
         }}
-      >
-        <ChevronLeft size={16} />
-      </button>
+      />
 
-      {/* Right arrow */}
-      <button
-        onClick={() => scrollBy(280)}
-        aria-label="Scroll right"
+      {/* Right fade — signals scrollability */}
+      <div
+        aria-hidden
         style={{
-          position: "absolute", right: -20, top: "50%", transform: "translateY(-50%)",
-          zIndex: 10, width: 36, height: 36, borderRadius: "50%",
-          background: "var(--surface-2)", border: "1px solid var(--border-strong)",
-          color: "var(--text)", cursor: "pointer", display: "flex",
-          alignItems: "center", justifyContent: "center",
-          opacity: canScrollRight ? 1 : 0.2, pointerEvents: canScrollRight ? "auto" : "none",
-          transition: "opacity 0.2s",
+          position: "absolute", right: 0, top: 0, bottom: 0, width: 64, zIndex: 4,
+          background: "linear-gradient(to left, var(--bg) 30%, transparent)",
+          pointerEvents: "none",
+          opacity: canScrollRight ? 1 : 0,
+          transition: "opacity 0.25s",
         }}
-      >
-        <ChevronRight size={16} />
-      </button>
+      />
 
       {/* Scrollable table */}
       <div
@@ -310,9 +295,7 @@ export function CompareTableScroll() {
           msOverflowStyle: "none",
         }}
       >
-        <style>{`
-          div::-webkit-scrollbar { display: none; }
-        `}</style>
+        <style>{`div::-webkit-scrollbar{display:none}`}</style>
 
         <table
           style={{
@@ -433,6 +416,20 @@ export function CompareTableScroll() {
           </tbody>
         </table>
       </div>
+
+      {/* Scroll hint — only when table overflows */}
+      {canScrollRight && (
+        <div style={{
+          textAlign: "right", paddingTop: 10,
+          fontSize: 11, color: "var(--text-faint)",
+          display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4,
+        }}>
+          <span>Scroll to compare</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M5 12h14M12 5l7 7-7 7"/>
+          </svg>
+        </div>
+      )}
     </div>
   );
 }
