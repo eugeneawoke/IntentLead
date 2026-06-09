@@ -10,16 +10,23 @@ export function getBrowserClient() {
 }
 
 export function getServerClient(
-  cookieStore: { get: (name: string) => { value: string } | undefined; set?: (name: string, value: string, options: CookieOptions) => void }
+  cookieStore: { getAll(): { name: string; value: string }[]; set(name: string, value: string, options?: CookieOptions): void }
 ) {
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(name: string) { return cookieStore.get(name)?.value; },
-        set(name: string, value: string, options: CookieOptions) { cookieStore.set?.(name, value, options); },
-        remove(name: string, options: CookieOptions) { cookieStore.set?.(name, "", { ...options, maxAge: 0 }); },
+        getAll() { return cookieStore.getAll(); },
+        setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            );
+          } catch {
+            // Server Component context — set is a no-op, acceptable
+          }
+        },
       },
     }
   );

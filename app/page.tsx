@@ -1,10 +1,12 @@
 import { Suspense } from "react";
 import DockNav from "@/components/ui/dock";
+import { AuthTrigger } from "@/components/landing/AuthTrigger";
 import GradientCards from "@/components/ui/gradient-card-showcase";
 import PricingSection from "@/components/landing/PixelPricingCard";
 import BackgroundBoxes from "@/components/ui/background-boxes";
 import LandingComposer from "@/components/landing/LandingComposer";
 import HeroSection from "@/components/landing/HeroSection";
+import { Footer } from "@/components/layout/Footer";
 
 export default function Home() {
   return (
@@ -15,6 +17,10 @@ export default function Home() {
         overflowX: "hidden",
       }}
     >
+      <Suspense>
+        <AuthTrigger />
+      </Suspense>
+
       <DockNav />
 
       {/* ── HERO ─────────────────────────────────── */}
@@ -51,6 +57,7 @@ export default function Home() {
       </section>
 
       {/* ── FOOTER ───────────────────────────────── */}
+      <Footer />
       <BackgroundBoxes />
     </main>
   );
