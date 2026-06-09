@@ -1,52 +1,40 @@
 /**
- * Distributed rate limiter via Upstash Redis.
- * Gracefully degrades to allow-all if UPSTASH_REDIS_REST_URL is not configured.
- *
- * Required env vars (add to Vercel + .env.local):
- *   UPSTASH_REDIS_REST_URL
- *   UPSTASH_REDIS_REST_TOKEN
+ * Distributed rate limiter via Supabase (shared DB with Glook).
+ * Uses check_rate_limit() RPC — atomic fixed-window counter, no TOCTOU.
+ * Gracefully degrades to allow-all if Supabase is not configured.
  */
-import { Ratelimit } from "@upstash/ratelimit";
-import { Redis } from "@upstash/redis";
-
-// Cache limiter instances per (limit, window) combination
-const limiterCache = new Map<string, Ratelimit>();
-
-function getLimiter(limit: number, windowMs: number): Ratelimit | null {
-  if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
-    // Redis not configured — rate limiting disabled. Add env vars to enable.
-    return null;
-  }
-  const cacheKey = `${limit}:${windowMs}`;
-  if (!limiterCache.has(cacheKey)) {
-    const windowSeconds = Math.ceil(windowMs / 1000);
-    limiterCache.set(
-      cacheKey,
-      new Ratelimit({
-        redis: Redis.fromEnv(),
-        limiter: Ratelimit.slidingWindow(limit, `${windowSeconds} s`),
-        prefix: "il_rl",
-        analytics: false,
-      })
-    );
-  }
-  return limiterCache.get(cacheKey)!;
-}
+import { getServiceClient } from "@/lib/supabase/client";
 
 export async function checkRateLimit(
   key: string,
   limit: number,
   windowMs: number
 ): Promise<boolean> {
-  const limiter = getLimiter(limit, windowMs);
-  if (!limiter) return true; // graceful degradation
+  if (
+    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    !process.env.SUPABASE_SERVICE_ROLE_KEY
+  ) {
+    // Not configured — fail open
+    return true;
+  }
 
   try {
-    const { success } = await limiter.limit(key);
-    return success;
-  } catch {
-    // Redis error — fail open (allow request), log warning
-    console.warn("[ratelimit] Redis error, allowing request");
-    return true;
+    const supabase = getServiceClient();
+    const windowSeconds = Math.ceil(windowMs / 1000);
+    const { data, error } = await supabase.rpc("check_rate_limit", {
+      p_key: key,
+      p_max_requests: limit,
+      p_window_seconds: windowSeconds,
+    });
+
+    if (error) {
+      console.warn("[ratelimit] RPC error, allowing request:", error.message);
+      return true; // fail open
+    }
+
+    return data === true;
+  } catch (err) {
+    console.warn("[ratelimit] Unexpected error, allowing request:", err);
+    return true; // fail open
   }
 }
