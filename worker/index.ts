@@ -1,4 +1,5 @@
 import express from "express";
+import { timingSafeEqual } from "crypto";
 import { runPipeline } from "./pipeline/runner";
 
 const app = express();
@@ -13,7 +14,13 @@ function log(level: string, meta: Record<string, unknown>, msg: string) {
 // Auth middleware for /internal/* routes
 function requireInternalKey(req: express.Request, res: express.Response, next: express.NextFunction) {
   const key = req.headers["x-internal-key"];
-  if (!key || key !== process.env.WORKER_SECRET) {
+  const secret = process.env.WORKER_SECRET ?? "";
+
+  if (
+    typeof key !== "string" ||
+    key.length !== secret.length ||
+    !timingSafeEqual(Buffer.from(key), Buffer.from(secret))
+  ) {
     res.status(401).json({ success: false, error: "Unauthorized" });
     return;
   }
@@ -28,6 +35,12 @@ app.post("/internal/run-pipeline", requireInternalKey, async (req, res) => {
   const { campaignId } = req.body as { campaignId?: string };
   if (!campaignId) {
     res.status(400).json({ success: false, error: "campaignId required" });
+    return;
+  }
+
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!UUID_RE.test(campaignId)) {
+    res.status(400).json({ success: false, error: "Invalid campaignId format" });
     return;
   }
 

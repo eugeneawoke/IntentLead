@@ -24,6 +24,7 @@ CREATE POLICY "workspace_members_read" ON workspace_members
 CREATE OR REPLACE FUNCTION get_user_workspace_ids()
 RETURNS SETOF uuid
 LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = public
 AS $$
   SELECT id FROM workspaces WHERE owner_id = auth.uid()
   UNION

@@ -90,17 +90,6 @@ export default function LandingComposer({
 
   return (
     <div className={`flex flex-col items-center mx-auto ${isFat ? "max-w-xl" : "max-w-3xl"} w-full`}>
-      <style>{`
-        @keyframes composer-border-glow {
-          0%   { box-shadow: 0 8px 32px rgba(0,0,0,0.4); border-color: var(--border); }
-          20%  { box-shadow: 0 0 0 2px rgba(163,230,53,0.75), 0 0 48px rgba(163,230,53,0.28), 0 8px 32px rgba(0,0,0,0.4); border-color: rgba(163,230,53,0.6); }
-          60%  { box-shadow: 0 0 0 1.5px rgba(163,230,53,0.4), 0 0 24px rgba(163,230,53,0.15), 0 8px 32px rgba(0,0,0,0.4); border-color: rgba(163,230,53,0.3); }
-          100% { box-shadow: 0 8px 32px rgba(0,0,0,0.4); border-color: var(--border); }
-        }
-        .composer-shimmer-active {
-          animation: composer-border-glow 1.3s ease-out forwards;
-        }
-      `}</style>
     <div
       data-composer-id={composerId}
       className={`w-full rounded-3xl transition-all duration-200 ${shimmer ? "composer-shimmer-active" : ""}`}
@@ -178,7 +167,7 @@ export default function LandingComposer({
                     position: "absolute",
                     bottom: "calc(100% + 8px)",
                     right: 0,
-                    background: "#1A1D21",
+                    background: "var(--surface-2)",
                     border: "1px solid rgba(255,255,255,0.08)",
                     borderRadius: 14,
                     overflow: "hidden",
@@ -291,7 +280,7 @@ export default function LandingComposer({
         <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
       </svg>
       Have a site?{" "}
-      <span style={{ color: "rgba(163,230,53,0.62)", fontWeight: 500 }}>
+      <span style={{ color: "var(--accent)", opacity: 0.62, fontWeight: 500 }}>
         Paste a URL
       </span>
       {" "}— we&apos;ll scan it for context.

@@ -13,14 +13,14 @@ export async function GET(
 
   const { scanId } = await params;
 
-  // Glook `scans` table has public SELECT RLS — service client reads without restriction.
-  // User auth verified above; scan data is not sensitive (public audit results).
+  // Service client used to read Glook scans; ownership enforced explicitly below.
   const supabase = getServiceClient();
 
   const { data: scan, error } = await supabase
     .from("scans")
-    .select("id, url, status, results, created_at")
+    .select("id, url, status, results, created_at, user_id")
     .eq("id", scanId)
+    .eq("user_id", user!.id)
     .single();
 
   if (error || !scan) {

@@ -37,7 +37,7 @@ export function Footer() {
         <Link href="/pricing" style={{ color: "var(--text-muted)", textDecoration: "none" }}>
           {t.footer.pricing}
         </Link>
-        <Link href="/vs" style={{ color: "var(--text-muted)", textDecoration: "none" }}>
+        <Link href="/compare" style={{ color: "var(--text-muted)", textDecoration: "none" }}>
           {t.footer.compare}
         </Link>
         <a href="mailto:support@glook.dev" style={{ color: "var(--text-muted)", textDecoration: "none" }}>

@@ -15,7 +15,7 @@ export async function POST(
 
   const { id } = await params;
 
-  if (!checkRateLimit(`run:${user.id}`, 5, 60_000)) {
+  if (!(await checkRateLimit(`run:${user.id}`, 5, 60_000))) {
     return NextResponse.json(err("Rate limit exceeded"), { status: 429 });
   }
 

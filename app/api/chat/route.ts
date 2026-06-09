@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
   const { user, response } = await requireUser();
   if (response) return response;
 
-  if (!checkRateLimit(`chat:${user!.id}`, 30, 60_000)) {
+  if (!(await checkRateLimit(`chat:${user!.id}`, 30, 60_000))) {
     return NextResponse.json(err("Rate limit exceeded"), { status: 429 });
   }
 

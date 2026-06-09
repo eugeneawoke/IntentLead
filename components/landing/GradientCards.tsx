@@ -5,7 +5,7 @@ import { ArrowRight } from "lucide-react";
 import { useLang } from "@/lib/i18n/LangContext";
 
 const CARD_META = [
-  { badge: "L1 · Intent Score", badgeColor: "#A3E635", step: "01", gradientFrom: "rgba(163,230,53,0.06)", gradientTo: "rgba(163,230,53,0.02)", borderColor: "rgba(163,230,53,0.18)" },
+  { badge: "L1 · Intent Score", badgeColor: "var(--accent)", step: "01", gradientFrom: "rgba(163,230,53,0.06)", gradientTo: "rgba(163,230,53,0.02)", borderColor: "rgba(163,230,53,0.18)" },
   { badge: "L2 · Company",      badgeColor: "#6BA4FF", step: "02", gradientFrom: "rgba(107,164,255,0.06)", gradientTo: "rgba(107,164,255,0.02)", borderColor: "rgba(107,164,255,0.18)" },
   { badge: "L3 · Contact",      badgeColor: "#C084FC", step: "03", gradientFrom: "rgba(192,132,252,0.06)", gradientTo: "rgba(192,132,252,0.02)", borderColor: "rgba(192,132,252,0.18)" },
   { badge: "L4 · Email",        badgeColor: "#34D399", step: "04", gradientFrom: "rgba(52,211,153,0.06)",  gradientTo: "rgba(52,211,153,0.02)",  borderColor: "rgba(52,211,153,0.18)"  },

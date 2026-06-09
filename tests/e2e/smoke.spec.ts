@@ -72,17 +72,17 @@ test("/roadmap renders with Signal Dark", async ({ page }) => {
   await smokePublic(page, "/roadmap");
 });
 
-// ── /vs comparison pages ──────────────────────────────────────────────────────
+// ── /compare comparison pages ─────────────────────────────────────────────────
 
-test("/vs index renders with Signal Dark", async ({ page }) => {
-  await smokePublic(page, "/vs");
+test("/compare index renders with Signal Dark", async ({ page }) => {
+  await smokePublic(page, "/compare");
 });
 
 const COMPETITORS = ["clay", "apollo", "hunter", "instantly", "lemlist"];
 
 for (const slug of COMPETITORS) {
-  test(`/vs/${slug} renders with Signal Dark`, async ({ page }) => {
-    await smokePublic(page, `/vs/${slug}`);
+  test(`/compare/${slug} renders with Signal Dark`, async ({ page }) => {
+    await smokePublic(page, `/compare/${slug}`);
   });
 }
 
@@ -123,11 +123,11 @@ test("/sitemap.xml is served and contains all URLs", async ({ request }) => {
   const text = await res.text();
   expect(text).toContain("<urlset");
   // Key pages present
-  for (const path of ["/pricing", "/privacy", "/terms", "/vs"]) {
+  for (const path of ["/pricing", "/privacy", "/terms", "/compare"]) {
     expect(text, `sitemap missing ${path}`).toContain(path);
   }
   // All competitor slugs present
   for (const slug of COMPETITORS) {
-    expect(text, `sitemap missing /vs/${slug}`).toContain(`/vs/${slug}`);
+    expect(text, `sitemap missing /compare/${slug}`).toContain(`/compare/${slug}`);
   }
 });

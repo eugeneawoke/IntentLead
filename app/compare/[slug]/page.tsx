@@ -25,7 +25,7 @@ export async function generateMetadata({
   return {
     title: `IntentLead AI vs ${c.name} (${new Date().getFullYear()}) — Full comparison`,
     description: c.tldr,
-    keywords: c.targetKeywords,
+    alternates: { canonical: `/compare/${slug}` },
   };
 }
 
@@ -363,7 +363,7 @@ export default async function CompareSlugPage({
               IntentLead finds people <strong style={{ color: "var(--text)", fontWeight: 600 }}>actively expressing the pain you solve</strong> — then verifies the contact and writes the first email. {c.name} {c.tagline.toLowerCase()}.
             </p>
             <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-              <Link href="/?utm_source=compare&utm_campaign=vs-hero" style={{
+              <Link href="/" style={{
                 display: "inline-flex", alignItems: "center", gap: 8,
                 background: "var(--accent)", color: "var(--accent-fg)",
                 padding: "14px 28px", borderRadius: 12, fontSize: 15, fontWeight: 700, textDecoration: "none",
@@ -721,7 +721,7 @@ export default async function CompareSlugPage({
               No {c.name} subscription needed. If a lead doesn&apos;t pass all 4 verification levels, you pay nothing.
             </p>
             <div style={{ display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap" }}>
-              <Link href={`/?utm_source=compare&utm_campaign=vs-${slug}`} style={{
+              <Link href="/" style={{
                 display: "inline-block", background: "var(--accent)", color: "var(--accent-fg)",
                 padding: "15px 40px", borderRadius: 12, fontSize: 16, fontWeight: 700, textDecoration: "none",
               }}>
