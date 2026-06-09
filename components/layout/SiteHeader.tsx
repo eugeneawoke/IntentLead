@@ -4,16 +4,15 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import { getBrowserClient } from "@/lib/supabase/client";
 import { useAuthModal } from "@/components/auth/AuthModalContext";
+import { useLang } from "@/lib/i18n/LangContext";
 import type { User } from "@supabase/supabase-js";
 
 // FluidGlassPill loads client-only (no SSR — Three.js needs browser)
 const FluidGlassPill = dynamic(() => import("./FluidGlassPill"), { ssr: false });
 
-type Lang = "EN" | "RU";
-
 export default function SiteHeader() {
   const [user, setUser] = useState<User | null>(null);
-  const [lang, setLang] = useState<Lang>("EN");
+  const { lang, setLang, t } = useLang();
   const { openModal } = useAuthModal();
 
   useEffect(() => {
@@ -90,7 +89,7 @@ export default function SiteHeader() {
           >
             {/* Language toggle */}
             <button
-              onClick={() => setLang((l) => l === "EN" ? "RU" : "EN")}
+              onClick={() => setLang(lang === "en" ? "ru" : "en")}
               style={{
                 display: "inline-flex",
                 alignItems: "center",
@@ -114,7 +113,7 @@ export default function SiteHeader() {
                 <line x1="2" y1="12" x2="22" y2="12"/>
                 <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
               </svg>
-              {lang}
+              {lang === "en" ? "EN" : "RU"}
             </button>
 
             {/* Divider */}
@@ -137,7 +136,7 @@ export default function SiteHeader() {
                 onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.opacity = "0.85"; }}
                 onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.opacity = "1"; }}
               >
-                Workspace
+                {t.header.workspace}
               </Link>
             ) : (
               <>
@@ -158,7 +157,7 @@ export default function SiteHeader() {
                   onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.95)"; }}
                   onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.65)"; }}
                 >
-                  Sign In
+                  {t.header.signIn}
                 </button>
                 <button
                   onClick={() => openModal("signup")}
@@ -177,7 +176,7 @@ export default function SiteHeader() {
                   onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = "0.85"; }}
                   onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = "1"; }}
                 >
-                  Get Started
+                  {t.header.getStarted}
                 </button>
               </>
             )}

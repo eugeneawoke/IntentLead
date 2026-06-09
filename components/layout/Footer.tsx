@@ -1,6 +1,11 @@
+"use client";
+
 import Link from "next/link";
+import { useLang } from "@/lib/i18n/LangContext";
 
 export function Footer() {
+  const { t } = useLang();
+
   return (
     <footer
       style={{
@@ -23,39 +28,24 @@ export function Footer() {
           color: "var(--text-muted)",
         }}
       >
-        <Link
-          href="/privacy"
-          style={{ color: "var(--text-muted)", textDecoration: "none" }}
-        >
-          Privacy
+        <Link href="/privacy" style={{ color: "var(--text-muted)", textDecoration: "none" }}>
+          {t.footer.privacy}
         </Link>
-        <Link
-          href="/terms"
-          style={{ color: "var(--text-muted)", textDecoration: "none" }}
-        >
-          Terms
+        <Link href="/terms" style={{ color: "var(--text-muted)", textDecoration: "none" }}>
+          {t.footer.terms}
         </Link>
-        <Link
-          href="/pricing"
-          style={{ color: "var(--text-muted)", textDecoration: "none" }}
-        >
-          Pricing
+        <Link href="/pricing" style={{ color: "var(--text-muted)", textDecoration: "none" }}>
+          {t.footer.pricing}
         </Link>
-        <Link
-          href="/vs"
-          style={{ color: "var(--text-muted)", textDecoration: "none" }}
-        >
-          Comparisons
+        <Link href="/vs" style={{ color: "var(--text-muted)", textDecoration: "none" }}>
+          {t.footer.compare}
         </Link>
-        <a
-          href="mailto:support@glook.dev"
-          style={{ color: "var(--text-muted)", textDecoration: "none" }}
-        >
+        <a href="mailto:support@glook.dev" style={{ color: "var(--text-muted)", textDecoration: "none" }}>
           support@glook.dev
         </a>
       </div>
       <p style={{ fontSize: 12, color: "var(--text-faint)", margin: 0 }}>
-        © {new Date().getFullYear()} IntentLead AI. Built by Eugene Gusakov.
+        {t.footer.copyright}
       </p>
     </footer>
   );

@@ -64,6 +64,8 @@ WARM:  Glook report (shared Supabase)    ──┤
 - plan: text NOT NULL DEFAULT 'free' CHECK in ('free','starter','growth','agency')
 - credits_remaining: int NOT NULL DEFAULT 10  *(free = 10 лидов один раз)*
 - free_converter_used: boolean NOT NULL DEFAULT false
+- chat_messages_today: int NOT NULL DEFAULT 0  *(счётчик Plan/Strategy сообщений, сбрасывается в полночь UTC)*
+- chat_messages_reset_at: timestamptz NULL
 - created_at / updated_at: timestamptz DEFAULT now()
 
 **workspace_members** (для плана Agency; MVP — только owner)
@@ -82,6 +84,8 @@ WARM:  Glook report (shared Supabase)    ──┤
 - icp: text NOT NULL          *(роль, размер, индустрия — свободный текст из чата)*
 - pain: text NOT NULL
 - geo: text NULL
+- business_type: text CHECK in ('online_saas','local','b2b_enterprise','ecommerce') NULL
+  *(определяется AI из intake; управляет выбором источников сигналов)*
 - example_customers: text NULL
 - keywords: text[] NOT NULL DEFAULT '{}'   *(AI-сгенерированы из intake)*
 - tone: text NULL             *(шаблон тона для писем)*
@@ -91,7 +95,16 @@ WARM:  Glook report (shared Supabase)    ──┤
 **signals** (сырой пойманный сигнал)
 - id: uuid PK
 - campaign_id: uuid FK campaigns ON DELETE CASCADE NOT NULL
-- source: text CHECK in ('reddit','hackernews') NOT NULL
+- source: text CHECK in (
+    -- MVP
+    'reddit','hackernews','github','stackoverflow',
+    'vk','telegram','habr','vcru',
+    'google_reviews','yelp','2gis','yandex_business','foursquare',
+    -- V2
+    'g2','capterra','producthunt','saashub','trustpilot',
+    -- V3
+    'greenhouse_jobs','crunchbase','linkedin'
+  ) NOT NULL
 - source_url: text NOT NULL
 - author_handle: text NOT NULL
 - content: text NOT NULL
@@ -226,6 +239,62 @@ GET /internal/health (worker) → { status: 'ok' }
 
 ## БЛОК 4: USER STORIES
 
+**US-00: Auth flow (Progressive disclosure)**
+Как новый пользователь
+Я хочу попробовать продукт до регистрации
+Чтобы убедиться в ценности до создания аккаунта
+```
+✅ "Start Free" на лендинге → скролл до LandingComposer, auth НЕ требуется
+✅ Анонимный чат сохраняет контекст в localStorage: { messages[], intake{}, createdAt }
+✅ При триггере pipeline ("Find leads") → AuthModal открывается
+✅ После auth → POST /api/session/transfer { anonSession } → создаёт workspace + campaign(draft)
+✅ Редирект на /chat?campaign=<id>, разговор продолжается с того же места
+✅ Если пользователь закрыл вкладку и вернулся — localStorage жив, контекст не теряется
+✅ "Get Started" в header → AuthModal → /workspace (для уже знакомых с продуктом)
+✅ Прямой переход /workspace/* без сессии → requireUser() → redirect('/?auth=1')
+✅ На лендинге: useEffect проверяет ?auth=1 → auto-открывает AuthModal
+✅ Нет отдельной /auth/login страницы — единый AuthModal попап
+✅ /auth/callback роут обязателен для Supabase email magic link / OAuth
+```
+
+**US-00b: Chat modes**
+Как авторизованный пользователь в /chat
+Я хочу выбрать режим работы с ассистентом
+Чтобы получить нужный формат помощи
+```
+Режимы:
+  Search — запускает полный pipeline (L1→L4). Тратит 1 кредит на verified лид.
+  Plan   — AI строит outreach-последовательность (5-7 касаний, каналы, тайминг, сабджекты).
+           Без pipeline, без кредитов.
+  Strategy — AI уточняет ICP, messaging angles, positioning, subject line варианты.
+             Без pipeline, без кредитов.
+
+Лимиты Plan/Strategy (rate-limit, не кредиты):
+  Free:    20 сообщений/день
+  Starter: 100 сообщений/день
+  Growth:  300 сообщений/день
+  Agency:  безлимит
+
+✅ Search требует credits_remaining > 0; при 0 → предложение апгрейда
+✅ Plan и Strategy работают даже при credits_remaining = 0
+✅ Rate-limit Plan/Strategy: counter сбрасывается в полночь UTC
+✅ Анонимный чат на лендинге = только discovery, без режимов (режимы только после auth)
+```
+
+**US-00c: Источники сигналов по типу бизнеса**
+```
+Чат определяет business_type из intake и записывает в campaign.business_type.
+Pipeline выбирает источники по типу:
+
+online_saas / agency:  reddit, hackernews, github, stackoverflow, vk, telegram, habr, vcru
+local:                 google_reviews, yelp, 2gis, yandex_business, foursquare
+b2b_enterprise:        reddit, hackernews, github, stackoverflow
+ecommerce:             reddit, yelp, google_reviews
+
+Все типы включают CIS-источники (vk, telegram, habr, vcru) если geo=CIS/RU/KZ.
+business_type=NULL (не определён) → fallback на reddit + hackernews.
+```
+
 **US-01: Cold-онбординг через чат**
 Как новый пользователь без Glook
 Я хочу объяснить ассистенту что продаю и кого ищу в свободном чате
@@ -357,6 +426,8 @@ Pipeline завершается на генерации письма. Агент
 - Prompt injection: system prompt всех AI-вызовов фиксирован; user/signal текст только в role 'user'.
 - Rate limiting:
   - /api/chat: 30 req/min per user
+  - /api/chat Plan/Strategy mode: 20 msg/day (free), 100 (starter), 300 (growth), unlimited (agency)
+    Counter в workspaces.chat_messages_today, сбрасывается в полночь UTC
   - /api/campaigns/:id/run: 5 req/min per workspace
   - /internal/run-pipeline: вызывается только app-сервером, не публичен
   - Внешние API (Reddit 60/min, Google CSE 100/день): worker соблюдает лимиты с backoff
@@ -411,10 +482,127 @@ Pipeline завершается на генерации письма. Агент
 
 ## БЛОК 6: MVP VS ROADMAP
 
+### Страницы — приоритеты создания
+
+**Blocker (до PayPro review):**
+- [ ] `/pricing` — страница тарифов (см. дизайн ниже)
+- [ ] `/privacy` — политика конфиденциальности, соответствие требованиям PayPro Global (MoR)
+- [ ] `/terms` — условия использования, соответствие требованиям PayPro Global (MoR)
+- [ ] `/auth/callback` — Supabase OAuth callback (magic link + Google OAuth)
+- [ ] `/vs` + `/vs/[slug]` — competitor comparison pages: Clay · Apollo.io · Hunter.io · Instantly.ai · Lemlist
+- [ ] Auth-защита `/workspace/*` — requireUser() в app/workspace/layout.tsx (Server Component)
+
+### Upgrade / Paywall flow
+
+Earlybird офферы показываются ВО ВСЕХ upgrade-точках (с меткой "Early access"):
+
+```
+Trigger 1: credits_remaining = 0 → Search нажат
+  Modal:
+    "You've used all 10 free leads."
+    "Upgrade to keep finding verified leads."
+    
+    [⚡ Early access · Starter — $39/mo · 100 leads first 3 months, then 30/mo]  ← primary
+    [⚡ Early access · Growth  — $89/mo · 100 leads/mo · price locked forever]
+    [See all plans →] → /pricing?utm_source=app&utm_medium=in-app&utm_campaign=upgrade-prompt&utm_content=credits-empty
+
+Trigger 2: credits_remaining ≤ 3 (warning banner, не блокирующий)
+    "3 verified leads remaining. [⚡ Upgrade — Early access pricing →]"
+    → /pricing?utm_source=app&utm_medium=in-app&utm_campaign=upgrade-prompt&utm_content=credits-low
+
+Trigger 3: free_converter_used=true, повторный запуск
+    "Free leads used."
+    [⚡ Early access · Get Starter] [See plans]
+    → /pricing?utm_source=app&utm_medium=in-app&utm_campaign=upgrade-prompt&utm_content=free-used
+```
+
+Earlybird метка: "⚡ Early access" или "🔒 Price locked" — до исчерпания 100 мест.
+После 100 мест — стандартные тарифы без метки.
+
+### Дизайн /pricing
+
+```
+Hero:  "Simple pricing. No games."
+       "Credit charged only when all 4 verification levels pass. Rejected leads are free."
+
+[Earlybird banner] "🔒 Early access pricing — locked in forever for first 100 users"
+
+[Annual/Monthly toggle — annual default, -20%]
+
+Тарифы (из PixelPricingCard):
+  Free      $0          10 verified leads, one time, forever
+  Starter   $39/mo      30 leads/mo · CSV export · Plan/Strategy modes
+  Growth    $89/mo ★    100 leads/mo · Priority pipeline · 3 team members
+  Agency    $199/mo     300 leads/mo · 10 members · API access
+
+[Feature comparison table]
+[FAQ — 6-8 вопросов]
+[Footer CTA: "Not sure? Start free — no credit card required."]
+```
+
+### Earlybird offer
+
+Оффер: первые 100 пользователей — price lock навсегда + 3 месяца Growth-кредитов по цене Starter.
+```
+Earlybird Starter: $39/mo → 100 leads/mo первые 3 месяца, затем 30/mo, цена не меняется
+Earlybird Growth:  $89/mo → заморожена навсегда (при росте цен — не затрагивает)
+```
+Почему price lock, не LTD: credits-based модель — LTD убивает unit-экономику.
+Ограничение: 100 мест (счётчик на странице). Дедлайн: до PayPro-ревью.
+
+### UTM-ссылки earlybird кампании
+
+```
+Reddit:        /pricing?utm_source=reddit&utm_medium=social&utm_campaign=earlybird&utm_content=post
+LinkedIn:      /pricing?utm_source=linkedin&utm_medium=social&utm_campaign=earlybird&utm_content=founder-post
+Product Hunt:  /pricing?utm_source=producthunt&utm_medium=referral&utm_campaign=earlybird
+IndieHackers:  /pricing?utm_source=indiehackers&utm_medium=social&utm_campaign=earlybird&utm_content=ih-post
+Email:         /pricing?utm_source=email&utm_medium=email&utm_campaign=earlybird&utm_content=cta-button
+Glook→IL:      /pricing?utm_source=glook&utm_medium=referral&utm_campaign=earlybird&utm_content=dashboard-banner
+Twitter/X:     /pricing?utm_source=twitter&utm_medium=social&utm_campaign=earlybird&utm_content=thread
+Bio link:      /pricing?utm_source=bio&utm_medium=direct&utm_campaign=earlybird
+```
+
+### /vs/[slug] — структура страницы
+
+Конкуренты: clay · apollo · hunter · instantly · lemlist
+
+Структура каждой страницы:
+```
+1. TL;DR (2 предложения — ключевая разница)
+2. Comparison table (features + pricing, "as of [date]")
+3. Paragraph: чем [Конкурент] силён (честно)
+4. Paragraph: где не хватает (без defamation, из публичных источников)
+5. Кому подходит [Конкурент], кому IntentLead
+6. CTA: "Try free — 10 verified leads, no card required"
+```
+
+Целевые keywords:
+  /vs/clay:      "clay alternative", "clay vs intentlead", "clay ai alternative cheap"
+  /vs/apollo:    "apollo.io alternative", "apollo alternative free", "apollo vs"
+  /vs/hunter:    "hunter.io alternative", "hunter io vs", "email finder alternative"
+  /vs/instantly: "instantly ai alternative with lead finding", "instantly alternative"
+  /vs/lemlist:   "lemlist alternative", "lemlist vs"
+
+**Уже есть:**
+- [x] `/` — лендинг
+- [x] `/chat` — чат-онбординг
+- [x] `/workspace` — список кампаний
+- [x] `/workspace/[id]` — lead-карточки + прогресс
+- [x] `/methodology` — методология
+- [x] `/roadmap` — роадмап
+
+**Footer (добавить на существующих страницах):**
+- Контакт: support@glook.dev
+- Ссылки: Privacy · Terms · Roadmap · Methodology
+
+---
+
 ### MVP — делаем сейчас
 - [ ] Conversational onboarding (чат, intake extraction, оффер скана)
 - [ ] Warm-вход из Glook (чтение report из общей Supabase)
-- [ ] Signal pipeline: Reddit + HN → classify → company → contact → email → message
+- [ ] Signal pipeline: Reddit + HN + GitHub + SO + VK + Telegram + Habr + vcru + Google Reviews + Yelp + 2GIS + Yandex Business + Foursquare → classify → company → contact → email → message
+      Источники выбираются по campaign.business_type (см. US-00c)
 - [ ] 4-уровневая верификация + атомарная кредит-логика (RPC)
 - [ ] RAG-grounded генерация письма (pgvector, grounding only)
 - [ ] Lead-карточки (horyx-style) + CSV/Sheets экспорт
@@ -459,6 +647,69 @@ Pipeline завершается на генерации письма. Агент
 - Автоматическая массовая отправка писем без участия пользователя (риск домена/блокировок).
 - Собственная CRM (рынок занят).
 - Скрейпинг в обход официальных API источников.
+
+### SEO — аудит и задачи (2026-06-06, URL: intent-lead-hazel.vercel.app)
+
+**Критично — блокирует индексацию:**
+- [ ] `app/robots.ts` — robots.txt (404 сейчас)
+- [ ] `app/sitemap.ts` — sitemap.xml (404 сейчас)
+- [ ] Кастомный домен вместо vercel.app (весь SEO-сок на один домен)
+
+**Высокий приоритет:**
+- [ ] Structured data: SoftwareApplication + FAQPage JSON-LD в layout.tsx
+- [ ] Canonical тег в metadata (layout.tsx)
+- [ ] hreflang ru/en для CIS-рынка
+- [ ] /pricing, /vs/* страницы (уже запланированы — дают keyword coverage)
+
+**ОК сейчас:** title ✅ · meta description ✅ · OG/Twitter cards ✅ · H1 ✅ · HTTPS ✅
+
+### Дизайн /privacy и /terms (по аналогии с Glook, адаптировано для IntentLead)
+
+**Privacy — IntentLead-специфичные секции (сверх Glook-шаблона):**
+```
+Раздел "Данные" — добавить:
+  - Campaign data: ICP, keywords, tone, business context (из чата)
+  - Lead data: company/contact/email — получены через Prospeo/Hunter/Apollo из публичных источников
+  - Signal data: публичные посты Reddit/HN/VK/GitHub/etc.
+
+Раздел "Третьи стороны" — добавить:
+  - Prospeo / Hunter.io / Apollo — contact enrichment
+  - Reddit API, HN Algolia, VK API — signal sources (только публичный контент)
+  - Railway — worker hosting (pipeline)
+  - OpenAI — AI processing (GPT-4o-mini classify, GPT-4o message gen)
+```
+
+**Terms — IntentLead-специфичные клаузулы:**
+```
+Допустимое использование — добавить:
+  - Не использовать для spam / unsolicited mass outreach
+  - Не запускать pipeline по защищённым категориям данных
+  - Пользователь несёт ответственность за соответствие CAN-SPAM / GDPR при отправке писем
+
+Free plan limits:
+  - 10 verified leads, один раз навсегда, не обнуляется ежемесячно
+
+Billing — тарифы:
+  - Starter $39/mo · Growth $89/mo · Agency $199/mo (auto-renew monthly)
+  - Annual: -20% off, auto-renew annually
+
+Кредит-гарантия (обязательная клаузула):
+  "A credit is deducted only when a lead passes all 4 verification levels
+   (signal, company, contact, email). Rejected leads are never charged.
+   This guarantee is technically enforced at the database level."
+
+Отмена/возврат:
+  - Отмена действует с конца текущего периода
+  - Рефанды/чарджбэки — по политикам PayPro Global
+```
+
+Email для обоих документов: support@glook.dev (единый до появления IntentLead-домена)
+
+### Зафиксировано в ходе дизайн-сессии 2026-06-06
+- README переписан (минимальный, без setup/deploy/internal ссылок)
+- `.agents/product-marketing.md` создан (позиционирование, конкуренты, персоны, customer language)
+- Grafana — не приоритет; подключить после MVP, одновременно с Glook
+- `/alternatives` = то же что `/vs` (не отдельный раздел)
 
 ### Решения уже приняты (не обсуждать заново — см. STACK_DECISION.md)
 - Стек: Next.js 16 + Supabase (общий с Glook) + Railway worker. Не Python/FastAPI.

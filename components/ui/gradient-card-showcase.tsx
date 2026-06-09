@@ -1,36 +1,13 @@
 "use client";
 import React from "react";
+import { useLang } from "@/lib/i18n/LangContext";
 
-// ── Card data — 4 уровня верификации ─────────────────
-const cards = [
-  {
-    title: "Reddit + HN signals",
-    badge: "L1 · Intent Score",
-    desc: "AI scans Reddit and Hacker News for pain, questions, and tool searches that match your ICP — in real time. Score < 80 → rejected before expensive lookup.",
-    gradientFrom: "#A3E635",
-    gradientTo: "#22c55e",
-  },
-  {
-    title: "Company identified",
-    badge: "L2 · Company",
-    desc: "From post author to company domain. Exa entity search + GPT extract the right org — not a guess. No domain resolved = rejected.",
-    gradientFrom: "#6BA4FF",
-    gradientTo: "#3b82f6",
-  },
-  {
-    title: "Role verified",
-    badge: "L3 · Contact",
-    desc: "Decision-maker confirmed. Role, seniority, LinkedIn profile — all checked before paying for an email. Generic contacts are rejected.",
-    gradientFrom: "#C084FC",
-    gradientTo: "#8b5cf6",
-  },
-  {
-    title: "Verified email + message",
-    badge: "L4 · Email",
-    desc: "Waterfall Prospeo → Hunter → Apollo. Credit charged only when all 4 levels pass. Rejected leads are free — that's the guarantee.",
-    gradientFrom: "#34D399",
-    gradientTo: "#06b6d4",
-  },
+// ── Static meta — colors stay fixed, text comes from translations ─────────────
+const CARD_META = [
+  { badge: "L1 · Intent Score", gradientFrom: "#A3E635", gradientTo: "#22c55e" },
+  { badge: "L2 · Company",      gradientFrom: "#6BA4FF", gradientTo: "#3b82f6" },
+  { badge: "L3 · Contact",      gradientFrom: "#C084FC", gradientTo: "#8b5cf6" },
+  { badge: "L4 · Email",        gradientFrom: "#34D399", gradientTo: "#06b6d4" },
 ];
 
 // ── SkewCard — оригинальный компонент ────────────────
@@ -100,6 +77,8 @@ function SkewCard({
 
 // ── Section wrapper ───────────────────────────────────
 export default function GradientCards() {
+  const { t } = useLang();
+
   return (
     <section id="how" className="w-full py-24 overflow-hidden" style={{ background: "linear-gradient(to bottom, var(--bg) 0%, var(--bg) 4%, transparent 12%)" }}>
       <div className="text-center mb-12 px-6">
@@ -107,18 +86,27 @@ export default function GradientCards() {
           className="text-4xl font-semibold"
           style={{ color: "var(--text)", letterSpacing: "-0.02em" }}
         >
-          How it works
+          {t.how.heading}
         </h2>
         <p className="mt-3 text-lg max-w-xl mx-auto" style={{ color: "var(--text-muted)" }}>
-          Every lead passes 4 verification gates — signal, company, contact, email.
-          Credit charged only when all four are green.
+          {t.how.description}
         </p>
       </div>
 
       <div className="flex justify-center items-center flex-wrap">
-        {cards.map((card, idx) => (
-          <SkewCard key={idx} {...card} />
-        ))}
+        {CARD_META.map((meta, idx) => {
+          const card = t.how.cards[idx];
+          return (
+            <SkewCard
+              key={idx}
+              title={card.title}
+              badge={meta.badge}
+              desc={card.description}
+              gradientFrom={meta.gradientFrom}
+              gradientTo={meta.gradientTo}
+            />
+          );
+        })}
       </div>
 
       <style>{`

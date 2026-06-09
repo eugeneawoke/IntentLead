@@ -123,9 +123,7 @@ function Dock() {
         },
       };
     }
-    if (item.id === "pricing") {
-      return { ...item, onClick: () => router.push("/pricing") };
-    }
+    // Pricing scrolls to #pricing on landing; navigate from Footer link for /pricing page
     return { ...item, onClick: () => handleNav(item.id) };
   });
 

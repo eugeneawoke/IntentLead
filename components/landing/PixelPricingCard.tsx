@@ -1,70 +1,43 @@
 "use client";
 
-import { useRef, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRef, useEffect, useCallback, useState } from "react";
+import Link from "next/link";
+import { useLang } from "@/lib/i18n/LangContext";
 
-interface PricingPlan {
-  name: string;
-  price: string;
-  leads: string;
-  note: string;
-  cta: string;
-  highlight: boolean;
-}
-
-const PLANS: PricingPlan[] = [
-  {
-    name: "Free",
-    price: "$0",
-    leads: "10 leads",
-    note: "One time, forever",
-    cta: "Start free",
-    highlight: false,
-  },
-  {
-    name: "Starter",
-    price: "$39",
-    leads: "30 leads/mo",
-    note: "For solo founders",
-    cta: "Get Starter",
-    highlight: false,
-  },
-  {
-    name: "Growth",
-    price: "$89",
-    leads: "100 leads/mo",
-    note: "For growing agencies",
-    cta: "Get Growth",
-    highlight: true,
-  },
-  {
-    name: "Agency",
-    price: "$199",
-    leads: "300 leads/mo",
-    note: "High volume",
-    cta: "Get Agency",
-    highlight: false,
-  },
+const PLANS_STATIC = [
+  { name: "Free",    monthly: 0,   annual: 0,   leads: "10 leads",     highlight: false, earlybird: false },
+  { name: "Starter", monthly: 39,  annual: 31,  leads: "30 leads/mo",  highlight: false, earlybird: true  },
+  { name: "Growth",  monthly: 89,  annual: 71,  leads: "100 leads/mo", highlight: true,  earlybird: true  },
+  { name: "Agency",  monthly: 199, annual: 159, leads: "300 leads/mo", highlight: false, earlybird: false },
 ];
 
 interface Pixel {
-  x: number;
-  y: number;
-  opacity: number;
-  speed: number;
-  r: number;
-  g: number;
-  b: number;
+  x: number; y: number; opacity: number; speed: number;
+  r: number; g: number; b: number;
 }
 
-function PixelCard({ plan }: { plan: PricingPlan }) {
+function PixelCard({
+  plan,
+  isAnnual,
+  note,
+  cta,
+  features,
+  mostPopular,
+  earlyAccessLabel,
+}: {
+  plan: typeof PLANS_STATIC[0];
+  isAnnual: boolean;
+  note: string;
+  cta: string;
+  features: string[];
+  mostPopular: string;
+  earlyAccessLabel: string;
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const animRef = useRef<number>(0);
   const pixelsRef = useRef<Pixel[]>([]);
-  const router = useRouter();
 
-  // Growth: тёмный лесной зелёный hsl(150,60%,20%) ≈ rgb(20,82,51) — как в Hero
   const pixelColor = plan.highlight
     ? { r: 20, g: 82, b: 51 }
     : { r: 53, g: 61, b: 73 };
@@ -84,8 +57,7 @@ function PixelCard({ plan }: { plan: PricingPlan }) {
       for (let c = 0; c < cols; c++) {
         if (Math.random() > 0.65) {
           pixels.push({
-            x: c * step,
-            y: r * step,
+            x: c * step, y: r * step,
             opacity: 0,
             speed: 0.015 + Math.random() * 0.035,
             ...pixelColor,
@@ -101,10 +73,8 @@ function PixelCard({ plan }: { plan: PricingPlan }) {
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-
     buildPixels();
     cancelAnimationFrame(animRef.current);
-
     function tick() {
       if (!canvas || !ctx) return;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -125,14 +95,10 @@ function PixelCard({ plan }: { plan: PricingPlan }) {
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-
     cancelAnimationFrame(animRef.current);
-
     function fadeOut() {
       if (!canvas || !ctx) return;
-      for (const p of pixelsRef.current) {
-        p.opacity = Math.max(0, p.opacity - 0.04);
-      }
+      for (const p of pixelsRef.current) p.opacity = Math.max(0, p.opacity - 0.04);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       let anyVisible = false;
       for (const p of pixelsRef.current) {
@@ -151,29 +117,26 @@ function PixelCard({ plan }: { plan: PricingPlan }) {
     const canvas = canvasRef.current;
     const card = cardRef.current;
     if (!canvas || !card) return;
-
     function resize() {
       if (!canvas || !card) return;
       canvas.width = card.offsetWidth;
       canvas.height = card.offsetHeight;
     }
     resize();
-
     const ro = new ResizeObserver(resize);
     ro.observe(card);
-    return () => {
-      ro.disconnect();
-      cancelAnimationFrame(animRef.current);
-    };
+    return () => { ro.disconnect(); cancelAnimationFrame(animRef.current); };
   }, []);
+
+  const price = isAnnual ? plan.annual : plan.monthly;
 
   return (
     <div
       ref={cardRef}
-      className="relative rounded-2xl p-6"
+      className="relative rounded-2xl p-6 flex flex-col"
       style={{
-        overflow: "visible",
-        background: "var(--surface)",
+        overflow: "hidden",
+        background: plan.highlight ? "var(--surface-2)" : "var(--surface)",
         border: plan.highlight
           ? "2px solid rgba(163,230,53,0.5)"
           : "1px solid var(--border)",
@@ -192,90 +155,192 @@ function PixelCard({ plan }: { plan: PricingPlan }) {
 
       {plan.highlight && (
         <div
-          className="absolute -top-3 left-1/2 -translate-x-1/2 text-xs font-semibold px-3 py-1 rounded-full whitespace-nowrap z-10"
+          className="absolute -top-0 left-1/2 -translate-x-1/2 text-xs font-bold px-4 py-1 whitespace-nowrap z-10"
           style={{
             background: "var(--accent)",
             color: "var(--accent-fg)",
+            borderRadius: "0 0 10px 10px",
+            letterSpacing: "0.06em",
           }}
         >
-          MOST POPULAR
+          {mostPopular}
         </div>
       )}
 
-      <div className="relative z-10">
-        <div
-          className="text-xs font-medium uppercase tracking-widest mb-3"
-          style={{ color: "var(--text)" }}
-        >
-          {plan.name}
-        </div>
-        <div
-          className="text-4xl font-bold mb-1"
-          style={{ color: "var(--text)", fontFamily: "Geist, sans-serif" }}
-        >
-          {plan.price}
-          {plan.price !== "$0" && (
-            <span
-              className="text-sm font-normal"
-              style={{ color: "var(--text-muted)" }}
-            >
-              /mo
+      <div className="relative z-10 flex flex-col flex-1">
+        {/* Earlybird */}
+        <div style={{ minHeight: 20, marginBottom: 12 }}>
+          {plan.earlybird && (
+            <span style={{ fontSize: 11, color: "var(--accent)", fontWeight: 600, letterSpacing: "0.04em" }}>
+              ⚡ {earlyAccessLabel}
             </span>
           )}
         </div>
-        <div
-          className="text-sm font-semibold mb-1"
-          style={{ color: "var(--accent)" }}
-        >
+
+        {/* Name */}
+        <div className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: "var(--text-muted)" }}>
+          {plan.name}
+        </div>
+
+        {/* Price */}
+        <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginBottom: 4 }}>
+          <span
+            style={{
+              fontSize: price === 0 ? 36 : 40,
+              fontWeight: 800,
+              color: "var(--text)",
+              letterSpacing: "-0.02em",
+              fontFamily: "var(--font-display, 'Space Grotesk', sans-serif)",
+            }}
+          >
+            {price === 0 ? "Free" : `$${price}`}
+          </span>
+          {price > 0 && (
+            <span style={{ fontSize: 13, color: "var(--text-muted)" }}>/mo</span>
+          )}
+        </div>
+
+        {/* Leads */}
+        <div className="text-sm font-semibold mb-1" style={{ color: "var(--accent)" }}>
           {plan.leads}
         </div>
-        <div className="text-xs mb-6" style={{ color: "var(--text-muted)" }}>
-          {plan.note}
+
+        {/* Note */}
+        <div className="text-xs mb-5" style={{ color: "var(--text-muted)" }}>
+          {note}
         </div>
-        <button
-          onClick={() => router.push("/chat")}
-          className="w-full py-2.5 rounded-xl text-sm font-medium transition-all duration-150"
+
+        {/* CTA */}
+        <Link
+          href={plan.monthly === 0 ? "/" : "/pricing"}
+          className="block text-center py-2.5 rounded-xl text-sm font-semibold mb-6 transition-all duration-150"
           style={
             plan.highlight
-              ? {
-                  background: "var(--accent)",
-                  color: "var(--accent-fg)",
-                  border: "none",
-                  cursor: "pointer",
-                }
-              : {
-                  background: "var(--surface-2)",
-                  color: "var(--text)",
-                  border: "1px solid var(--border)",
-                  cursor: "pointer",
-                }
+              ? { background: "var(--accent)", color: "var(--accent-fg)", textDecoration: "none" }
+              : { background: "var(--surface-2)", color: "var(--text)", border: "1px solid var(--border-strong)", textDecoration: "none" }
           }
         >
-          {plan.cta}
-        </button>
+          {cta}
+        </Link>
+
+        {/* Divider */}
+        <div style={{ borderTop: "1px solid var(--border)", marginBottom: 16 }} />
+
+        {/* Features */}
+        <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 9 }}>
+          {features.map((f) => (
+            <li
+              key={f}
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 8,
+                fontSize: 13,
+                color: "var(--text-muted)",
+                lineHeight: 1.4,
+              }}
+            >
+              <span style={{ color: "var(--accent)", flexShrink: 0, marginTop: 1, fontSize: 12 }}>✓</span>
+              {f}
+            </li>
+          ))}
+        </ul>
       </div>
     </div>
   );
 }
 
 export default function PricingSection() {
+  const { t } = useLang();
+  const [isAnnual, setIsAnnual] = useState(true);
+
   return (
     <section id="pricing" className="w-full max-w-6xl mx-auto px-6 py-24">
-      <div className="text-center mb-16">
+      {/* Header */}
+      <div className="text-center mb-10">
         <h2
           className="text-4xl font-semibold mb-3"
-          style={{ color: "var(--text)", letterSpacing: "-0.02em" }}
+          style={{ color: "var(--text)", letterSpacing: "-0.02em", fontFamily: "var(--font-display, 'Space Grotesk', sans-serif)" }}
         >
-          Simple pricing
+          {t.pricing.heading}
         </h2>
-        <p style={{ color: "var(--text-muted)" }}>
-          Credit charged only when all 4 verification levels pass. Rejected
-          leads are free.
+        <p style={{ color: "var(--text-muted)", fontSize: 16, marginBottom: 24 }}>
+          {t.pricing.description}
         </p>
+
+        {/* Billing toggle */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12 }}>
+          <button
+            onClick={() => setIsAnnual(false)}
+            style={{
+              fontSize: 14,
+              fontWeight: isAnnual ? 400 : 600,
+              color: isAnnual ? "var(--text-muted)" : "var(--text)",
+              background: "none", border: "none", cursor: "pointer", padding: "4px 2px",
+            }}
+          >
+            {t.pricing.billingMonthly}
+          </button>
+
+          <button
+            onClick={() => setIsAnnual((v) => !v)}
+            aria-label="Toggle billing period"
+            style={{
+              width: 44, height: 24, borderRadius: 12, border: "none", cursor: "pointer",
+              position: "relative",
+              background: isAnnual ? "var(--accent)" : "var(--surface-2)",
+              transition: "background 0.2s",
+              flexShrink: 0,
+            }}
+          >
+            <span
+              style={{
+                position: "absolute", top: 3,
+                left: isAnnual ? 23 : 3,
+                width: 18, height: 18, borderRadius: "50%",
+                background: isAnnual ? "var(--accent-fg)" : "var(--text-muted)",
+                transition: "left 0.2s",
+              }}
+            />
+          </button>
+
+          <button
+            onClick={() => setIsAnnual(true)}
+            style={{
+              fontSize: 14,
+              fontWeight: isAnnual ? 600 : 400,
+              color: isAnnual ? "var(--text)" : "var(--text-muted)",
+              background: "none", border: "none", cursor: "pointer", padding: "4px 2px",
+              display: "flex", alignItems: "center", gap: 6,
+            }}
+          >
+            {t.pricing.billingAnnual}
+            <span
+              style={{
+                fontSize: 10, fontWeight: 700, color: "var(--accent-fg)",
+                background: "var(--accent)", padding: "2px 7px",
+                borderRadius: 6, letterSpacing: "0.04em",
+              }}
+            >
+              {t.pricing.billingSave}
+            </span>
+          </button>
+        </div>
       </div>
+
+      {/* Cards grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        {PLANS.map((plan) => (
-          <PixelCard key={plan.name} plan={plan} />
+        {PLANS_STATIC.map((plan, i) => (
+          <PixelCard
+            key={plan.name}
+            plan={plan}
+            isAnnual={isAnnual}
+            note={t.pricing.plans[i]?.note ?? ""}
+            cta={t.pricing.plans[i]?.cta ?? ""}
+            features={t.pricing.plans[i]?.features ?? []}
+            mostPopular={t.pricing.mostPopular}
+            earlyAccessLabel={t.pricing.earlyAccess}
+          />
         ))}
       </div>
     </section>

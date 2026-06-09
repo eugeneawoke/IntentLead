@@ -2,6 +2,7 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { useLang } from "@/lib/i18n/LangContext";
 
 // ── BoxesCore — оригинальный aceternity компонент ────
 export const BoxesCore = ({ className, ...rest }: { className?: string }) => {
@@ -77,6 +78,28 @@ export const Boxes = React.memo(BoxesCore);
 
 // ── Footer с Boxes + Signal Dark контент ─────────────
 export default function BackgroundBoxes() {
+  const { t } = useLang();
+
+  const productLinks = [
+    { label: t.footer.howItWorks, href: "/#how" },
+    { label: t.footer.pricing, href: "/#pricing" },
+    { label: t.footer.methodology, href: "/methodology" },
+    { label: t.footer.roadmap, href: "/roadmap" },
+  ];
+
+  const compareLinks = [
+    { label: "vs Clay", href: "/compare/clay" },
+    { label: "vs Apollo", href: "/compare/apollo" },
+    { label: "vs Hunter", href: "/compare/hunter" },
+    { label: "vs Instantly", href: "/compare/instantly" },
+    { label: "vs Lemlist", href: "/compare/lemlist" },
+  ];
+
+  const legalLinks = [
+    { label: t.footer.privacy, href: "/privacy" },
+    { label: t.footer.terms, href: "/terms" },
+  ];
+
   return (
     <footer
       className="relative w-full overflow-hidden"
@@ -108,59 +131,83 @@ export default function BackgroundBoxes() {
               className="text-sm max-w-xs leading-relaxed"
               style={{ color: "var(--text-muted)" }}
             >
-              Signal-to-lead pipeline. Reddit + HN intent → verified contact →
-              personalized message.
+              {t.footer.description}
             </p>
             <p className="text-xs mt-6" style={{ color: "var(--text-faint)" }}>
-              © 2026 IntentLead AI. All rights reserved.
+              {t.footer.copyright}
             </p>
           </div>
 
-          {/* Links */}
-          <div className="grid grid-cols-2 gap-8">
-            {[
-              {
-                title: "Product",
-                links: [
-                  { label: "How it works", href: "/#how" },
-                  { label: "Pricing", href: "/#pricing" },
-                  { label: "Methodology", href: "/methodology" },
-                  { label: "Roadmap", href: "/roadmap" },
-                ],
-              },
-              {
-                title: "Legal",
-                links: [
-                  { label: "Privacy", href: "/privacy" },
-                  { label: "Terms", href: "/terms" },
-                ],
-              },
-            ].map((section) => (
-              <div key={section.title}>
-                <div
-                  className="text-xs font-medium uppercase tracking-widest mb-4"
-                  style={{ color: "var(--text-faint)" }}
-                >
-                  {section.title}
-                </div>
-                {section.links.map(({ label, href }) => (
-                  <a
-                    key={label}
-                    href={href}
-                    className="block text-sm mb-2.5"
-                    style={{ color: "var(--text-muted)", textDecoration: "none" }}
-                    onMouseEnter={(e) =>
-                      ((e.currentTarget as HTMLAnchorElement).style.color = "var(--text)")
-                    }
-                    onMouseLeave={(e) =>
-                      ((e.currentTarget as HTMLAnchorElement).style.color = "var(--text-muted)")
-                    }
-                  >
-                    {label}
-                  </a>
-                ))}
+          {/* Links — 3 columns */}
+          <div className="grid grid-cols-3 gap-8">
+            {/* Product */}
+            <div>
+              <div
+                className="text-xs font-medium uppercase tracking-widest mb-4"
+                style={{ color: "var(--text-faint)" }}
+              >
+                {t.footer.product}
               </div>
-            ))}
+              {productLinks.map(({ label, href }) => (
+                <a
+                  key={href}
+                  href={href}
+                  className="block text-sm mb-2.5"
+                  style={{ color: "var(--text-muted)", textDecoration: "none" }}
+                  onMouseEnter={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "var(--text)")}
+                  onMouseLeave={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "var(--text-muted)")}
+                >
+                  {label}
+                </a>
+              ))}
+            </div>
+
+            {/* Compare */}
+            <div>
+              <a
+                href="/compare"
+                className="text-xs font-medium uppercase tracking-widest mb-4 block"
+                style={{ color: "var(--text-faint)", textDecoration: "none" }}
+                onMouseEnter={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "var(--text-muted)")}
+                onMouseLeave={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "var(--text-faint)")}
+              >
+                {t.footer.compare}
+              </a>
+              {compareLinks.map(({ label, href }) => (
+                <a
+                  key={href}
+                  href={href}
+                  className="block text-sm mb-2.5"
+                  style={{ color: "var(--text-muted)", textDecoration: "none" }}
+                  onMouseEnter={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "var(--text)")}
+                  onMouseLeave={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "var(--text-muted)")}
+                >
+                  {label}
+                </a>
+              ))}
+            </div>
+
+            {/* Legal */}
+            <div>
+              <div
+                className="text-xs font-medium uppercase tracking-widest mb-4"
+                style={{ color: "var(--text-faint)" }}
+              >
+                {t.footer.legal}
+              </div>
+              {legalLinks.map(({ label, href }) => (
+                <a
+                  key={href}
+                  href={href}
+                  className="block text-sm mb-2.5"
+                  style={{ color: "var(--text-muted)", textDecoration: "none" }}
+                  onMouseEnter={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "var(--text)")}
+                  onMouseLeave={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "var(--text-muted)")}
+                >
+                  {label}
+                </a>
+              ))}
+            </div>
           </div>
         </div>
       </div>

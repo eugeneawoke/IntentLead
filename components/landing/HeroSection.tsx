@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { Suspense } from "react";
 import LandingComposer from "./LandingComposer";
+import { useLang } from "@/lib/i18n/LangContext";
 
 const DataGridHero = dynamic(
   () => import("@/components/ui/data-grid-hero"),
@@ -10,8 +11,10 @@ const DataGridHero = dynamic(
 );
 
 export default function HeroSection() {
+  const { t } = useLang();
+
   return (
-    <div id="hero">
+    <div id="hero" style={{ minHeight: "100vh" }}>
       <Suspense
         fallback={
           <div style={{ minHeight: "100vh", background: "var(--bg)" }} />
@@ -42,7 +45,7 @@ export default function HeroSection() {
                 margin: 0,
               }}
             >
-              Find people ready to buy.
+              {t.hero.headline}
             </h1>
 
             <p
@@ -55,10 +58,7 @@ export default function HeroSection() {
                 margin: 0,
               }}
             >
-              Reddit + HN signals → verified company → verified email →
-              personalized message.
-              <br />
-              Pay only for leads that pass all 4 verification levels.
+              {t.hero.subtitle}
             </p>
 
             {/* Chat input #1 */}
@@ -66,12 +66,7 @@ export default function HeroSection() {
 
             {/* Trust items */}
             <div className="flex flex-wrap gap-6 justify-center pt-4 w-full">
-              {[
-                "4-level verification",
-                "Credit charged only when verified",
-                "<3% bounce rate",
-                "Reddit + HN signals",
-              ].map((item) => (
+              {t.hero.trust.map((item) => (
                 <div
                   key={item}
                   className="flex items-center gap-2 text-xs"
@@ -82,7 +77,6 @@ export default function HeroSection() {
                 </div>
               ))}
             </div>
-
           </div>
 
           {/* Bottom fade-out → плавный переход в How it works */}

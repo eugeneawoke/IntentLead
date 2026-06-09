@@ -89,7 +89,7 @@ export default function LandingComposer({
   }
 
   return (
-    <div className={`flex flex-col items-center ${isFat ? "max-w-xl" : "max-w-3xl"} w-full`}>
+    <div className={`flex flex-col items-center mx-auto ${isFat ? "max-w-xl" : "max-w-3xl"} w-full`}>
       <style>{`
         @keyframes composer-border-glow {
           0%   { box-shadow: 0 8px 32px rgba(0,0,0,0.4); border-color: var(--border); }
