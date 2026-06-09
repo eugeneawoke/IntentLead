@@ -117,7 +117,7 @@ function Dock() {
       <div
         className="flex items-center gap-3 rounded-[28px] px-3 py-2 shadow-2xl ring-1 ring-white/10 backdrop-blur-lg sm:gap-5 sm:rounded-[48px] sm:px-6 sm:py-3"
         style={{
-          background: "var(--surface)",
+          background: "rgba(20,24,29,0.88)",
           boxShadow: "0 8px 40px rgba(0,0,0,0.6), 0 1px 0 rgba(255,255,255,0.04) inset",
         }}
       >

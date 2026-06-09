@@ -107,8 +107,8 @@ export default function SiteHeader() {
                 style={{
                   padding: "7px 16px",
                   borderRadius: 100,
-                  background: "var(--accent)",
-                  color: "var(--accent-fg)",
+                  background: "rgba(163,230,53,0.9)",
+                  color: "#0A0C0F",
                   fontSize: 13,
                   fontWeight: 600,
                   textDecoration: "none",
@@ -146,8 +146,8 @@ export default function SiteHeader() {
                   style={{
                     padding: "7px 16px",
                     borderRadius: 100,
-                    background: "var(--accent)",
-                    color: "var(--accent-fg)",
+                    background: "rgba(163,230,53,0.9)",
+                    color: "#0A0C0F",
                     fontSize: 13,
                     fontWeight: 600,
                     border: "none",
