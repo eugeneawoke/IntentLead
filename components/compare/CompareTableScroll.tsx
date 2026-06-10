@@ -1,19 +1,24 @@
 "use client";
 
-import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { getBrowserClient } from "@/lib/supabase/client";
 import { useAuthModal } from "@/components/auth/AuthModalContext";
 import type { User } from "@supabase/supabase-js";
 
+// ── Column widths (must match in both tables) ─────────────────────────────────
+// feature | intentlead | apollo | hunter | clay | instantly | lemlist
+const COL_W = [248, 148, 132, 132, 132, 132, 132] as const;
+// Total: 1060px
+
 // ── Data ──────────────────────────────────────────────────────────────────────
 
 const COMPETITORS = [
-  { name: "Apollo.io",     slug: "apollo",    price: "$49/user" },
-  { name: "Hunter.io",     slug: "hunter",    price: "$34/mo" },
-  { name: "Clay",          slug: "clay",      price: "$167/mo" },
-  { name: "Instantly.ai",  slug: "instantly", price: "$37/mo" },
-  { name: "Lemlist",       slug: "lemlist",   price: "$55/mo" },
+  { name: "Apollo.io",    slug: "apollo",    price: "$49/user" },
+  { name: "Hunter.io",   slug: "hunter",    price: "$34/mo" },
+  { name: "Clay",        slug: "clay",      price: "$167/mo" },
+  { name: "Instantly.ai", slug: "instantly", price: "$37/mo" },
+  { name: "Lemlist",     slug: "lemlist",   price: "$55/mo" },
 ] as const;
 
 type CellValue = "yes" | "no" | "limited" | "agency" | string;
@@ -22,12 +27,10 @@ type Row = {
   section?: string;
   feature: string;
   tooltip?: string;
-  // [intentlead, apollo, hunter, clay, instantly, lemlist]
   values: [CellValue, CellValue, CellValue, CellValue, CellValue, CellValue];
 };
 
 const ROWS: Row[] = [
-  // ── Verification ──
   {
     section: "Verification",
     feature: "4-level verification",
@@ -53,8 +56,6 @@ const ROWS: Row[] = [
     tooltip: "Confirm decision-maker title & seniority",
     values: ["yes", "no", "no", "no", "no", "no"],
   },
-
-  // ── Signal Sources ──
   {
     section: "Signal Sources",
     feature: "Reddit intent signals",
@@ -73,8 +74,6 @@ const ROWS: Row[] = [
     tooltip: "Large static database to search and filter",
     values: ["no", "yes", "yes", "yes", "no", "limited"],
   },
-
-  // ── Outreach ──
   {
     section: "Outreach",
     feature: "AI-personalized email (from signal)",
@@ -93,8 +92,6 @@ const ROWS: Row[] = [
     feature: "API access",
     values: ["agency", "yes", "yes", "yes", "yes", "yes"],
   },
-
-  // ── Pricing ──
   {
     section: "Pricing model",
     feature: "Pay only for verified leads",
@@ -111,76 +108,64 @@ const ROWS: Row[] = [
   },
 ];
 
+// ── Shared colgroup ───────────────────────────────────────────────────────────
+
+function Colgroup() {
+  return (
+    <colgroup>
+      {COL_W.map((w, i) => <col key={i} style={{ width: w, minWidth: w }} />)}
+    </colgroup>
+  );
+}
+
 // ── Cell ──────────────────────────────────────────────────────────────────────
 
 function Cell({ value, isUs }: { value: CellValue; isUs: boolean }) {
-  const isYes = value === "yes";
-  const isNo = value === "no";
+  const isYes     = value === "yes";
+  const isNo      = value === "no";
   const isLimited = value === "limited";
-  const isAgency = value === "agency";
+  const isAgency  = value === "agency";
 
   return (
-    <td
-      style={{
-        textAlign: "center",
-        padding: "13px 10px",
-        borderBottom: "1px solid rgba(255,255,255,0.04)",
-        background: isUs ? "rgba(163,230,53,0.04)" : "transparent",
-        verticalAlign: "middle",
-        minWidth: 120,
-      }}
-    >
+    <td style={{
+      textAlign: "center", padding: "13px 10px",
+      borderBottom: "1px solid rgba(255,255,255,0.04)",
+      background: isUs ? "rgba(163,230,53,0.04)" : "transparent",
+      verticalAlign: "middle",
+    }}>
       {isYes && (
-        <span
-          style={{
-            display: "inline-flex", alignItems: "center", justifyContent: "center",
-            width: 22, height: 22, borderRadius: "50%",
-            background: "rgba(163,230,53,0.15)", color: "var(--accent)",
-            fontSize: 12, fontWeight: 700,
-          }}
-        >
-          ✓
-        </span>
+        <span style={{
+          display: "inline-flex", alignItems: "center", justifyContent: "center",
+          width: 22, height: 22, borderRadius: "50%",
+          background: "rgba(163,230,53,0.15)", color: "var(--accent)",
+          fontSize: 12, fontWeight: 700,
+        }}>✓</span>
       )}
       {isNo && (
-        <span
-          style={{
-            display: "inline-flex", alignItems: "center", justifyContent: "center",
-            width: 22, height: 22, borderRadius: "50%",
-            background: "rgba(248,113,113,0.1)", color: "#F87171",
-            fontSize: 12, fontWeight: 700,
-          }}
-        >
-          ✕
-        </span>
+        <span style={{
+          display: "inline-flex", alignItems: "center", justifyContent: "center",
+          width: 22, height: 22, borderRadius: "50%",
+          background: "rgba(248,113,113,0.1)", color: "#F87171",
+          fontSize: 12, fontWeight: 700,
+        }}>✕</span>
       )}
       {isLimited && (
-        <span
-          style={{
-            display: "inline-block", fontSize: 10, fontWeight: 700,
-            letterSpacing: "0.05em", color: "#F5C451",
-            background: "rgba(245,196,81,0.12)", padding: "2px 7px",
-            borderRadius: 20, textTransform: "uppercase",
-          }}
-        >
-          Limited
-        </span>
+        <span style={{
+          display: "inline-block", fontSize: 10, fontWeight: 700,
+          letterSpacing: "0.05em", color: "#F5C451",
+          background: "rgba(245,196,81,0.12)", padding: "2px 7px",
+          borderRadius: 20, textTransform: "uppercase",
+        }}>Limited</span>
       )}
       {isAgency && (
-        <span style={{ fontSize: 11, color: "var(--accent)", fontWeight: 600 }}>
-          Agency
-        </span>
+        <span style={{ fontSize: 11, color: "var(--accent)", fontWeight: 600 }}>Agency</span>
       )}
       {!isYes && !isNo && !isLimited && !isAgency && (
-        <span
-          style={{
-            fontSize: 12,
-            color: isUs ? "var(--accent)" : "var(--text-muted)",
-            fontWeight: isUs ? 600 : 400,
-          }}
-        >
-          {value}
-        </span>
+        <span style={{
+          fontSize: 12,
+          color: isUs ? "var(--accent)" : "var(--text-muted)",
+          fontWeight: isUs ? 600 : 400,
+        }}>{value}</span>
       )}
     </td>
   );
@@ -204,188 +189,167 @@ function GetStartedButton() {
 
   if (user) {
     return (
-      <Link
-        href="/chat"
-        style={{
-          display: "inline-block", padding: "9px 18px",
-          background: "var(--accent)", color: "var(--accent-fg)",
-          borderRadius: 8, fontSize: 13, fontWeight: 700,
-          textDecoration: "none", whiteSpace: "nowrap",
-        }}
-      >
-        Open workspace
-      </Link>
-    );
-  }
-
-  return (
-    <button
-      onClick={() => openModal("signup")}
-      style={{
+      <Link href="/chat" style={{
         display: "inline-block", padding: "9px 18px",
         background: "var(--accent)", color: "var(--accent-fg)",
         borderRadius: 8, fontSize: 13, fontWeight: 700,
-        border: "none", cursor: "pointer", whiteSpace: "nowrap",
-        fontFamily: "inherit",
-      }}
-    >
-      Get started
-    </button>
+        textDecoration: "none", whiteSpace: "nowrap",
+      }}>Open workspace</Link>
+    );
+  }
+  return (
+    <button onClick={() => openModal("signup")} style={{
+      display: "inline-block", padding: "9px 18px",
+      background: "var(--accent)", color: "var(--accent-fg)",
+      borderRadius: 8, fontSize: 13, fontWeight: 700,
+      border: "none", cursor: "pointer", whiteSpace: "nowrap",
+      fontFamily: "inherit",
+    }}>Get started</button>
   );
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function CompareTableScroll() {
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const headerScrollRef = useRef<HTMLDivElement>(null);
+  const bodyScrollRef   = useRef<HTMLDivElement>(null);
   const [canScrollRight, setCanScrollRight] = useState(false);
 
-  function updateFades() {
-    const el = scrollRef.current;
-    if (!el) return;
-    setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 8);
-  }
+  // Sync header scroll when body scrolls
+  const onBodyScroll = useCallback(() => {
+    const body   = bodyScrollRef.current;
+    const header = headerScrollRef.current;
+    if (!body || !header) return;
+    header.scrollLeft = body.scrollLeft;
+    setCanScrollRight(body.scrollLeft < body.scrollWidth - body.clientWidth - 8);
+  }, []);
 
   useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    updateFades();
-    el.addEventListener("scroll", updateFades, { passive: true });
-    window.addEventListener("resize", updateFades);
+    const body = bodyScrollRef.current;
+    if (!body) return;
+    // initial check
+    setCanScrollRight(body.scrollLeft < body.scrollWidth - body.clientWidth - 8);
+    body.addEventListener("scroll", onBodyScroll, { passive: true });
+    window.addEventListener("resize", onBodyScroll);
     return () => {
-      el.removeEventListener("scroll", updateFades);
-      window.removeEventListener("resize", updateFades);
+      body.removeEventListener("scroll", onBodyScroll);
+      window.removeEventListener("resize", onBodyScroll);
     };
-  }, []);
+  }, [onBodyScroll]);
 
   return (
     <div style={{ position: "relative" }}>
-      {/* No left fade — sticky feature column handles left edge */}
 
-      {/* Right fade — signals scrollability */}
+      {/* ── Sticky header — OUTSIDE overflow-x container so sticky works ── */}
       <div
-        aria-hidden
         style={{
-          position: "absolute", right: 0, top: 0, bottom: 0, width: 64, zIndex: 4,
-          background: "linear-gradient(to left, var(--bg) 30%, transparent)",
-          pointerEvents: "none",
-          opacity: canScrollRight ? 1 : 0,
-          transition: "opacity 0.25s",
-        }}
-      />
-
-      {/* Scrollable table */}
-      <div
-        ref={scrollRef}
-        style={{
-          overflowX: "auto",
-          scrollbarWidth: "none",
-          msOverflowStyle: "none",
+          position: "sticky", top: 70, zIndex: 10,
+          background: "var(--bg)",
+          borderBottom: "1px solid var(--border)",
         }}
       >
-        <style>{`div::-webkit-scrollbar{display:none}`}</style>
-
-        <table
-          style={{
-            width: "100%", borderCollapse: "collapse", fontSize: 13,
-            minWidth: 900,
-          }}
+        <div
+          ref={headerScrollRef}
+          style={{ overflowX: "hidden" }}
         >
-          <thead>
-            <tr>
-              {/* Feature col — sticky left + top (intersection cell) */}
-              <th
-                style={{
-                  textAlign: "left", padding: "0 16px 0 0", paddingBottom: 16,
+          <table style={{
+            width: "100%", borderCollapse: "collapse", fontSize: 13,
+            tableLayout: "fixed",
+          }}>
+            <Colgroup />
+            <thead>
+              <tr>
+                {/* Feature label */}
+                <th style={{
+                  textAlign: "left", padding: "12px 16px 12px 0",
                   color: "var(--text-faint)", fontWeight: 600, fontSize: 11,
                   letterSpacing: "0.06em", textTransform: "uppercase",
-                  minWidth: 220, borderBottom: "1px solid var(--border)",
-                  position: "sticky", left: 0, top: 70,
-                  background: "var(--bg)", zIndex: 8,
-                }}
-              >
-                Feature
-              </th>
+                  background: "var(--bg)",
+                }}>Feature</th>
 
-              {/* IntentLead AI */}
-              <th
-                style={{
-                  textAlign: "center", padding: "0 10px 0", paddingBottom: 16,
-                  minWidth: 140,
+                {/* IntentLead AI */}
+                <th style={{
+                  textAlign: "center", padding: "12px 10px",
+                  background: "rgba(163,230,53,0.05)",
                   borderBottom: "2px solid rgba(163,230,53,0.7)",
-                  background: "rgba(163,230,53,0.04)",
                   borderRadius: "8px 8px 0 0",
-                  position: "sticky", top: 70, zIndex: 7,
-                }}
-              >
-                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--accent)", paddingBottom: 4 }}>
-                  IntentLead AI
-                </div>
-                <div style={{ fontSize: 11, color: "var(--text-faint)", marginBottom: 10 }}>$0 – $199/mo</div>
-                <GetStartedButton />
-              </th>
-
-              {/* Competitors */}
-              {COMPETITORS.map((c) => (
-                <th
-                  key={c.slug}
-                  style={{
-                    textAlign: "center", padding: "0 10px 0", paddingBottom: 16,
-                    minWidth: 130, borderBottom: "1px solid var(--border)",
-                    position: "sticky", top: 70, zIndex: 7,
-                    background: "var(--bg)",
-                  }}
-                >
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-muted)", paddingBottom: 4 }}>
-                    {c.name}
+                }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "var(--accent)", paddingBottom: 4 }}>
+                    IntentLead AI
                   </div>
-                  <div style={{ fontSize: 11, color: "var(--text-faint)", marginBottom: 10 }}>from {c.price}</div>
-                  <Link
-                    href={`/compare/${c.slug}`}
-                    style={{
+                  <div style={{ fontSize: 11, color: "var(--text-faint)", marginBottom: 10 }}>$0 – $199/mo</div>
+                  <GetStartedButton />
+                </th>
+
+                {/* Competitors */}
+                {COMPETITORS.map((c) => (
+                  <th key={c.slug} style={{
+                    textAlign: "center", padding: "12px 10px",
+                    background: "var(--bg)",
+                  }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-muted)", paddingBottom: 4 }}>
+                      {c.name}
+                    </div>
+                    <div style={{ fontSize: 11, color: "var(--text-faint)", marginBottom: 10 }}>from {c.price}</div>
+                    <Link href={`/compare/${c.slug}`} style={{
                       display: "inline-block", padding: "8px 14px",
                       background: "var(--surface-2)", color: "var(--text-muted)",
                       border: "1px solid var(--border-strong)",
                       borderRadius: 8, fontSize: 12, fontWeight: 600,
                       textDecoration: "none", whiteSpace: "nowrap",
-                    }}
-                  >
-                    Full comparison
-                  </Link>
-                </th>
-              ))}
-            </tr>
-          </thead>
+                    }}>Full comparison</Link>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+          </table>
+        </div>
+      </div>
 
+      {/* Right fade */}
+      <div aria-hidden style={{
+        position: "absolute", right: 0, top: 0, bottom: 0, width: 64, zIndex: 5,
+        background: "linear-gradient(to left, var(--bg) 30%, transparent)",
+        pointerEvents: "none",
+        opacity: canScrollRight ? 1 : 0,
+        transition: "opacity 0.25s",
+      }} />
+
+      {/* ── Scrollable body ─────────────────────────────────────────────── */}
+      <div
+        ref={bodyScrollRef}
+        style={{ overflowX: "auto", scrollbarWidth: "none", msOverflowStyle: "none" }}
+      >
+        <style>{`div::-webkit-scrollbar{display:none}`}</style>
+        <table style={{
+          width: "100%", borderCollapse: "collapse", fontSize: 13,
+          tableLayout: "fixed",
+        }}>
+          <Colgroup />
           <tbody>
             {ROWS.map((row, rowIdx) => (
               <React.Fragment key={`${row.feature}-${rowIdx}`}>
                 {row.section && (
                   <tr>
-                    <td
-                      colSpan={7}
-                      style={{
-                        padding: "22px 0 8px",
-                        fontSize: 10, fontWeight: 700, letterSpacing: "0.1em",
-                        textTransform: "uppercase", color: "var(--text-faint)",
-                        position: "sticky", left: 0,
-                        background: "var(--bg)",
-                      }}
-                    >
+                    <td colSpan={7} style={{
+                      padding: "22px 0 8px",
+                      fontSize: 10, fontWeight: 700, letterSpacing: "0.1em",
+                      textTransform: "uppercase", color: "var(--text-faint)",
+                      position: "sticky", left: 0,
+                      background: "var(--bg)", zIndex: 1,
+                    }}>
                       {row.section}
                     </td>
                   </tr>
                 )}
                 <tr>
-                  <td
-                    style={{
-                      padding: "13px 16px 13px 0",
-                      borderBottom: "1px solid rgba(255,255,255,0.04)",
-                      verticalAlign: "middle",
-                      position: "sticky", left: 0,
-                      background: "var(--bg)", zIndex: 1,
-                    }}
-                  >
+                  <td style={{
+                    padding: "13px 16px 13px 0",
+                    borderBottom: "1px solid rgba(255,255,255,0.04)",
+                    verticalAlign: "middle",
+                    position: "sticky", left: 0,
+                    background: "var(--bg)", zIndex: 1,
+                  }}>
                     <span style={{ fontWeight: 500, color: "var(--text)" }}>
                       {row.feature}
                     </span>
@@ -393,9 +357,7 @@ export function CompareTableScroll() {
                       <span style={{
                         fontSize: 11, color: "var(--text-faint)",
                         display: "block", marginTop: 2, lineHeight: 1.4,
-                      }}>
-                        {row.tooltip}
-                      </span>
+                      }}>{row.tooltip}</span>
                     )}
                   </td>
                   {row.values.map((v, i) => (
@@ -408,7 +370,7 @@ export function CompareTableScroll() {
         </table>
       </div>
 
-      {/* Scroll hint — only when table overflows */}
+      {/* Scroll hint */}
       {canScrollRight && (
         <div style={{
           textAlign: "right", paddingTop: 10,
