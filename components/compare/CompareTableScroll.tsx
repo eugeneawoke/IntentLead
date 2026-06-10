@@ -238,13 +238,11 @@ function GetStartedButton() {
 
 export function CompareTableScroll() {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
 
   function updateFades() {
     const el = scrollRef.current;
     if (!el) return;
-    setCanScrollLeft(el.scrollLeft > 8);
     setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 8);
   }
 
@@ -262,17 +260,7 @@ export function CompareTableScroll() {
 
   return (
     <div style={{ position: "relative" }}>
-      {/* Left fade — signals scrollability */}
-      <div
-        aria-hidden
-        style={{
-          position: "absolute", left: 0, top: 0, bottom: 0, width: 64, zIndex: 4,
-          background: "linear-gradient(to right, var(--bg) 30%, transparent)",
-          pointerEvents: "none",
-          opacity: canScrollLeft ? 1 : 0,
-          transition: "opacity 0.25s",
-        }}
-      />
+      {/* No left fade — sticky feature column handles left edge */}
 
       {/* Right fade — signals scrollability */}
       <div
@@ -305,15 +293,15 @@ export function CompareTableScroll() {
         >
           <thead>
             <tr>
-              {/* Feature col — sticky */}
+              {/* Feature col — sticky left + top (intersection cell) */}
               <th
                 style={{
                   textAlign: "left", padding: "0 16px 0 0", paddingBottom: 16,
                   color: "var(--text-faint)", fontWeight: 600, fontSize: 11,
                   letterSpacing: "0.06em", textTransform: "uppercase",
                   minWidth: 220, borderBottom: "1px solid var(--border)",
-                  position: "sticky", left: 0,
-                  background: "var(--bg)", zIndex: 2,
+                  position: "sticky", left: 0, top: 70,
+                  background: "var(--bg)", zIndex: 8,
                 }}
               >
                 Feature
@@ -327,6 +315,7 @@ export function CompareTableScroll() {
                   borderBottom: "2px solid rgba(163,230,53,0.7)",
                   background: "rgba(163,230,53,0.04)",
                   borderRadius: "8px 8px 0 0",
+                  position: "sticky", top: 70, zIndex: 7,
                 }}
               >
                 <div style={{ fontSize: 13, fontWeight: 700, color: "var(--accent)", paddingBottom: 4 }}>
@@ -343,6 +332,8 @@ export function CompareTableScroll() {
                   style={{
                     textAlign: "center", padding: "0 10px 0", paddingBottom: 16,
                     minWidth: 130, borderBottom: "1px solid var(--border)",
+                    position: "sticky", top: 70, zIndex: 7,
+                    background: "var(--bg)",
                   }}
                 >
                   <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-muted)", paddingBottom: 4 }}>
