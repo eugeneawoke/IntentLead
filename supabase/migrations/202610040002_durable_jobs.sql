@@ -629,6 +629,241 @@ BEGIN
   END LOOP;
 END $$;
 
+-- Lease-bound discovery persistence is a domain command, not generic table access.
+-- It is intentionally sufficient only for the Task 5 discovery vertical slice.
+CREATE TABLE public.intentlead_job_discovery_slices (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id uuid NOT NULL REFERENCES public.workspaces(id) ON DELETE CASCADE,
+  schema_version integer NOT NULL DEFAULT 1 CHECK (schema_version = 1),
+  job_id uuid NOT NULL,
+  idempotency_key text NOT NULL CHECK (btrim(idempotency_key) <> ''),
+  input_hash text NOT NULL CHECK (input_hash ~ '^[0-9a-f]{32}$'),
+  provider_run_id uuid NOT NULL,
+  source_item_id uuid NOT NULL,
+  evidence_id uuid NOT NULL,
+  company_id uuid NOT NULL,
+  opportunity_id uuid NOT NULL,
+  assessment_id uuid NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (workspace_id, id),
+  UNIQUE (workspace_id, job_id, idempotency_key),
+  FOREIGN KEY (workspace_id, job_id) REFERENCES public.intentlead_jobs(workspace_id, id),
+  FOREIGN KEY (workspace_id, provider_run_id) REFERENCES public.intentlead_provider_runs(workspace_id, id),
+  FOREIGN KEY (workspace_id, source_item_id) REFERENCES public.intentlead_source_items(workspace_id, id),
+  FOREIGN KEY (workspace_id, evidence_id) REFERENCES public.intentlead_evidence_items(workspace_id, id),
+  FOREIGN KEY (workspace_id, company_id) REFERENCES public.intentlead_companies(workspace_id, id),
+  FOREIGN KEY (workspace_id, opportunity_id) REFERENCES public.intentlead_opportunities(workspace_id, id),
+  FOREIGN KEY (workspace_id, assessment_id) REFERENCES public.intentlead_opportunity_assessments(workspace_id, id)
+);
+ALTER TABLE public.intentlead_job_discovery_slices ENABLE ROW LEVEL SECURITY;
+CREATE POLICY intentlead_workspace_read ON public.intentlead_job_discovery_slices
+  FOR SELECT TO authenticated USING (public.intentlead_is_workspace_member(workspace_id));
+REVOKE ALL ON TABLE public.intentlead_job_discovery_slices FROM PUBLIC, anon, authenticated, service_role;
+GRANT SELECT ON TABLE public.intentlead_job_discovery_slices TO authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION public.intentlead_persist_discovery_slice(
+  p_job_id uuid,
+  p_worker_id text,
+  p_lease_token uuid,
+  p_claimed_workspace_id uuid,
+  p_idempotency_key text,
+  p_slice jsonb
+) RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+  v_job public.intentlead_jobs%ROWTYPE;
+  v_brief public.intentlead_discovery_briefs%ROWTYPE;
+  v_existing public.intentlead_job_discovery_slices%ROWTYPE;
+  v_provider jsonb;
+  v_source jsonb;
+  v_evidence jsonb;
+  v_company jsonb;
+  v_opportunity jsonb;
+  v_assessment jsonb;
+  v_provider_run_id uuid;
+  v_source_id uuid;
+  v_evidence_id uuid;
+  v_company_id uuid;
+  v_opportunity_id uuid;
+  v_assessment_id uuid;
+  v_input_hash text;
+  v_rejection_reasons text[];
+  v_review_reasons text[];
+  v_decision text;
+BEGIN
+  IF p_job_id IS NULL OR p_worker_id IS NULL OR btrim(p_worker_id) = '' OR p_lease_token IS NULL
+    OR p_claimed_workspace_id IS NULL OR p_idempotency_key IS NULL OR btrim(p_idempotency_key) = ''
+    OR p_slice IS NULL OR jsonb_typeof(p_slice) <> 'object'
+  THEN RAISE EXCEPTION 'invalid_discovery_slice_input'; END IF;
+
+  SELECT * INTO v_job FROM public.intentlead_jobs
+  WHERE id = p_job_id AND lease_owner = p_worker_id AND lease_token = p_lease_token
+    AND state IN ('LEASED','RUNNING') AND lease_expires_at > clock_timestamp()
+    AND capability = 'SOURCE_SEARCH' AND job_type = 'OPPORTUNITY_DISCOVERY'
+  FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'invalid_active_lease'; END IF;
+  IF p_claimed_workspace_id <> v_job.workspace_id THEN RAISE EXCEPTION 'workspace_mismatch'; END IF;
+
+  SELECT b.* INTO v_brief
+  FROM public.intentlead_discovery_briefs b
+  JOIN public.intentlead_market_profiles m
+    ON m.id = b.market_profile_id AND m.workspace_id = b.workspace_id
+  WHERE b.id = v_job.discovery_brief_id AND b.workspace_id = v_job.workspace_id
+    AND m.profile_key = v_job.market_profile_key
+  FOR SHARE OF b, m;
+  IF NOT FOUND THEN RAISE EXCEPTION 'job_discovery_context_invalid'; END IF;
+
+  IF NOT public.intentlead_jsonb_keys_allowed(
+      p_slice, ARRAY['schemaVersion','providerRun','source','evidence','company','opportunity','assessment'])
+    OR NOT (p_slice ?& ARRAY['schemaVersion','providerRun','source','evidence','company','opportunity','assessment'])
+    OR jsonb_typeof(p_slice->'schemaVersion') <> 'number' OR p_slice->>'schemaVersion' <> '1'
+  THEN RAISE EXCEPTION 'invalid_discovery_slice_shape'; END IF;
+  v_provider := p_slice->'providerRun';
+  v_source := p_slice->'source';
+  v_evidence := p_slice->'evidence';
+  v_company := p_slice->'company';
+  v_opportunity := p_slice->'opportunity';
+  v_assessment := p_slice->'assessment';
+  IF NOT public.intentlead_jsonb_keys_allowed(v_provider, ARRAY['id','provider','providerVersion'])
+    OR NOT (v_provider ?& ARRAY['id','provider','providerVersion'])
+    OR jsonb_typeof(v_provider->'provider') <> 'string' OR btrim(v_provider->>'provider') = ''
+    OR jsonb_typeof(v_provider->'providerVersion') NOT IN ('string','null')
+    OR NOT public.intentlead_jsonb_keys_allowed(v_source,
+      ARRAY['id','externalId','sourceUrl','content','normalizedFacts','provenance','contentHash','capturedAt','publishedAt'])
+    OR NOT (v_source ?& ARRAY['id','externalId','sourceUrl','content','normalizedFacts','provenance','contentHash','capturedAt','publishedAt'])
+    OR (v_source->'sourceUrl' <> 'null'::jsonb AND v_source->>'sourceUrl' !~ '^https?://')
+    OR v_source->>'contentHash' !~ '^[0-9a-fA-F]{64}$'
+    OR NOT public.intentlead_valid_structured_facts(v_source->'normalizedFacts')
+    OR NOT public.intentlead_valid_provenance(v_source->'provenance')
+    OR NOT public.intentlead_jsonb_keys_allowed(v_evidence,
+      ARRAY['id','type','sourceUrl','capturedAt','excerpt','structuredFacts','verificationMethod','confidence','contentHash','provenance'])
+    OR NOT (v_evidence ?& ARRAY['id','type','sourceUrl','capturedAt','excerpt','structuredFacts','verificationMethod','confidence','contentHash','provenance'])
+    OR v_evidence->>'type' NOT IN ('text','structured_fact','screenshot','document','observation')
+    OR (v_evidence->'sourceUrl' <> 'null'::jsonb AND v_evidence->>'sourceUrl' !~ '^https?://')
+    OR v_evidence->>'contentHash' !~ '^[0-9a-fA-F]{64}$'
+    OR btrim(v_evidence->>'verificationMethod') = ''
+    OR NOT public.intentlead_valid_structured_facts(v_evidence->'structuredFacts')
+    OR NOT public.intentlead_valid_provenance(v_evidence->'provenance')
+    OR NOT public.intentlead_jsonb_keys_allowed(v_company,
+      ARRAY['id','canonicalName','domain','jurisdiction','confidence'])
+    OR NOT (v_company ?& ARRAY['id','canonicalName','domain','jurisdiction','confidence'])
+    OR btrim(v_company->>'canonicalName') = ''
+    OR (v_company->'jurisdiction' <> 'null'::jsonb
+      AND NOT public.intentlead_valid_jurisdictions(jsonb_build_array(v_company->'jurisdiction')))
+    OR NOT public.intentlead_jsonb_keys_allowed(v_opportunity, ARRAY['id','signal','jurisdiction'])
+    OR NOT (v_opportunity ?& ARRAY['id','signal','jurisdiction'])
+    OR NOT public.intentlead_valid_signal(v_opportunity->'signal')
+    OR (v_opportunity->'jurisdiction' <> 'null'::jsonb
+      AND NOT public.intentlead_valid_jurisdictions(jsonb_build_array(v_opportunity->'jurisdiction')))
+    OR NOT public.intentlead_jsonb_keys_allowed(v_assessment, ARRAY[
+      'id','decision','problemType','problemStatement','evidenceStrength','explicitness','urgency','freshness',
+      'commercialImpact','icpFit','companyConfidence','buyerRelevance','actionability','confidence',
+      'rejectionReasons','reviewReasons','assessedAt'])
+    OR NOT (v_assessment ?& ARRAY[
+      'id','decision','problemType','problemStatement','evidenceStrength','explicitness','urgency','freshness',
+      'commercialImpact','icpFit','companyConfidence','buyerRelevance','actionability','confidence',
+      'rejectionReasons','reviewReasons','assessedAt'])
+  THEN RAISE EXCEPTION 'invalid_discovery_slice_shape'; END IF;
+
+  v_provider_run_id := (v_provider->>'id')::uuid;
+  v_source_id := (v_source->>'id')::uuid;
+  v_evidence_id := (v_evidence->>'id')::uuid;
+  v_company_id := (v_company->>'id')::uuid;
+  v_opportunity_id := (v_opportunity->>'id')::uuid;
+  v_assessment_id := (v_assessment->>'id')::uuid;
+  v_decision := v_assessment->>'decision';
+  v_rejection_reasons := ARRAY(SELECT jsonb_array_elements_text(v_assessment->'rejectionReasons'));
+  v_review_reasons := ARRAY(SELECT jsonb_array_elements_text(v_assessment->'reviewReasons'));
+  IF v_source->'provenance'->>'sourceId' <> v_source_id::text
+    OR v_source->'provenance'->>'providerRunId' <> v_provider_run_id::text
+    OR v_source->'provenance'->'rawArtifactId' <> 'null'::jsonb
+    OR v_evidence->'provenance'->>'sourceId' <> v_source_id::text
+    OR v_evidence->'provenance'->>'providerRunId' <> v_provider_run_id::text
+    OR v_evidence->'provenance'->'rawArtifactId' <> 'null'::jsonb
+    OR v_decision NOT IN ('QUALIFY','REVIEW','REJECT')
+    OR (v_decision = 'QUALIFY' AND (cardinality(v_rejection_reasons) <> 0 OR cardinality(v_review_reasons) <> 0))
+    OR (v_decision = 'REVIEW' AND (cardinality(v_rejection_reasons) <> 0 OR cardinality(v_review_reasons) = 0))
+    OR (v_decision = 'REJECT' AND (cardinality(v_rejection_reasons) = 0 OR cardinality(v_review_reasons) <> 0))
+  THEN RAISE EXCEPTION 'invalid_discovery_slice_relations'; END IF;
+
+  v_input_hash := md5(p_slice::text);
+  SELECT * INTO v_existing FROM public.intentlead_job_discovery_slices
+    WHERE workspace_id = v_job.workspace_id AND job_id = p_job_id
+      AND idempotency_key = p_idempotency_key FOR UPDATE;
+  IF FOUND THEN
+    IF v_existing.input_hash <> v_input_hash THEN RAISE EXCEPTION 'idempotency_conflict'; END IF;
+    RETURN v_existing.opportunity_id;
+  END IF;
+
+  INSERT INTO public.intentlead_provider_runs
+    (id,workspace_id,job_id,capability,provider,provider_version,status,
+     request_metadata,response_metadata,started_at,finished_at)
+  VALUES (v_provider_run_id,v_job.workspace_id,p_job_id,'SOURCE_SEARCH',v_provider->>'provider',
+    v_provider->>'providerVersion','SUCCEEDED',
+    jsonb_build_object('jobId',p_job_id,'traceId',v_job.trace_id),'{}'::jsonb,
+    clock_timestamp(),clock_timestamp());
+  INSERT INTO public.intentlead_source_items
+    (id,workspace_id,provider,external_id,provider_run_id,source_url,content,normalized_facts,
+     provenance,content_hash,captured_at,published_at)
+  VALUES (v_source_id,v_job.workspace_id,v_provider->>'provider',v_source->>'externalId',v_provider_run_id,
+    v_source->>'sourceUrl',v_source->>'content',v_source->'normalizedFacts',v_source->'provenance',
+    v_source->>'contentHash',(v_source->>'capturedAt')::timestamptz,(v_source->>'publishedAt')::timestamptz);
+  INSERT INTO public.intentlead_evidence_items
+    (id,workspace_id,source_item_id,provider_run_id,evidence_type,source_url,captured_at,excerpt,
+     structured_facts,verification_method,confidence,content_hash,provenance)
+  VALUES (v_evidence_id,v_job.workspace_id,v_source_id,v_provider_run_id,v_evidence->>'type',
+    v_evidence->>'sourceUrl',(v_evidence->>'capturedAt')::timestamptz,v_evidence->>'excerpt',
+    v_evidence->'structuredFacts',v_evidence->>'verificationMethod',(v_evidence->>'confidence')::numeric,
+    v_evidence->>'contentHash',v_evidence->'provenance');
+  INSERT INTO public.intentlead_companies
+    (id,workspace_id,canonical_name,domain,jurisdiction,confidence)
+  VALUES (v_company_id,v_job.workspace_id,v_company->>'canonicalName',v_company->>'domain',
+    nullif(v_company->'jurisdiction','null'::jsonb),(v_company->>'confidence')::numeric);
+  INSERT INTO public.intentlead_opportunities
+    (id,workspace_id,discovery_brief_id,company_id,state,signal,jurisdiction)
+  VALUES (v_opportunity_id,v_job.workspace_id,v_brief.id,v_company_id,'DISCOVERED',v_opportunity->'signal',
+    nullif(v_opportunity->'jurisdiction','null'::jsonb));
+  INSERT INTO public.intentlead_opportunity_evidence(workspace_id,opportunity_id,evidence_id)
+  VALUES (v_job.workspace_id,v_opportunity_id,v_evidence_id);
+  INSERT INTO public.intentlead_opportunity_assessments
+    (id,workspace_id,opportunity_id,version,decision,signal,problem_type,problem_statement,
+     evidence_strength,explicitness,urgency,freshness,commercial_impact,icp_fit,company_confidence,
+     buyer_relevance,actionability,confidence,rejection_reasons,review_reasons,model_run_id,assessed_at)
+  VALUES (v_assessment_id,v_job.workspace_id,v_opportunity_id,1,v_decision,v_opportunity->'signal',
+    v_assessment->>'problemType',v_assessment->>'problemStatement',
+    (v_assessment->>'evidenceStrength')::numeric,(v_assessment->>'explicitness')::numeric,
+    (v_assessment->>'urgency')::numeric,(v_assessment->>'freshness')::numeric,
+    (v_assessment->>'commercialImpact')::numeric,(v_assessment->>'icpFit')::numeric,
+    (v_assessment->>'companyConfidence')::numeric,(v_assessment->>'buyerRelevance')::numeric,
+    (v_assessment->>'actionability')::numeric,(v_assessment->>'confidence')::numeric,
+    v_rejection_reasons,v_review_reasons,v_provider_run_id,(v_assessment->>'assessedAt')::timestamptz);
+  INSERT INTO public.intentlead_assessment_evidence(workspace_id,assessment_id,opportunity_id,evidence_id)
+  VALUES (v_job.workspace_id,v_assessment_id,v_opportunity_id,v_evidence_id);
+  UPDATE public.intentlead_opportunities
+    SET state = CASE v_decision WHEN 'QUALIFY' THEN 'PACKAGE_READY'
+      WHEN 'REVIEW' THEN 'HUMAN_REVIEW' ELSE 'MODEL_REJECTED' END,
+      current_assessment_id = v_assessment_id
+    WHERE id = v_opportunity_id;
+  INSERT INTO public.intentlead_job_discovery_slices
+    (workspace_id,job_id,idempotency_key,input_hash,provider_run_id,source_item_id,evidence_id,
+     company_id,opportunity_id,assessment_id)
+  VALUES (v_job.workspace_id,p_job_id,p_idempotency_key,v_input_hash,v_provider_run_id,v_source_id,
+    v_evidence_id,v_company_id,v_opportunity_id,v_assessment_id);
+  RETURN v_opportunity_id;
+EXCEPTION
+  WHEN invalid_text_representation OR datetime_field_overflow OR numeric_value_out_of_range THEN
+    RAISE EXCEPTION 'invalid_discovery_slice_shape';
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.intentlead_persist_discovery_slice(uuid,text,uuid,uuid,text,jsonb)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.intentlead_persist_discovery_slice(uuid,text,uuid,uuid,text,jsonb)
+  TO service_role;
+
 -- Review hardening: deterministic enqueue/completion identities, retry exhaustion and relational step provenance.
 CREATE OR REPLACE FUNCTION public.intentlead_valid_capability_error(p_value jsonb)
 RETURNS boolean LANGUAGE sql IMMUTABLE SET search_path = pg_catalog AS $$

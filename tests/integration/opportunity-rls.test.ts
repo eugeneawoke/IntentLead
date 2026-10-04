@@ -21,6 +21,9 @@ describe("Opportunity Core RLS and provenance", () => {
   it("upgrades a populated legacy schema without losing existing rows", async () => {
     expect(await sql(`SELECT company_name FROM public.leads WHERE id='${populatedBaseline.leadId}'`)).toBe("Existing legacy lead");
     expect(await sql(`SELECT to_regclass('public.intentlead_opportunities') IS NOT NULL`)).toBe("t");
+    for (const privilege of ["SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER"]) {
+      expect(await sql(`SELECT has_table_privilege('service_role','public.glook_acl_sentinel','${privilege}')`)).toBe("t");
+    }
   });
 
   it("allows owner configuration, member read, and denies member/outsider/anonymous mutation", async () => {

@@ -745,16 +745,25 @@ DECLARE
   v_suppression_decision_id uuid;
   v_market_check_id uuid;
   v_evidence_count integer;
+  v_workspace_id uuid;
+  v_opportunity_id uuid;
 BEGIN
   IF p_idempotency_key IS NULL OR btrim(p_idempotency_key) = '' THEN RAISE EXCEPTION 'invalid_idempotency_key'; END IF;
 
-  SELECT p.* INTO v_package
-  FROM public.intentlead_verified_packages p
-  JOIN public.workspaces w ON w.id = p.workspace_id
-  WHERE p.id = p_package_id AND w.owner_id = p_user_id AND p.tombstoned_at IS NULL
-  FOR UPDATE OF p, w;
+  SELECT workspace_id, opportunity_id INTO v_workspace_id, v_opportunity_id
+  FROM public.intentlead_verified_packages WHERE id = p_package_id;
   IF NOT FOUND THEN RAISE EXCEPTION 'forbidden'; END IF;
-  SELECT * INTO v_workspace FROM public.workspaces WHERE id = v_package.workspace_id FOR UPDATE;
+  PERFORM pg_advisory_xact_lock(hashtextextended('intentlead-workspace:' || v_workspace_id::text, 0));
+  SELECT * INTO v_workspace FROM public.workspaces
+    WHERE id = v_workspace_id AND owner_id = p_user_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'forbidden'; END IF;
+  SELECT * INTO v_opportunity FROM public.intentlead_opportunities
+    WHERE id = v_opportunity_id AND workspace_id = v_workspace_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'forbidden'; END IF;
+  SELECT * INTO v_package FROM public.intentlead_verified_packages
+    WHERE id = p_package_id AND workspace_id = v_workspace_id
+      AND opportunity_id = v_opportunity_id AND tombstoned_at IS NULL FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'forbidden'; END IF;
 
   SELECT id INTO v_event_id FROM public.intentlead_cost_events
   WHERE workspace_id = v_package.workspace_id AND event_type = 'PACKAGE_VERIFIED'
@@ -767,10 +776,7 @@ BEGIN
   IF v_package.status = 'VERIFIED' THEN RAISE EXCEPTION 'package_already_charged'; END IF;
   IF v_package.status <> 'PENDING' THEN RAISE EXCEPTION 'package_not_chargeable'; END IF;
 
-  SELECT * INTO v_opportunity FROM public.intentlead_opportunities
-    WHERE id = v_package.opportunity_id AND workspace_id = v_package.workspace_id
-    FOR UPDATE;
-  IF NOT FOUND OR v_opportunity.tombstoned_at IS NOT NULL
+  IF v_opportunity.tombstoned_at IS NOT NULL
     OR v_opportunity.state NOT IN ('PACKAGE_READY','HUMAN_REVIEW','OUTREACH_READY')
     OR v_opportunity.company_id IS NULL OR v_opportunity.current_assessment_id IS NULL
   THEN RAISE EXCEPTION 'package_not_chargeable'; END IF;
@@ -821,6 +827,15 @@ BEGIN
       AND c.workspace_id = v_package.workspace_id AND c.tombstoned_at IS NULL
       AND c.confidence >= v_policy.company_min_confidence
   ) THEN RAISE EXCEPTION 'verification_reference_invalid:company'; END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM public.intentlead_companies c
+    CROSS JOIN LATERAL jsonb_array_elements(v_policy.jurisdictions) allowed
+    WHERE c.id = v_company_id AND c.workspace_id = v_package.workspace_id
+      AND c.jurisdiction IS NOT NULL
+      AND allowed->>'countryCode' = c.jurisdiction->>'countryCode'
+      AND (allowed->'subdivisionCode' = 'null'::jsonb
+        OR allowed->>'subdivisionCode' = c.jurisdiction->>'subdivisionCode')
+  ) THEN RAISE EXCEPTION 'verification_jurisdiction_denied:company'; END IF;
 
   SELECT buyer_candidate_id INTO v_buyer_id FROM public.intentlead_package_check_results
     WHERE package_id = p_package_id AND check_name = 'buyer' AND status = 'PASS';
@@ -869,6 +884,14 @@ BEGIN
         AND oe.tombstoned_at IS NULL
     );
   IF v_contact_point_id IS NULL THEN RAISE EXCEPTION 'verification_reference_invalid:contact'; END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM public.intentlead_contact_points cp
+    CROSS JOIN LATERAL jsonb_array_elements(v_policy.jurisdictions) allowed
+    WHERE cp.id = v_contact_point_id AND cp.workspace_id = v_package.workspace_id
+      AND allowed->>'countryCode' = cp.jurisdiction->>'countryCode'
+      AND (allowed->'subdivisionCode' = 'null'::jsonb
+        OR allowed->>'subdivisionCode' = cp.jurisdiction->>'subdivisionCode')
+  ) THEN RAISE EXCEPTION 'verification_jurisdiction_denied:contact'; END IF;
 
   SELECT outreach_draft_id INTO v_draft_id FROM public.intentlead_package_check_results
     WHERE package_id = p_package_id AND check_name = 'grounded_draft' AND status = 'PASS';
@@ -1467,12 +1490,19 @@ DECLARE
   v_workspace_id uuid;
 BEGIN
   IF p_reason IS NULL OR btrim(p_reason) = '' THEN RAISE EXCEPTION 'invalid_tombstone_reason'; END IF;
-  SELECT o.workspace_id INTO v_workspace_id
-  FROM public.intentlead_opportunities o
-  JOIN public.workspaces w ON w.id = o.workspace_id
-  WHERE o.id = p_opportunity_id AND w.owner_id = p_user_id
-  FOR UPDATE OF o, w;
+  SELECT workspace_id INTO v_workspace_id
+  FROM public.intentlead_opportunities WHERE id = p_opportunity_id;
   IF NOT FOUND THEN RAISE EXCEPTION 'forbidden'; END IF;
+  PERFORM pg_advisory_xact_lock(hashtextextended('intentlead-workspace:' || v_workspace_id::text, 0));
+  PERFORM 1 FROM public.workspaces
+    WHERE id = v_workspace_id AND owner_id = p_user_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'forbidden'; END IF;
+  PERFORM 1 FROM public.intentlead_opportunities
+    WHERE id = p_opportunity_id AND workspace_id = v_workspace_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'forbidden'; END IF;
+  PERFORM 1 FROM public.intentlead_verified_packages
+    WHERE opportunity_id = p_opportunity_id AND workspace_id = v_workspace_id
+    ORDER BY id FOR UPDATE;
 
   UPDATE public.intentlead_opportunities
     SET tombstoned_at = coalesce(tombstoned_at, clock_timestamp()), state = 'CLOSED'
@@ -1550,6 +1580,13 @@ BEGIN
       SELECT 1 FROM public.intentlead_package_check_results r
       JOIN public.intentlead_verified_packages p ON p.id = r.package_id
       WHERE p.opportunity_id = p_opportunity_id AND r.contact_verification_id = cv.id
+    ) AND NOT EXISTS (
+      SELECT 1 FROM public.intentlead_package_check_results live_r
+      JOIN public.intentlead_verified_packages live_p ON live_p.id = live_r.package_id
+      JOIN public.intentlead_opportunities live_o ON live_o.id = live_p.opportunity_id
+      WHERE live_r.contact_verification_id = cv.id
+        AND live_o.id <> p_opportunity_id
+        AND live_o.tombstoned_at IS NULL AND live_p.tombstoned_at IS NULL
     );
   UPDATE public.intentlead_contact_points cp
     SET value = NULL, tombstoned_at = coalesce(cp.tombstoned_at, clock_timestamp())
@@ -1622,13 +1659,8 @@ BEGIN
   GRANT INSERT ON TABLE public.intentlead_human_reviews TO authenticated;
 END $$;
 
--- No direct service mutation of audit, charging or exceptional deletion state.
-REVOKE UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER
-  ON ALL TABLES IN SCHEMA public FROM service_role;
--- Restore only legacy/server operations needed outside the new namespace.
-GRANT ALL ON TABLE public.workspaces, public.workspace_members, public.campaigns,
-  public.signals, public.leads, public.messages, public.client_context_chunks,
-  public.conversations, public.conversation_messages TO service_role;
+-- The explicit intentlead_ list above is the complete ACL boundary owned by this
+-- migration. Never revoke privileges from unknown shared-schema/Glook objects.
 
 DO $$
 DECLARE

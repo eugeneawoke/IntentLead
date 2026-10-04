@@ -44,7 +44,104 @@ async function enqueue(briefId: string, key: string, userId = owner): Promise<st
   return sql(asRole("service_role", `SELECT public.intentlead_enqueue_discovery_job('${briefId}', '${userId}', '${key}', '{}')`));
 }
 
+function discoverySlice() {
+  const providerRunId = randomUUID();
+  const sourceId = randomUUID();
+  const evidenceId = randomUUID();
+  const companyId = randomUUID();
+  const opportunityId = randomUUID();
+  const assessmentId = randomUUID();
+  const capturedAt = new Date().toISOString();
+  return {
+    schemaVersion: 1,
+    providerRun: { id: providerRunId, provider: "fixture-search", providerVersion: "1" },
+    source: {
+      id: sourceId, externalId: `source-${sourceId}`, sourceUrl: "https://example.test/discovery",
+      content: "Observed conversion friction", normalizedFacts: { companyName: "Worker Fixture" },
+      provenance: { sourceType: "WEB", sourceId, providerRunId, rawArtifactId: null },
+      contentHash: "a".repeat(64), capturedAt, publishedAt: null,
+    },
+    evidence: {
+      id: evidenceId, type: "text", sourceUrl: "https://example.test/discovery",
+      capturedAt, excerpt: "Observed conversion friction",
+      structuredFacts: { problem: { category: "website", observedCondition: "Conversion friction" } },
+      verificationMethod: "worker-fixture", confidence: 0.9, contentHash: "b".repeat(64),
+      provenance: { sourceType: "WEB", sourceId, providerRunId, rawArtifactId: null },
+    },
+    company: {
+      id: companyId, canonicalName: "Worker Fixture", domain: `${companyId}.example`,
+      jurisdiction: { countryCode: "US", subdivisionCode: null }, confidence: 0.9,
+    },
+    opportunity: {
+      id: opportunityId, signal: { family: "DETECTED_PROBLEM", subtype: "website" },
+      jurisdiction: { countryCode: "US", subdivisionCode: null },
+    },
+    assessment: {
+      id: assessmentId, decision: "QUALIFY", problemType: "website",
+      problemStatement: "Conversion friction", evidenceStrength: 0.9, explicitness: 0.8,
+      urgency: 0.7, freshness: 0.9, commercialImpact: 0.8, icpFit: 0.9,
+      companyConfidence: 0.9, buyerRelevance: 0.7, actionability: 0.8, confidence: 0.85,
+      rejectionReasons: [], reviewReasons: [], assessedAt: capturedAt,
+    },
+  };
+}
+
 describe("durable job enqueue and leases", () => {
+  it("persists a bounded discovery slice only through the active job lease", async () => {
+    const briefId = await brief();
+    const jobId = await enqueue(briefId, `persist-${briefId}`);
+    const lease = await sql(asRole("service_role", `SELECT id || '|' || lease_token
+      FROM public.intentlead_lease_next_job('persist-worker',30)`));
+    expect(lease.split("|")[0]).toBe(jobId);
+    const token = lease.split("|")[1];
+    const slice = discoverySlice();
+    const payload = JSON.stringify(slice);
+    await expect(sql(asRole("service_role", `SELECT public.intentlead_persist_discovery_slice(
+      '${jobId}','persist-worker','${randomUUID()}','${workspaceId}','wrong-token','${payload}'::jsonb
+    )`))).rejects.toThrow(/invalid_active_lease/);
+    await expect(sql(asRole("service_role", `SELECT public.intentlead_persist_discovery_slice(
+      '${jobId}','persist-worker','${token}','${randomUUID()}','wrong-workspace','${payload}'::jsonb
+    )`))).rejects.toThrow(/workspace_mismatch/);
+    expect(await sql(asRole("service_role", `SELECT public.intentlead_persist_discovery_slice(
+      '${jobId}','persist-worker','${token}','${workspaceId}','slice-${jobId}','${payload}'::jsonb
+    )`))).toBe(slice.opportunity.id);
+    expect(await sql(asRole("service_role", `SELECT public.intentlead_persist_discovery_slice(
+      '${jobId}','persist-worker','${token}','${workspaceId}','slice-${jobId}','${payload}'::jsonb
+    )`))).toBe(slice.opportunity.id);
+    await expect(sql(asRole("service_role", `SELECT public.intentlead_persist_discovery_slice(
+      '${jobId}','persist-worker','${token}','${workspaceId}','slice-${jobId}',
+      '${JSON.stringify({ ...slice, providerRun: { ...slice.providerRun, provider: "conflict" } })}'::jsonb
+    )`))).rejects.toThrow(/idempotency_conflict/);
+    expect(await sql(`SELECT count(*) FROM public.intentlead_provider_runs WHERE job_id='${jobId}'`)).toBe("1");
+    expect(await sql(`SELECT count(*) FROM public.intentlead_opportunity_assessments WHERE opportunity_id='${slice.opportunity.id}'`)).toBe("1");
+    await expect(sql(asRole("service_role", `INSERT INTO public.intentlead_source_items
+      (workspace_id,provider,external_id,content,provenance,content_hash,captured_at)
+      VALUES ('${workspaceId}','forged','forged','forged',
+        '{"sourceType":"WEB","sourceId":"forged","providerRunId":null,"rawArtifactId":null}',repeat('f',64),now())`)))
+      .rejects.toThrow(/permission denied/);
+    for (const role of ["anon", "authenticated"] as const) {
+      await expect(sql(asRole(role, `SELECT public.intentlead_persist_discovery_slice(
+        '${jobId}','persist-worker','${token}','${workspaceId}','client','${payload}'::jsonb
+      )`, role === "authenticated" ? owner : undefined))).rejects.toThrow(/permission denied/);
+    }
+    expect(await sql(`SELECT prosecdef AND 'search_path=pg_catalog, public'=ANY(proconfig)
+      FROM pg_proc WHERE proname='intentlead_persist_discovery_slice'`)).toBe("t");
+    expect(await sql(asRole("service_role", `SELECT public.intentlead_complete_job(
+      '${jobId}','persist-worker','${token}','COMPLETED','{"resultIds":["${slice.opportunity.id}"]}',NULL
+    )`))).toContain("t");
+
+    const expiredBrief = await brief();
+    const expiredJob = await enqueue(expiredBrief, `persist-expired-${expiredBrief}`);
+    const expiredLease = await sql(asRole("service_role", `SELECT lease_token
+      FROM public.intentlead_lease_next_job('expired-persist-worker',5)`));
+    await sql(`SELECT pg_sleep(5.1)`);
+    await expect(sql(asRole("service_role", `SELECT public.intentlead_persist_discovery_slice(
+      '${expiredJob}','expired-persist-worker','${expiredLease}','${workspaceId}','expired-slice','${JSON.stringify(discoverySlice())}'::jsonb
+    )`))).rejects.toThrow(/invalid_active_lease/);
+    await sql(asRole("service_role", `SELECT count(*) FROM public.intentlead_lease_next_job('expired-reaper',30)`));
+    await sql(asRole("service_role", `SELECT public.intentlead_cancel_job('${expiredJob}','${owner}')`));
+  }, 20_000);
+
   it("rejects a conflicting payload under an existing enqueue idempotency key", async () => {
     const briefId = await brief();
     const key = `payload-conflict-${briefId}`;
@@ -134,6 +231,9 @@ describe("durable job enqueue and leases", () => {
     const takeover = await sql(asRole("service_role", `SELECT lease_token FROM public.intentlead_lease_next_job('recovery-worker', 30)`));
     expect(takeover).not.toBe(first);
     expect(await sql(`SELECT attempt FROM public.intentlead_jobs WHERE id='${staleJob}'`)).toBe("2");
+    expect(await sql(asRole("service_role", `SELECT public.intentlead_complete_job(
+      '${staleJob}','recovery-worker','${takeover}','COMPLETED','{"resultIds":[]}',NULL
+    )`))).toContain("t");
 
     const retryBrief = await brief();
     const retryJob = await enqueue(retryBrief, `retry-${retryBrief}`);
@@ -143,7 +243,11 @@ describe("durable job enqueue and leases", () => {
       now()+interval '1 second')`))).toContain("t");
     expect(await sql(asRole("service_role", `SELECT count(*) FROM public.intentlead_lease_next_job('too-early', 30) WHERE id='${retryJob}'`))).toContain("0");
     await sql(`SELECT pg_sleep(1.1)`);
-    expect(await sql(asRole("service_role", `SELECT count(*) FROM public.intentlead_lease_next_job('retry-worker-2', 30) WHERE id='${retryJob}'`))).toContain("1");
+    const retryToken = await sql(asRole("service_role", `SELECT lease_token FROM public.intentlead_lease_next_job('retry-worker-2', 30) WHERE id='${retryJob}'`));
+    expect(retryToken).not.toBe("");
+    expect(await sql(asRole("service_role", `SELECT public.intentlead_complete_job(
+      '${retryJob}','retry-worker-2','${retryToken}','COMPLETED','{"resultIds":[]}',NULL
+    )`))).toContain("t");
   }, 20_000);
 
   it("revokes public/client RPC execution and direct job mutation", async () => {

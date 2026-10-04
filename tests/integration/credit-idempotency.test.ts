@@ -13,6 +13,7 @@ type Fixture = {
   evidenceId: string;
   companyId: string;
   buyerId: string;
+  contactId: string;
   contactVerificationId: string;
   draftId: string;
   suppressionDecisionId: string;
@@ -25,7 +26,10 @@ let icpId: string;
 
 const provenance = JSON.stringify({ sourceType: "WEB", sourceId: "task4-fixture", providerRunId: null, rawArtifactId: null });
 
-async function createOpportunity(profileKey: "LOCAL_CUSTOM" | "EN_DISCOVERY_ONLY" = "LOCAL_CUSTOM"): Promise<Fixture> {
+async function createOpportunity(
+  profileKey: "LOCAL_CUSTOM" | "EN_DISCOVERY_ONLY" = "LOCAL_CUSTOM",
+  countryCode = "US",
+): Promise<Fixture> {
   const marketId = randomUUID();
   const briefId = randomUUID();
   const opportunityId = randomUUID();
@@ -55,7 +59,8 @@ async function createOpportunity(profileKey: "LOCAL_CUSTOM" | "EN_DISCOVERY_ONLY
     VALUES ('${briefId}', '${workspaceId}', '${offerId}', '${icpId}', '${marketId}', 'Charge fixture', '{}');
     INSERT INTO public.intentlead_companies
       (id, workspace_id, canonical_name, domain, jurisdiction, confidence)
-    VALUES ('${companyId}', '${workspaceId}', 'Acme ${opportunityId}', '${opportunityId}.example', '{"country":"US"}', 0.95);
+    VALUES ('${companyId}', '${workspaceId}', 'Acme ${opportunityId}', '${opportunityId}.example',
+      '{"countryCode":"${countryCode}","subdivisionCode":null}', 0.95);
     INSERT INTO public.intentlead_evidence_items
       (id, workspace_id, evidence_type, captured_at, excerpt, structured_facts, verification_method, confidence, content_hash, provenance)
     VALUES ('${evidenceId}', '${workspaceId}', 'text', now(), 'Charge evidence',
@@ -79,7 +84,8 @@ async function createOpportunity(profileKey: "LOCAL_CUSTOM" | "EN_DISCOVERY_ONLY
     UPDATE public.intentlead_opportunities SET state='PACKAGE_READY', current_assessment_id='${assessmentId}' WHERE id='${opportunityId}';
     INSERT INTO public.intentlead_people
       (id, workspace_id, company_id, full_name, role_title, jurisdiction, confidence, resolved_at)
-    VALUES ('${personId}', '${workspaceId}', '${companyId}', 'Alex Buyer', 'VP Growth', '{"country":"US"}', .9, now());
+    VALUES ('${personId}', '${workspaceId}', '${companyId}', 'Alex Buyer', 'VP Growth',
+      '{"countryCode":"${countryCode}","subdivisionCode":null}', .9, now());
     INSERT INTO public.intentlead_buyer_candidates
       (id, workspace_id, opportunity_id, company_id, person_id, role_title, hypothesis, confidence, relevance)
     VALUES ('${buyerId}', '${workspaceId}', '${opportunityId}', '${companyId}', '${personId}', 'VP Growth',
@@ -89,7 +95,8 @@ async function createOpportunity(profileKey: "LOCAL_CUSTOM" | "EN_DISCOVERY_ONLY
     INSERT INTO public.intentlead_contact_points
       (id, workspace_id, person_id, company_id, channel, value, value_hash, jurisdiction, captured_at)
     VALUES ('${contactId}', '${workspaceId}', '${personId}', '${companyId}', 'email', 'alex@${opportunityId}.example',
-      md5('alex@${opportunityId}.example')||md5('alex@${opportunityId}.example'), '{"country":"US"}', now());
+      md5('alex@${opportunityId}.example')||md5('alex@${opportunityId}.example'),
+      '{"countryCode":"${countryCode}","subdivisionCode":null}', now());
     INSERT INTO public.intentlead_contact_point_evidence (workspace_id, contact_point_id, evidence_id)
     VALUES ('${workspaceId}', '${contactId}', '${evidenceId}');
     INSERT INTO public.intentlead_contact_verifications
@@ -107,7 +114,7 @@ async function createOpportunity(profileKey: "LOCAL_CUSTOM" | "EN_DISCOVERY_ONLY
       (id, workspace_id, opportunity_id, contact_point_id, decision, evaluated_at)
     VALUES ('${suppressionDecisionId}', '${workspaceId}', '${opportunityId}', '${contactId}', 'CLEAR', now());
     COMMIT;`);
-  return { opportunityId, marketId, evidenceId, companyId, buyerId, contactVerificationId, draftId, suppressionDecisionId };
+  return { opportunityId, marketId, evidenceId, companyId, buyerId, contactId, contactVerificationId, draftId, suppressionDecisionId };
 }
 
 beforeAll(async () => {
@@ -192,6 +199,58 @@ describe("verified package credit idempotency", () => {
     const discovery = await createOpportunity("EN_DISCOVERY_ONLY");
     const packageId = await packageWithChecks(discovery);
     await expect(charge(packageId, `discovery-chain-${packageId}`)).rejects.toThrow(/package_verification_disabled/);
+  });
+
+  it("rejects a US-only policy for authoritative FR company and contact context without charging", async () => {
+    const french = await createOpportunity("LOCAL_CUSTOM", "FR");
+    const initial = await sql(`SELECT credits_remaining FROM public.workspaces WHERE id='${workspaceId}'`);
+    await expect(charge(await packageWithChecks(french), `jurisdiction-${randomUUID()}`))
+      .rejects.toThrow(/verification_jurisdiction_denied/);
+    expect(await sql(`SELECT credits_remaining FROM public.workspaces WHERE id='${workspaceId}'`)).toBe(initial);
+  });
+
+  it("serializes concurrent charge and tombstone without deadlock or inconsistent charge", async () => {
+    const fixture = await createOpportunity();
+    const packageId = await packageWithChecks(fixture);
+    const initial = await sql(`SELECT credits_remaining FROM public.workspaces WHERE id='${workspaceId}'`);
+    await sql(`CREATE OR REPLACE FUNCTION public.intentlead_test_pause_tombstone()
+      RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
+        IF OLD.tombstoned_at IS NULL AND NEW.tombstoned_at IS NOT NULL THEN PERFORM pg_sleep(0.6); END IF;
+        RETURN NEW;
+      END $$;
+      CREATE TRIGGER intentlead_test_pause_tombstone BEFORE UPDATE ON public.intentlead_opportunities
+      FOR EACH ROW EXECUTE FUNCTION public.intentlead_test_pause_tombstone()`);
+    try {
+      const tombstone = sql(asRole("service_role",
+        `SELECT public.intentlead_tombstone_opportunity('${fixture.opportunityId}','${owner}','DEADLOCK_TEST')`));
+      await new Promise(resolve => setTimeout(resolve, 150));
+      const charging = charge(packageId, `deadlock-${packageId}`);
+      const results = await Promise.allSettled([tombstone, charging]);
+      const errors = results.filter((result): result is PromiseRejectedResult => result.status === "rejected")
+        .map(result => String(result.reason));
+      expect(errors.join("\n")).not.toMatch(/deadlock detected/i);
+      expect(results[0].status).toBe("fulfilled");
+      expect(await sql(`SELECT tombstoned_at IS NOT NULL FROM public.intentlead_opportunities WHERE id='${fixture.opportunityId}'`)).toBe("t");
+      expect(await sql(`SELECT count(*) FROM public.intentlead_cost_events WHERE verified_package_id='${packageId}'`)).toBe("0");
+      expect(await sql(`SELECT credits_remaining FROM public.workspaces WHERE id='${workspaceId}'`)).toBe(initial);
+    } finally {
+      await sql(`DROP TRIGGER IF EXISTS intentlead_test_pause_tombstone ON public.intentlead_opportunities;
+        DROP FUNCTION IF EXISTS public.intentlead_test_pause_tombstone()`);
+    }
+  }, 20_000);
+
+  it("preserves a contact verification shared by another live Opportunity package", async () => {
+    const first = await createOpportunity();
+    const second = await createOpportunity();
+    await packageWithChecks(first);
+    await packageWithChecks({ ...second, contactVerificationId: first.contactVerificationId });
+    expect(await sql(asRole("service_role", `SELECT public.intentlead_tombstone_opportunity(
+      '${first.opportunityId}','${owner}','SHARED_CONTACT_TEST'
+    )`))).toContain("t");
+    expect(await sql(`SELECT tombstoned_at IS NULL FROM public.intentlead_contact_verifications
+      WHERE id='${first.contactVerificationId}'`)).toBe("t");
+    expect(await sql(`SELECT value IS NOT NULL AND tombstoned_at IS NULL FROM public.intentlead_contact_points
+      WHERE id='${first.contactId}'`)).toBe("t");
   });
 
   it("charges exactly one credit under concurrent retries", async () => {

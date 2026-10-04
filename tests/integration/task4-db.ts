@@ -109,6 +109,11 @@ export async function bootstrapTask4Database(): Promise<void> {
     DO $intentlead_populated_upgrade$
     BEGIN
       IF to_regclass('public.intentlead_offer_profiles') IS NULL THEN
+        CREATE TABLE IF NOT EXISTS public.glook_acl_sentinel (
+          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+          payload text NOT NULL
+        );
+        GRANT ALL ON TABLE public.glook_acl_sentinel TO service_role;
         INSERT INTO auth.users (id) VALUES ('${populatedBaseline.userId}') ON CONFLICT DO NOTHING;
         INSERT INTO public.workspaces (id, owner_id, name)
           VALUES ('${populatedBaseline.workspaceId}', '${populatedBaseline.userId}', 'Pre-Task4 populated workspace')
