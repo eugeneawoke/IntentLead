@@ -204,6 +204,8 @@ Fresh reviewer checks illegal states and vendor leakage; run detect-changes; com
 
 ### Task 4: Add additive Opportunity and durable-job schema
 
+**Local implementation status, 2026-10-04: awaiting independent DB/security review.** The additive prefixed schema, durable-job RPCs and idempotent verified-package charge are implemented locally. Mandatory RED was captured against the supported baseline without Task 4 objects. On a fresh disposable PostgreSQL 16 database, all 13 Task 4 integration tests passed twice on the same database; the existing 31-test quota/replay suite passed separately. App/worker typechecks, 290 unit tests, focused/full lint and the production build pass (24 pre-existing lint warnings remain). No remote migration, provider call, outreach or real charge occurred.
+
 **Files:**
 - Create: `supabase/migrations/202610040001_opportunity_core.sql`
 - Create: `supabase/migrations/202610040002_durable_jobs.sql`
@@ -214,19 +216,19 @@ Fresh reviewer checks illegal states and vendor leakage; run detect-changes; com
 **Interfaces:**
 - Produces `intentlead_`-prefixed tables for offer/ICP, market profiles, discovery briefs, source items, companies, people, evidence/artifact metadata, opportunities, assessments, buyer candidates, contact points/verifications, verification-policy results, suppression entries, reviews, outcomes, jobs, step attempts, provider runs and cost events; RPCs for atomic enqueue/campaign transition, lease/heartbeat/complete and idempotent verified-package charge.
 
-- [ ] **Step 1: Write real DB tests**
+- [x] **Step 1: Write real DB tests**
 
 Test clean migration, owner/member/outsider/anonymous access, evidence append-only behavior and legal deletion/tombstone path, artifact linkage, suppression, unique source identity, atomic enqueue rollback/concurrency, one active lease, stale-lease takeover, duplicate completion and concurrent charge under a stored VerificationPolicy version.
 
-- [ ] **Step 2: Run integration tests**
+- [x] **Step 2: Run integration tests**
 
 Run the local Supabase integration command. Expected: fail because migrations/RPCs do not exist.
 
-- [ ] **Step 3: Implement additive migrations**
+- [x] **Step 3: Implement additive migrations**
 
 Follow ADR-008: prefix every object/RPC with `intentlead_`; use foreign keys, checks, unique idempotency keys, `FOR UPDATE` or advisory locking where needed, and RLS policies in the same migration set. Every security-definer RPC fixes `search_path`, revokes `PUBLIC EXECUTE`, grants minimum roles and validates tenant/lease identity inside SQL. Do not alter legacy tables destructively.
 
-- [ ] **Step 4: Verify from zero and upgrade**
+- [x] **Step 4: Verify from zero and upgrade**
 
 Recreate a disposable database, apply all migrations, run all three integration files twice and verify no duplicate rows/charges.
 
