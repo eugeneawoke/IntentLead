@@ -159,6 +159,8 @@ Completed with implementation commit `786824e` and security-review fix commit `5
 
 ### Task 3: Add versioned domain contracts
 
+**Local status, 2026-10-04: implementation complete; fresh type-design review pending.** Added strict version-1 schemas and inferred types for all requested contracts, including separate model/human/job discriminants, explicit discovery-only policy denies and versioned seven-check package verification records. Contract tests captured the initial missing-module RED before implementation. Final verification passed: 168 contract tests, 236 unit tests, app/worker typechecks, focused lint and the production build (existing unrelated lint warnings remain). Production runtime, providers and database behavior are unchanged.
+
 **Files:**
 - Create: `types/evidence.ts`
 - Create: `types/opportunity.ts`
@@ -180,19 +182,19 @@ Completed with implementation commit `786824e` and security-review fix commit `5
 **Interfaces:**
 - Produces Zod schemas and inferred types for `SourceItem`, `EvidenceItem`, `OpportunityAssessment`, `Opportunity`, `Job`, `Person`, `BuyerCandidate`, `ContactPoint`, `ContactVerification`, `VerificationPolicy`, `MarketProfile`, `DiscoveryBrief`, `ReviewDecision`, `Outcome`, `SuppressionEntry`, `ArtifactMetadata` and provider-independent `CapabilityError`.
 
-- [ ] **Step 1: Write contract tests**
+- [x] **Step 1: Write contract tests**
 
 Test valid parsing plus rejection of missing workspace, missing evidence, confidence outside 0–1, unknown lifecycle state, malformed timestamps and provider payloads leaking into the domain shape.
 
-- [ ] **Step 2: Run focused tests**
+- [x] **Step 2: Run focused tests**
 
 Run `npx vitest run tests/domain/contracts.test.ts`. Expected: fail because schemas do not exist.
 
-- [ ] **Step 3: Implement schemas**
+- [x] **Step 3: Implement schemas**
 
 Use discriminated unions for signal family, model decision (`QUALIFY/REVIEW/REJECT`), human decision and job state; include `schemaVersion: 1`, jurisdiction, evidence ids, separate assessment dimensions and structured error codes. `VerificationPolicy` declares and versions evidence, company, buyer, contact, grounded-draft, suppression and market/workflow checks used for `PACKAGE_VERIFIED`.
 
-- [ ] **Step 4: Verify**
+- [x] **Step 4: Verify**
 
 Run focused tests, typechecks and build.
 
