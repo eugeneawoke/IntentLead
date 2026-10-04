@@ -60,13 +60,13 @@ export const JobSchema = z.discriminatedUnion("state", [
       checkOccurredAt("heartbeatAt", job.heartbeatAt, Date.parse(job.startedAt));
     }
     if (job.state === "LEASED" || job.state === "RUNNING") {
-      const earliestExpiry = job.state === "RUNNING" ? Date.parse(job.heartbeatAt) : created;
+      const earliestExpiry = job.state === "RUNNING" ? Date.parse(job.heartbeatAt) : updated;
       if (Date.parse(job.lease.expiresAt) < earliestExpiry) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["lease", "expiresAt"], message: "Lease expiry precedes its creation or heartbeat" });
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["lease", "expiresAt"], message: "Lease expiry precedes its snapshot update or heartbeat" });
       }
     }
-    if (job.state === "RETRY_WAIT" && Date.parse(job.nextAttemptAt) < created) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["nextAttemptAt"], message: "Retry precedes job creation" });
+    if (job.state === "RETRY_WAIT" && Date.parse(job.nextAttemptAt) < updated) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["nextAttemptAt"], message: "Retry precedes snapshot update" });
     }
     if (job.state === "COMPLETED" || job.state === "PARTIAL" || job.state === "FAILED") {
       checkOccurredAt("completedAt", job.completedAt);

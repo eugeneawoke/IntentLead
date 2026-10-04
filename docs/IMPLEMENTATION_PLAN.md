@@ -159,7 +159,7 @@ Completed with implementation commit `786824e` and security-review fix commit `5
 
 ### Task 3: Add versioned domain contracts
 
-**Local status, 2026-10-04: implementation complete; fresh type-design review pending.** Added strict version-1 schemas and inferred types for all requested contracts, including separate model/human/job discriminants, explicit discovery-only policy denies and versioned seven-check package verification records. Contract tests captured the initial missing-module RED before implementation. Review fixes close the normalized fact vocabulary, require state-dependent Opportunity references and validate intrinsic Job chronology. Final verification passed: 219 contract tests, 287 unit tests, app/worker typechecks, focused lint and the production build (existing unrelated lint warnings remain). Production runtime, providers and database behavior are unchanged.
+**Local status, 2026-10-04: implementation complete; fresh type-design review pending.** Added strict version-1 schemas and inferred types for all requested contracts, including separate model/human/job discriminants, explicit discovery-only policy denies and versioned seven-check package verification records. Contract tests captured the initial missing-module RED before implementation. Review fixes close the normalized fact vocabulary, require state-dependent Opportunity references (including both references for MODEL_REJECTED) and validate intrinsic Job chronology against snapshot updates. Final verification passed: 222 contract tests, 290 unit tests, app/worker typechecks, focused lint and the production build (existing unrelated lint warnings remain). Production runtime, providers and database behavior are unchanged.
 
 **Files:**
 - Create: `types/evidence.ts`

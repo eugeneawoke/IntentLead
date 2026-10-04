@@ -49,14 +49,12 @@ const opportunityShape = {
   signal: SignalSchema, evidenceIds: EvidenceIdsSchema, createdAt: TimestampSchema, updatedAt: TimestampSchema,
 };
 const incompleteStates = OpportunityStateSchema.extract(["DISCOVERED", "ENRICHING", "INSUFFICIENT_EVIDENCE"]);
-const assessedStates = OpportunityStateSchema.exclude([...incompleteStates.options, "ASSESSABLE", "MODEL_REJECTED"]);
+const assessedStates = OpportunityStateSchema.exclude([...incompleteStates.options, "ASSESSABLE"]);
 
 // Snapshot requirements only; transition authorization belongs to application commands.
 export const OpportunitySchema = z.discriminatedUnion("state", [
   z.object({ ...opportunityShape, state: incompleteStates, companyId: IdSchema.nullable(), assessmentId: IdSchema.nullable() }).strict(),
   z.object({ ...opportunityShape, state: z.literal("ASSESSABLE"), companyId: IdSchema, assessmentId: IdSchema.nullable() }).strict(),
-  // A model can reject a candidate because company resolution failed.
-  z.object({ ...opportunityShape, state: z.literal("MODEL_REJECTED"), companyId: IdSchema.nullable(), assessmentId: IdSchema }).strict(),
   z.object({ ...opportunityShape, state: assessedStates, companyId: IdSchema, assessmentId: IdSchema }).strict(),
 ]).refine(
   item => item.marketProfileId !== "EN_DISCOVERY_ONLY" || discoveryStates.safeParse(item.state).success,

@@ -54,8 +54,9 @@ describe("state-dependent Opportunity snapshots", () => {
     expect(OpportunitySchema.safeParse({ ...f.opportunity, state: "ASSESSABLE", assessmentId: null }).success).toBe(true);
     expect(OpportunitySchema.safeParse({ ...f.opportunity, state: "ASSESSABLE", companyId: null }).success).toBe(false);
   });
-  it("retains an assessment for model rejection even when company resolution failed", () => {
-    expect(OpportunitySchema.safeParse({ ...f.opportunity, state: "MODEL_REJECTED", companyId: null }).success).toBe(true);
+  it("requires both resolved company and assessment for model rejection", () => {
+    expect(OpportunitySchema.safeParse({ ...f.opportunity, state: "MODEL_REJECTED" }).success).toBe(true);
+    expect(OpportunitySchema.safeParse({ ...f.opportunity, state: "MODEL_REJECTED", companyId: null }).success).toBe(false);
     expect(OpportunitySchema.safeParse({ ...f.opportunity, state: "MODEL_REJECTED", assessmentId: null }).success).toBe(false);
   });
   it.each([
@@ -85,8 +86,10 @@ describe("intrinsic Job chronology", () => {
     { state: "RUNNING", lease, startedAt: f.timestamp, heartbeatAt: before },
     { state: "RUNNING", lease, startedAt: f.timestamp, heartbeatAt: later },
     { state: "LEASED", lease: { ...lease, expiresAt: before } },
+    { state: "LEASED", lease: { ...lease, expiresAt: f.timestamp }, updatedAt: later },
     { state: "RUNNING", lease: { ...lease, expiresAt: before }, startedAt: f.timestamp, heartbeatAt: f.timestamp },
     { state: "RETRY_WAIT", nextAttemptAt: before, error: f.capabilityError },
+    { state: "RETRY_WAIT", nextAttemptAt: f.timestamp, updatedAt: later, error: f.capabilityError },
     { state: "COMPLETED", completedAt: before, resultIds: [] },
     { state: "COMPLETED", completedAt: later, resultIds: [] },
     { state: "PARTIAL", completedAt: before, resultIds: ["opportunity-1"], errors: [f.capabilityError] },
@@ -97,10 +100,14 @@ describe("intrinsic Job chronology", () => {
     expect(JobSchema.safeParse({ ...f.job, ...state }).success).toBe(false);
   });
   it("retains expired leases and overdue retries without wall-clock validation", () => {
-    const old = { ...f.job, createdAt: "2020-01-01T10:00:00Z", updatedAt: "2020-01-01T13:00:00Z", attempt: 1 };
+    const old = { ...f.job, createdAt: "2020-01-01T10:00:00Z", updatedAt: "2020-01-01T11:00:00Z", attempt: 1 };
     const expiredLease = { ...lease, expiresAt: "2020-01-01T12:00:00Z" };
     expect(JobSchema.safeParse({ ...old, state: "LEASED", lease: expiredLease }).success).toBe(true);
     expect(JobSchema.safeParse({ ...old, state: "RUNNING", lease: expiredLease, startedAt: old.createdAt, heartbeatAt: "2020-01-01T11:00:00Z" }).success).toBe(true);
-    expect(JobSchema.safeParse({ ...old, state: "RETRY_WAIT", nextAttemptAt: "2020-01-01T11:00:00Z", error: f.capabilityError }).success).toBe(true);
+    expect(JobSchema.safeParse({ ...old, state: "RETRY_WAIT", nextAttemptAt: "2020-01-01T12:00:00Z", error: f.capabilityError }).success).toBe(true);
+  });
+  it("allows lease and retry deadlines equal to the update timestamp", () => {
+    expect(JobSchema.safeParse({ ...f.job, state: "LEASED", lease: { ...lease, expiresAt: f.job.updatedAt } }).success).toBe(true);
+    expect(JobSchema.safeParse({ ...f.job, state: "RETRY_WAIT", nextAttemptAt: f.job.updatedAt, error: f.capabilityError }).success).toBe(true);
   });
 });
