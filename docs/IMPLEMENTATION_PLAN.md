@@ -58,6 +58,8 @@ Confirm there is no conflict in source-of-truth order, credit semantics, roadmap
 
 ### Task 1: Separate and stabilize verification commands
 
+**Local status, 2026-10-04: complete.** Commits `2d53047` and `a929515` added separate verification scopes and corrected empty integration discovery. `npm run verify` passed with app/worker typechecks, lint, 31 unit tests and the Next production build. Until real integration tests exist, `npm run test:integration` intentionally exits 1 with “No test files found”; integration is not part of `verify`.
+
 **Files:**
 - Modify: `vitest.config.ts`
 - Create: `vitest.integration.config.ts`
@@ -70,19 +72,19 @@ Confirm there is no conflict in source-of-truth order, credit semantics, roadmap
 **Interfaces:**
 - Produces scripts `typecheck:app`, `typecheck:worker`, `test:unit`, `test:integration`, `verify`.
 
-- [ ] **Step 1: Pin failing baseline**
+- [x] **Step 1: Pin failing baseline**
 
 Run `npx tsc --noEmit` and confirm the unsafe Supabase mock cast failure in `tests/auth.test.ts`.
 
-- [ ] **Step 2: Restrict Vitest unit discovery**
+- [x] **Step 2: Restrict Vitest unit discovery**
 
 Configure unit Vitest excludes for `tests/e2e/**`, `tests/integration/**`, `.claude/**`, `.worktrees/**`, `.next/**`, `playwright-report/**` and `test-results/**`. Create a separate integration config whose `include` selects `tests/integration/**/*.test.ts` so the unit exclusion cannot suppress it.
 
-- [ ] **Step 3: Fix the auth mock type**
+- [x] **Step 3: Fix the auth mock type**
 
 Create a small typed test factory exposing only the auth method consumed by `requireUser`, and cast through `unknown` only at the helper boundary rather than in each test.
 
-- [ ] **Step 4: Add scripts**
+- [x] **Step 4: Add scripts**
 
 Add Zod as a direct dependency and scripts equivalent to:
 
@@ -97,11 +99,11 @@ Add Zod as a direct dependency and scripts equivalent to:
 }
 ```
 
-- [ ] **Step 5: Verify**
+- [x] **Step 5: Verify**
 
 Run `npm run verify`. Expected: app/worker typecheck, 31 current unit tests and Next build pass.
 
-- [ ] **Step 6: Review and commit**
+- [x] **Step 6: Review and commit**
 
 Run `node .gitnexus/run.cjs detect-changes --repo IntentLead`; stage only the listed files explicitly and commit `test: separate deterministic verification scopes`.
 
