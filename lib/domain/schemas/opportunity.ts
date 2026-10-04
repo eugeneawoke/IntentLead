@@ -43,12 +43,22 @@ const discoveryStates = OpportunityStateSchema.extract([
   "HUMAN_REVIEW", "REJECTED", "NEEDS_RESEARCH",
 ]);
 
-export const OpportunitySchema = z.object({
-  ...ScopedRecordShape, discoveryBriefId: IdSchema, companyId: IdSchema.nullable(),
+const opportunityShape = {
+  ...ScopedRecordShape, discoveryBriefId: IdSchema,
   marketProfileId: MarketProfileIdSchema, jurisdiction: JurisdictionSchema.nullable(),
-  signal: SignalSchema, state: OpportunityStateSchema, evidenceIds: EvidenceIdsSchema,
-  assessmentId: IdSchema.nullable(), createdAt: TimestampSchema, updatedAt: TimestampSchema,
-}).strict().refine(
+  signal: SignalSchema, evidenceIds: EvidenceIdsSchema, createdAt: TimestampSchema, updatedAt: TimestampSchema,
+};
+const incompleteStates = OpportunityStateSchema.extract(["DISCOVERED", "ENRICHING", "INSUFFICIENT_EVIDENCE"]);
+const assessedStates = OpportunityStateSchema.exclude([...incompleteStates.options, "ASSESSABLE", "MODEL_REJECTED"]);
+
+// Snapshot requirements only; transition authorization belongs to application commands.
+export const OpportunitySchema = z.discriminatedUnion("state", [
+  z.object({ ...opportunityShape, state: incompleteStates, companyId: IdSchema.nullable(), assessmentId: IdSchema.nullable() }).strict(),
+  z.object({ ...opportunityShape, state: z.literal("ASSESSABLE"), companyId: IdSchema, assessmentId: IdSchema.nullable() }).strict(),
+  // A model can reject a candidate because company resolution failed.
+  z.object({ ...opportunityShape, state: z.literal("MODEL_REJECTED"), companyId: IdSchema.nullable(), assessmentId: IdSchema }).strict(),
+  z.object({ ...opportunityShape, state: assessedStates, companyId: IdSchema, assessmentId: IdSchema }).strict(),
+]).refine(
   item => item.marketProfileId !== "EN_DISCOVERY_ONLY" || discoveryStates.safeParse(item.state).success,
   "Discovery-only opportunities cannot enter contact or outreach states",
 ).refine(item => Date.parse(item.updatedAt) >= Date.parse(item.createdAt), "updatedAt precedes createdAt");

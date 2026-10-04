@@ -60,7 +60,7 @@ describe("evidence, signal semantics and assessment", () => {
   it("preserves captured text and supports normalized fact maps", () => {
     const excerpt = "  Original text\n";
     expect(EvidenceItemSchema.parse({ ...f.evidence, excerpt }).excerpt).toBe(excerpt);
-    const structuredFacts = { employeeCount: 12, hasWebsite: true, country: "US", unknown: null };
+    const structuredFacts = { employeeCount: 12, companyName: "Example", companyDomain: "example.com" };
     expect(SourceItemSchema.parse({ ...f.sourceItem, content: null, structuredFacts }).structuredFacts).toEqual(structuredFacts);
   });
   it("preserves family-specific subtypes", () => {
