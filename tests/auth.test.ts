@@ -1,4 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { getServerClient } from "@/lib/supabase/client";
+
+type ServerClient = ReturnType<typeof getServerClient>;
+
+function authClientWithUser(user: { id: string; email?: string } | null): ServerClient {
+  const client = {
+    auth: {
+      getUser: vi.fn().mockResolvedValue({ data: { user }, error: null }),
+    },
+  };
+  return client as unknown as ServerClient;
+}
 
 // Mock next/headers
 vi.mock("next/headers", () => ({
@@ -45,14 +57,9 @@ describe("requireUser", () => {
 
   it("returns user when session valid", async () => {
     const { getServerClient } = await import("@/lib/supabase/client");
-    vi.mocked(getServerClient).mockReturnValueOnce({
-      auth: {
-        getUser: vi.fn().mockResolvedValue({
-          data: { user: { id: "user-123", email: "test@example.com" } },
-          error: null,
-        }),
-      },
-    } as ReturnType<typeof getServerClient>);
+    vi.mocked(getServerClient).mockReturnValueOnce(
+      authClientWithUser({ id: "user-123", email: "test@example.com" })
+    );
 
     const { requireUser } = await import("@/lib/auth/requireUser");
     const result = await requireUser();
