@@ -159,7 +159,7 @@ Completed with implementation commit `786824e` and security-review fix commit `5
 
 ### Task 3: Add versioned domain contracts
 
-**Local status, 2026-10-04: implementation complete; fresh type-design review pending.** Added strict version-1 schemas and inferred types for all requested contracts, including separate model/human/job discriminants, explicit discovery-only policy denies and versioned seven-check package verification records. Contract tests captured the initial missing-module RED before implementation. Review fixes close the normalized fact vocabulary, require state-dependent Opportunity references (including both references for MODEL_REJECTED) and validate intrinsic Job chronology against snapshot updates. Final verification passed: 222 contract tests, 290 unit tests, app/worker typechecks, focused lint and the production build (existing unrelated lint warnings remain). Production runtime, providers and database behavior are unchanged.
+**Local status, 2026-10-04: complete; independent type-design re-review clean.** Added strict version-1 schemas and inferred types for all requested contracts, including separate model/human/job discriminants, explicit discovery-only policy denies and versioned seven-check package verification records. Contract tests captured the initial missing-module RED before implementation. Two review fix rounds closed the normalized fact vocabulary, required state-dependent Opportunity references (including both references for MODEL_REJECTED) and tightened intrinsic Job chronology against snapshot updates; implementation and fixes are committed as `e10b211`, `9877fd0` and `525d857`. Final verification passed: 222 contract tests, 290 unit tests, app/worker typechecks, focused lint and the production build (existing unrelated lint warnings remain). Production runtime, providers and database behavior are unchanged.
 
 **Files:**
 - Create: `types/evidence.ts`
@@ -198,7 +198,7 @@ Use discriminated unions for signal family, model decision (`QUALIFY/REVIEW/REJE
 
 Run focused tests, typechecks and build.
 
-- [ ] **Step 5: Type-design review and commit**
+- [x] **Step 5: Type-design review and commit**
 
 Fresh reviewer checks illegal states and vendor leakage; run detect-changes; commit `feat: add versioned Opportunity and Evidence contracts`.
 
