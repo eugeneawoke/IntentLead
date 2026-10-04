@@ -55,7 +55,7 @@ Governance status: PRODUCT, ROADMAP-V2 and ADR-001–008 accepted on 2026-10-04.
 
 - [ ] Wrap Reddit/HN behind SignalSourceAdapter contract with sanitized recorded fixtures.
 - [ ] Wrap Exa/Serper behind CompanyResolutionProvider.
-- [ ] Split Prospeo/Hunter/Apollo into email finding and verification contracts.
+- [ ] Define provider-independent email finding/verification contracts; defer Prospeo/Hunter/Apollo adapters and invocation to a separately authorized jurisdiction-gated workflow.
 - [ ] Add timeout, retry classification, rate-limit mapping, cost and provenance recording.
 - [ ] Preserve current behavior behind a legacy workflow flag for comparison.
 
@@ -65,20 +65,19 @@ Governance status: PRODUCT, ROADMAP-V2 and ADR-001–008 accepted on 2026-10-04.
 - [ ] Implement deterministic Opportunity state machine.
 - [ ] Implement evidence sufficiency policy by signal type.
 - [ ] Implement multidimensional model assessment with QUALIFY/REVIEW/REJECT, separate from human ACCEPT/REJECT/NEEDS_RESEARCH.
-- [ ] Create compatibility projection to current LeadCard while the new UI is built.
+- [ ] Create an Opportunity review projection. A contact-bearing LeadCard projection is deferred until a jurisdiction-gated workflow is authorized.
 
 ## P1.3 Self-prospecting workflow
 
-For the accepted `EN_DISCOVERY_ONLY` pilot, execute discovery, evidence, Opportunity assessment and human review only. The contact/draft items below describe later jurisdiction-gated capability work and must not run in this pilot.
+For the accepted `EN_DISCOVERY_ONLY` pilot, execute discovery, evidence, Opportunity assessment and human review only. Gate downstream capabilities before provider selection and add negative tests; no contact/draft/credit/outreach step executes in this milestone.
 
 - [ ] Create the IntentLead offer/ICP fixture and market profile.
 - [ ] Run discovery through the durable job service.
 - [ ] Resolve company with evidence and confidence.
 - [ ] Assess fit, impact, timing and actionability.
-- [ ] Resolve buyer candidates based on problem/company context.
-- [ ] Find and verify a contact only after Opportunity acceptance threshold.
-- [ ] Generate a draft whose factual claims contain evidence references.
-- [ ] Add human review and outcome recording UI.
+- [ ] Record an optional buyer-role hypothesis without people lookup.
+- [ ] Test that contact/people lookup, email find/verify, draft generation, outreach-ready, sent/reply and `PACKAGE_VERIFIED` charge are denied by `EN_DISCOVERY_ONLY`, including after human acceptance.
+- [ ] Add human `ACCEPT/REJECT/NEEDS_RESEARCH` review UI without contact, draft or outcome controls.
 
 ## P1.4 End-to-end gate
 
@@ -110,5 +109,6 @@ For the accepted `EN_DISCOVERY_ONLY` pilot, execute discovery, evidence, Opportu
 - [ ] AI Visibility full module.
 - [ ] Local/CIS source implementation beyond one experiment.
 - [ ] Public MCP server.
+- [ ] After separate jurisdiction-specific policy and authorization: implement contact provider adapters, buyer/contact verification, evidence-grounded draft, contact-bearing Lead projection, verified-package charging and manual outreach/outcome workflow with its own negative and integration tests.
 - [ ] Assisted send and CRM integrations.
 - [ ] Broad provider/source expansion.

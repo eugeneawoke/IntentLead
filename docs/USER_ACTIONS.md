@@ -4,15 +4,14 @@ This is the only founder-owned setup checklist. Agents may implement adapters, m
 
 ## 1. Confirm product pilot choices
 
-Provide in one short document or message:
+The first pilot profile is already accepted as `EN_DISCOVERY_ONLY`. For the no-spend discovery/review slice, provide in one short document or message:
 
-- first country/jurisdiction and language scope for self-prospecting; use `EN_DISCOVERY_ONLY` only if the run stops before contact enrichment/outreach;
 - IntentLead offer and price range used for dogfooding;
 - ICP inclusions and exclusions;
-- buyer roles to test, without treating them as a permanent allowlist;
-- maximum live-provider budget per dogfood run;
 - initial review sample size and acceptance target;
-- whether one local pilot geography/category will follow, and which one.
+- optional buyer-role hypotheses, without identifying or enriching people.
+
+Choose a country/jurisdiction, live-provider budget and possible next geography/category only for a separately authorized later workflow. No live provider spend, contact enrichment or outreach is required or permitted by the current pilot acceptance.
 
 ## 2. Supabase and Glook ownership
 
@@ -31,19 +30,21 @@ Connection check:
 3. Verify anonymous key works only through RLS and service role is server-only.
 4. Use two test users to prove foreign workspace/scan denial.
 
-## 3. Required credentials for the first self-prospecting slice
+## 3. Credentials for later authorized live workflows
 
-| Service | Why | Env | Required | Obtain/configure |
+No provider credentials are required for the current fixture/mock, zero-spend self-prospecting verification. The following are setup candidates for a separately authorized live path; contact/email credentials additionally require a jurisdiction-specific legal, retention and outreach policy. Do not enable these providers merely because a key exists.
+
+| Service | Later use | Env | Current pilot | Later prerequisite |
 |---|---|---|---|---|
-| OpenAI | typed assessment/draft/embeddings if retained | `OPENAI_API_KEY` | yes for live run | create a project-scoped key in OpenAI dashboard; set budget/alerts |
-| Reddit | expressed-intent discovery | `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET` | yes if Reddit is in pilot | register an approved Reddit app; review current API terms |
-| Exa | company/entity resolution | `EXA_API_KEY` | recommended | create project key; set usage cap |
-| Serper | fallback web search | `SERPER_API_KEY` | optional fallback | reuse only if Glook ownership/billing permits |
-| Prospeo | contact/email | `PROSPEO_API_KEY` | one provider required | create project key; confirm commercial use |
-| Hunter | fallback find/verify | `HUNTER_API_KEY` | optional | configure only after provider strategy approval |
-| Apollo | people/email fallback | `APOLLO_API_KEY` | optional | confirm API/data license and verification semantics |
+| OpenAI | typed live assessment/draft/embeddings if retained | `OPENAI_API_KEY` | not required; fixtures only | approved usage path and explicit zero-spend proof or later spend authorization |
+| Reddit | live expressed-intent discovery | `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET` | not required; recorded fixtures | approved app/terms and explicit zero-spend proof or later authorization |
+| Exa | live company/entity resolution | `EXA_API_KEY` | not required; recorded fixtures | project key, usage cap and explicit zero-spend proof or later authorization |
+| Serper | live fallback web search | `SERPER_API_KEY` | not required; recorded fixtures | confirm Glook ownership/billing and explicit zero-spend proof or later authorization |
+| Prospeo | later contact/email | `PROSPEO_API_KEY` | disabled | jurisdiction-specific policy, commercial-use terms and separate authorization |
+| Hunter | later fallback find/verify | `HUNTER_API_KEY` | disabled | jurisdiction-specific policy, provider strategy and separate authorization |
+| Apollo | later people/email fallback | `APOLLO_API_KEY` | disabled | jurisdiction-specific policy, data license and separate authorization |
 
-Do not enable all email providers by default. Pick a primary and one fallback from measured quality/cost.
+Select a contact-provider primary and fallback only for that later jurisdiction-gated workflow, after measured quality/cost review. `EN_DISCOVERY_ONLY` must not call any of them.
 
 ## 4. Worker and hosting
 

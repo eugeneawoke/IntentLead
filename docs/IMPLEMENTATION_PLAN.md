@@ -6,7 +6,7 @@
 
 **Goal:** Evolve the existing linear lead pipeline into one durable, evidence-backed self-prospecting Opportunity flow without rewriting the application.
 
-**Architecture:** Add transport-neutral domain/application contracts and Postgres-backed jobs beside the existing pipeline. Wrap current providers, persist Evidence and Opportunity state, project accepted Opportunities into current lead delivery where useful, then add a human review surface and outcome feedback.
+**Architecture:** Add transport-neutral domain/application contracts and Postgres-backed jobs beside the existing pipeline. Wrap discovery and company-resolution providers, persist Evidence and Opportunity state, then add a human review surface. Contact-bearing Lead projection, drafting and sent/reply feedback require a separately authorized jurisdiction-gated workflow.
 
 **Tech Stack:** Next.js 15.5.x, React 19, TypeScript strict, Supabase/PostgreSQL/RLS, Railway Node worker, Zod, Vitest, Playwright.
 
@@ -21,7 +21,7 @@
 - External/provider/model content is untrusted and validated through versioned schemas.
 - Factual outreach claims require evidence references.
 - No autonomous sending, new source expansion or full AI Visibility module in this milestone.
-- The first pilot uses `EN_DISCOVERY_ONLY`: generic contact/draft capabilities may be implemented, but pilot execution must stop before contact enrichment or outreach. A live provider smoke is deferred unless a free/mock-only path proves zero external spend; founder limits above remain binding.
+- The first pilot and this milestone use `EN_DISCOVERY_ONLY`: the profile gate must stop workflow and application capabilities before contact/people lookup, email finding or verification, draft generation, outreach-ready transition, sent/reply recording or `PACKAGE_VERIFIED` charging. Generic contracts may exist for later work, but these capabilities are not executed or exposed in this slice. Add negative workflow/API/UI tests. A live provider smoke is deferred unless a free/mock-only path proves zero external spend; founder limits above remain binding.
 - Before editing a symbol, run GitNexus impact; warn and stop on HIGH/CRITICAL.
 - Before any commit, run GitNexus detect-changes and stage files by exact name.
 
@@ -30,8 +30,8 @@
 - Foreign-workspace Glook scan must be denied through every path.
 - Worker crash after lease must resume without duplicate Opportunity or charge.
 - Provider timeout/rate limit must yield structured partial/retry state within budget.
-- Adversarial source text must not inject unsupported claims into assessment or draft.
-- Suppressed or invalid contact must never become outreach-ready.
+- Adversarial source text must not inject unsupported claims into assessment; a later draft workflow needs its own evidence-claim gate.
+- `EN_DISCOVERY_ONLY` must deny contact lookup, drafting, outreach-ready state and sent/reply outcome even after a positive assessment or human acceptance.
 
 ---
 
@@ -249,6 +249,8 @@ Cover durable row before 202, missing worker configuration, duplicate idempotenc
 
 Context contains authenticated user, server-derived workspace membership, trace id, permissions and budget. No capability accepts workspace authority from request body.
 
+Resolve the workspace's authorized MarketProfile in application context and return a structured policy denial before any disabled capability selects a provider or changes state. `EN_DISCOVERY_ONLY` permits discovery and review; it does not grant contact, draft, outreach, sent/reply or verified-package charging capabilities.
+
 Implement an owner-authorized relational deletion workflow covering this milestone's source, evidence, contact, opportunity, provider and job records while retaining only policy-required suppression tombstones. Do not persist live object artifacts, embeddings or evaluation copies until deletion adapters exist; document supported backup expiry.
 
 - [ ] **Step 3: Implement job repository and worker loop**
@@ -271,18 +273,16 @@ Run focused job and deletion integration tests, `npm run verify`, fresh reliabil
 - Create: `worker/providers/reddit.ts`
 - Create: `worker/providers/hackernews.ts`
 - Create: `worker/providers/company-resolution.ts`
-- Create: `worker/providers/contact-enrichment.ts`
 - Modify: `worker/pipeline/signals.ts`
 - Modify: `worker/pipeline/company.ts`
-- Modify: `worker/pipeline/email.ts`
 - Create: `tests/providers/*.test.ts`
 
 **Interfaces:**
-- Produces `SignalSourceAdapter`, `CompanyResolutionProvider`, `EmailFinderProvider`, `EmailVerificationProvider`, health/status and cost/provenance result envelopes.
+- Produces `SignalSourceAdapter`, `CompanyResolutionProvider`, health/status and cost/provenance result envelopes. Contact/email provider adapters belong to a separately authorized jurisdiction-gated workflow.
 
 - [ ] **Step 1: Create sanitized fixtures and failing contract tests**
 
-For each adapter cover success, empty, malformed, unauthorized, timeout, rate limit and provider-specific uncertain verification.
+For each permitted discovery/company adapter cover success, empty, malformed, unauthorized, timeout, rate limit and uncertain entity resolution.
 
 - [ ] **Step 2: Implement registry**
 
@@ -290,11 +290,11 @@ Resolve capability by MarketProfile, health, policy and cost. Do not call all pr
 
 - [ ] **Step 3: Wrap legacy functions**
 
-Keep observable behavior for Reddit/HN and current enrichment while returning normalized envelopes and recording provider runs.
+Keep observable discovery and company-resolution behavior for Reddit/HN and Exa/Serper while returning normalized envelopes and recording provider runs. Do not invoke legacy contact/email enrichment in `EN_DISCOVERY_ONLY`.
 
 - [ ] **Step 4: Add timeout and budget enforcement**
 
-Abort provider requests at configured deadlines; map errors; stop waterfall when confidence requirement is met or budget is exhausted.
+Abort permitted discovery/company-resolution requests at configured deadlines; map errors and stop at the cost budget. Reject contact/email capability selection under `EN_DISCOVERY_ONLY` before any provider call.
 
 - [ ] **Step 5: Verify and commit**
 
@@ -307,37 +307,35 @@ Run provider tests without live keys, full verify, fresh provider/security revie
 - Create: `lib/domain/opportunity-policy.ts`
 - Create: `lib/domain/evidence-policy.ts`
 - Create: `lib/ai/schemas/opportunity-assessment.ts`
-- Create: `lib/ai/schemas/outreach-draft.ts`
 - Modify: `worker/pipeline/runner.ts`
-- Modify: `worker/pipeline/message.ts`
 - Create: `tests/workflows/self-prospecting.test.ts`
 - Create: `tests/evals/opportunity-fixtures.ts`
 
 **Interfaces:**
 - Consumes durable jobs, provider registry and domain schema.
-- Produces a review-ready Opportunity and optional legacy Lead projection.
+- Produces an evidence-backed Opportunity eligible for human review. It does not produce a contact-bearing Lead projection or verified-package charge under `EN_DISCOVERY_ONLY`.
 
 - [ ] **Step 1: Write workflow tests**
 
-Cover clear intent, weak signal, wrong company, stale signal, insufficient evidence, provider fallback, contact failure, unsupported draft claim, duplicate rerun and budget exhaustion.
+Cover clear intent, weak signal, wrong company, stale signal, insufficient evidence, permitted company-provider fallback, duplicate rerun and budget exhaustion. Add negative tests proving `EN_DISCOVERY_ONLY` never calls contact/people search, email find/verify, message/draft generation or the credit RPC, and never reaches outreach-ready or sent/reply states, even after model `QUALIFY` or human `ACCEPT`.
 
 - [ ] **Step 2: Implement deterministic workflow skeleton**
 
-Persist source item/evidence, resolve company, evaluate policy, resolve buyer, enrich/verify contact only after fit/evidence gate, generate grounded draft, and checkpoint each step.
+Persist source item/evidence, resolve company, evaluate Opportunity policy and checkpoint each step. Resolve the authorized MarketProfile before dispatch; for `EN_DISCOVERY_ONLY`, end at human-review eligibility and return a policy-denied result for downstream contact/draft/outreach capabilities before selecting a provider. A buyer-role hypothesis may be recorded without identifying or contacting a person.
 
 - [ ] **Step 3: Implement bounded reasoning schemas**
 
-Model outputs return only schema fields and evidence ids. Reject unknown evidence references and factual sentences without support.
+Model assessment outputs return only schema fields and evidence ids. Reject unknown evidence references and unsupported factual claims in the Opportunity assessment. Outreach-draft schemas and tests belong to the later authorized workflow.
 
-- [ ] **Step 4: Add legacy projection**
+- [ ] **Step 4: Enforce the pilot projection and credit boundary**
 
-For a policy-qualified, verified package, populate the current delivery shape without changing Opportunity semantics or charging twice. Do not confuse model `QUALIFY`, human `ACCEPT` and the `PACKAGE_VERIFIED` credit event.
+Project only non-contact Opportunity data needed for review. Do not populate a contact-bearing legacy Lead, emit `PACKAGE_VERIFIED` or call the credit RPC under `EN_DISCOVERY_ONLY`. Test that model `QUALIFY` and human `ACCEPT` do not bypass this gate. The legacy Lead projection and verified-package charge are separately authorized later work.
 
 - [ ] **Step 5: Verify and commit**
 
 Run workflow/eval/provider/DB tests, full verify, AI/security review and detect-changes; commit `feat: deliver evidence-backed self-prospecting opportunities`.
 
-### Task 8: Add human review and outcome UI
+### Task 8: Add human Opportunity review UI
 
 **Files:**
 - Create: `app/workspace/opportunities/page.tsx`
@@ -348,32 +346,32 @@ Run workflow/eval/provider/DB tests, full verify, AI/security review and detect-
 - Create: `app/api/opportunities/route.ts`
 - Create: `app/api/opportunities/[id]/route.ts`
 - Create: `app/api/opportunities/[id]/review/route.ts`
-- Create: `app/api/opportunities/[id]/outcome/route.ts`
+- Create: `tests/api/opportunities-review.test.ts`
 - Create: `tests/e2e/opportunity-review.spec.ts`
 
 **Interfaces:**
 - Consumes application capability services only.
-- Produces paginated list/detail, evidence inspection, review decision and outcome recording.
+- Produces paginated list/detail, evidence inspection and human `ACCEPT/REJECT/NEEDS_RESEARCH` review decisions. Contact details, drafts, outreach controls and sent/reply outcomes are absent for `EN_DISCOVERY_ONLY`.
 
 - [ ] **Step 1: Write API authorization and component state tests**
 
-Cover owner/member/outsider, pagination, loading, empty, partial, error/retry, missing evidence, suppression and stale Opportunity.
+Cover owner/member/outsider, pagination, loading, empty, partial, error/retry, missing evidence and stale Opportunity. Add negative API/component tests: review payloads cannot set contact, draft, outreach-ready or sent/reply state; list/detail omit contact/draft fields; review `ACCEPT` does not unlock those capabilities. Existing legacy downstream routes, if any, must return policy denial for this profile.
 
 - [ ] **Step 2: Implement server routes and pages**
 
 Use authenticated application context; no direct service-role reads in components/routes. Facts and interpretations have distinct labels. Display source, captured time, confidence and limitations.
 
-- [ ] **Step 3: Implement review/outcome commands**
+- [ ] **Step 3: Implement review commands**
 
-Require a rejection reason, idempotency key and deterministic state transition. Sending remains copy/mailto/manual.
+Require a rejection reason, idempotency key and deterministic review transition. Only `ACCEPT`, `REJECT` and `NEEDS_RESEARCH` are available in this slice. Do not add a sent/reply outcome route, copy/mailto control or other outreach action.
 
 - [ ] **Step 4: Implement Playwright journey**
 
-Seed a workspace/job/Opportunity; inspect evidence; reject one; accept one; copy draft; record sent and positive reply; assert keyboard/mobile behavior.
+Seed an `EN_DISCOVERY_ONLY` workspace/job/Opportunity; inspect evidence; reject one; accept one; mark one `NEEDS_RESEARCH`; assert keyboard/mobile behavior. Assert no contact details, draft, copy/mailto/export-for-outreach, sent/reply action or credit charge appears. Direct requests to existing downstream routes must be policy-denied; an unimplemented route must remain absent.
 
 - [ ] **Step 5: Verify and commit**
 
-Run unit/API/Playwright/build, fresh frontend/a11y/security review and detect-changes; commit `feat: add Opportunity review and outcome workflow`.
+Run unit/API/Playwright/build, fresh frontend/a11y/security review and detect-changes; commit `feat: add discovery-only Opportunity review`.
 
 ### Task 9: Replace direct Glook reads with a versioned contract
 
@@ -435,9 +433,15 @@ Fresh reviewers assess domain correctness, DB/security, AI evaluation and front-
 
 Record GO for a larger dogfood sample, REWORK with measured gaps, or STOP with kill criteria. Update canonical audit/backlog and commit only approved source/release documentation under repository policy.
 
+## Deferred: jurisdiction-gated contact, draft and outcome workflow
+
+This is not a Task 0–10 deliverable and must not run under `EN_DISCOVERY_ONLY`. Start a separate implementation plan only after the founder selects a country/jurisdiction-specific MarketProfile, approves the legal/retention/outreach policy and provider access, and authorizes any live spend or contact. That plan owns `worker/providers/contact-enrichment.ts`, `worker/pipeline/email.ts`, `lib/ai/schemas/outreach-draft.ts`, `worker/pipeline/message.ts`, a contact-bearing Lead projection and `app/api/opportunities/[id]/outcome/route.ts` if still appropriate.
+
+The later workflow must independently test buyer/contact resolution, email verification, evidence-grounded draft claims, suppression, owner-validated idempotent `PACKAGE_VERIFIED` charging, human-approved manual sending and sent/reply outcomes. Until then, the `EN_DISCOVERY_ONLY` profile gate and its negative tests are the release boundary.
+
 ## Self-review
 
-- Spec coverage: governance, full domain contracts, namespace/RPC security, durable jobs, provider abstraction, Glook boundary, dogfood, review/outcomes, backend/front-end/security/AI tests and release evidence are mapped to Tasks 0–10.
+- Spec coverage: governance, full domain contracts, namespace/RPC security, durable jobs, discovery/company provider abstraction, Glook boundary, discovery-only dogfood and review, backend/front-end/security/AI tests and release evidence are mapped to Tasks 0–10. Contact/draft/outreach/outcome execution is a separate later workflow.
 - Placeholder scan: the plan contains no implementation placeholder; later product phases remain in ROADMAP-V2 rather than this milestone.
 - Type consistency: Tasks 3–9 consume the same versioned contracts and application context.
 - Review focus: each focus risk has an explicit test owner in Tasks 2, 4, 5, 7, 8 or 9.

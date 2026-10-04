@@ -15,7 +15,7 @@ Cover pure state transitions, assessment policy, freshness, dedupe, cost budgeti
 
 ### Provider contract
 
-Every adapter uses sanitized recorded fixtures for success, empty, malformed, rate-limited, timeout, auth failure and schema drift. Live smoke tests are separate and opt-in.
+Every adapter uses sanitized recorded fixtures for success, empty, malformed, rate-limited, timeout, auth failure and schema drift. The `EN_DISCOVERY_ONLY` milestone uses a zero-spend fixture/mock smoke; live provider calls remain deferred until a free-only path proves zero external spend or separate authorization.
 
 ### Database integration
 
@@ -38,13 +38,14 @@ Use fake adapters and a real database to cover:
 
 - expressed intent model QUALIFY/REVIEW/REJECT plus separate human decisions;
 - detected problem and visibility finding semantics;
-- wrong company/person;
+- wrong company or unsupported buyer-role hypothesis, without people lookup in the discovery-only slice;
 - insufficient evidence;
 - stale and already-solved signal;
 - provider fallback, rate limit and circuit-open behavior;
 - partial failure and recovery;
 - budget ceiling;
 - no charge on rejected/failed/duplicate deliverable.
+- under `EN_DISCOVERY_ONLY`, no contact/people lookup, email find/verify, draft generation, outreach-ready/sent/reply transition or `PACKAGE_VERIFIED` charge, including after model `QUALIFY` and human `ACCEPT`.
 
 ### Security
 
@@ -61,15 +62,15 @@ Critical paths:
 1. anonymous cold intake → auth transfer → discovery job;
 2. owned Glook warm handoff and denial for foreign scan;
 3. job progress → Opportunity → evidence inspection;
-4. accept/reject/needs-research and outcome recording;
-5. copy/mailto/export with sanitized content;
+4. accept/reject/needs-research review, with direct downstream capability calls denied by `EN_DISCOVERY_ONLY`;
+5. no contact, draft, copy/mailto/export-for-outreach or sent/reply controls under `EN_DISCOVERY_ONLY`;
 6. provider/configuration failure and retry;
 7. mobile viewport, keyboard-only and accessibility smoke;
 8. no fake proof or hidden limitations.
 
-### Production smoke/canary
+### Milestone smoke and later production canary
 
-Run a controlled workspace and one bounded Opportunity. Verify provider health, no PII in logs, expected cost, job recovery alerting, evidence access, no charge for failed candidates and rollback readiness.
+For this milestone, run a controlled local workspace and one bounded fixture/mock Opportunity with zero provider spend. Verify policy-denied contact/draft/outreach/credit, no PII in logs, job recovery alerting, evidence access and rollback readiness. Live provider smoke and production canary are separate later gates.
 
 ## Commands target
 

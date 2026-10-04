@@ -30,25 +30,25 @@
 
 **Objective:** IntentLead finds usable Opportunities for IntentLead.
 
-**User value:** proves the full path from discovery to a defensible conversation starter.
+**User value:** proves the path from discovery to an evidence-backed Opportunity worth human review.
 
 **Why now:** discovery-only dogfooding supplies immediate review labels; commercial outcomes require a later authorized outreach stage.
 
 **Prerequisites:** Phase 0, one market profile, one offer/ICP, minimal legal source set.
 
-**Architecture changes:** source adapters, evidence persistence, company resolution, Opportunity assessment, buyer/contact, grounded draft, review/outcome entities and compatibility Lead projection.
+**Architecture changes:** source adapters, evidence persistence, company resolution, Opportunity assessment, optional buyer-role hypothesis and human review. Contact, grounded draft, sent/reply outcomes and contact-bearing Lead projection require a later jurisdiction-gated workflow.
 
-**Providers:** start with existing Reddit/HN plus existing Exa/Serper and contact providers only where credentials and terms permit.
+**Providers:** use recorded Reddit/HN and Exa/Serper fixtures for the no-spend slice; do not select contact providers under `EN_DISCOVERY_ONLY`.
 
-**Agents:** bounded signal/opportunity analysis, ambiguous entity resolution, buyer hypothesis and outreach drafting; deterministic orchestration.
+**Agents:** bounded signal/opportunity analysis and ambiguous entity resolution; deterministic orchestration. Outreach drafting is deferred.
 
 **MCP:** capability schemas become transport-neutral; no public server.
 
-**Tests:** provider fixtures, pipeline integration, tenant denial, prompt injection, idempotent rerun, front-end review path and one controlled live smoke.
+**Tests:** provider fixtures, pipeline integration, tenant denial, prompt injection, idempotent rerun, negative profile-gate tests, front-end review path and one zero-spend fixture/mock smoke. Live provider calls are deferred until a free-only path proves zero external spend or separate founder authorization.
 
-**Evaluation:** founder labels at least the declared pilot sample; record accepted, rejection reason, contact validity, cost and latency.
+**Evaluation:** founder labels at least the declared pilot sample; record accepted, rejection reason, evidence/company quality, zero-spend cost and latency. Contact validity and outreach outcomes belong to the later authorized workflow.
 
-**Definition of Done:** the first pilot proves reproducible ICP→Opportunity→evidence→human decision on real companies under `EN_DISCOVERY_ONLY`, without contact enrichment, outreach, unsupported claims or duplicate charge. Buyer→verified contact→draft is a later jurisdiction-gated extension of the vertical slice, not a prerequisite for this discovery-only pilot.
+**Definition of Done:** the first pilot proves reproducible ICP→Opportunity→evidence→human decision on recorded real-company evidence under `EN_DISCOVERY_ONLY`, without contact enrichment, outreach, unsupported claims or duplicate charge. Buyer→verified contact→draft is a later jurisdiction-gated extension of the vertical slice, not a prerequisite for this discovery-only pilot.
 
 **Kill/postpone:** do not scale a source that misses the agreed acceptance/economics threshold.
 

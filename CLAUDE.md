@@ -56,7 +56,7 @@
 
 IntentLead AI — Opportunity Intelligence Engine: компания, наблюдаемая проблема/событие, доказательства, коммерческая релевантность и гипотеза о покупателе. Contact/draft — отдельные, policy-gated возможности. Glook остаётся возможным warm-входом через версионированный контракт (ADR-002), не через произвольное чтение его внутренних таблиц.
 
-Первый пилот — self-prospecting с профилем `EN_DISCOVERY_ONLY`: discovery и human review; контактное обогащение и outreach отключены. Код MVP уже существует; работа идёт по Opportunity Core, а не по старым семи фазам. Целевая аудитория проверяется исследованием и пилотом, не фиксируется историческим сегментом.
+Первый пилот — self-prospecting с профилем `EN_DISCOVERY_ONLY`: discovery и human review; contact/people lookup, email verification, draft, outreach, sent/reply и `PACKAGE_VERIFIED` charge отключены до отдельного jurisdiction-gated решения. Код MVP уже существует; работа идёт по Opportunity Core, а не по старым семи фазам. Целевая аудитория проверяется исследованием и пилотом, не фиксируется историческим сегментом.
 
 ---
 
@@ -77,7 +77,7 @@ docs/INDEX.md → принятые PRODUCT/DOMAIN_MODEL/ARCHITECTURE/ADR
 ```
 Next.js 15.5.x App Router · React 19 · TypeScript strict · Tailwind v4 · shadcn/ui
 Vercel AI SDK (стриминг-ассистент) + OpenAI (GPT-4o-mini classify, GPT-4o message)
-Supabase PostgreSQL + Auth + RLS  (ОБЩИЙ проект с Glook)
+Supabase PostgreSQL + Auth + RLS  (общий проект с Glook ожидается; фактический project ref подтвердить до миграции, ADR-008)
 pgvector (RAG: grounding письма, text-embedding-3-small)
 Pipeline: Railway worker (Node.js, long-running) — НЕ Supabase Edge Fn (таймаут 10с)
 Текущие источники: Reddit · HN; company resolution: Exa/Serper; contact: Prospeo→Hunter→Apollo (для EN_DISCOVERY_ONLY отключено)
@@ -126,7 +126,7 @@ npx supabase db reset # только локальная тестовая БД; �
   capability-scoping (нет tools кроме intake/scan/run — картинки/код невозможны) + topic-gate при абьюзе.
   Полные слои → SPEC Блок 5 «Assistant scope & guardrails».
 - **Провайдеры за capability registry и MarketProfile** (ADR-004); текущее Exa/Serper — реализация, не вечная политика.
-- **В первом пилоте `EN_DISCOVERY_ONLY` контактное обогащение и outreach отключены.** Автономной отправки нет.
+- **В первом пилоте `EN_DISCOVERY_ONLY` contact/people lookup, email find/verify, draft, outreach, sent/reply и `PACKAGE_VERIFIED` charge отключены; policy gate проверять до provider call и state transition.** Автономной отправки нет.
 - Pipeline — на Railway с durable jobs (ADR-003). App-endpoint отвечает 202 после атомарного сохранения job.
 - Технические факты — из измеренных данных/провайдеров, не выдумывать. AI может суммировать
   и улучшать промты, но не выдумывать компании, email или intent-score.
