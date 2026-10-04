@@ -6,6 +6,14 @@ const execute = promisify(execFile);
 
 let database: URL | undefined;
 
+export const populatedBaseline = {
+  userId: "00000000-0000-4000-8000-000000000401",
+  workspaceId: "00000000-0000-4000-8000-000000000402",
+  campaignId: "00000000-0000-4000-8000-000000000403",
+  signalId: "00000000-0000-4000-8000-000000000404",
+  leadId: "00000000-0000-4000-8000-000000000405",
+} as const;
+
 function connection(): URL {
   if (database) return database;
   const value = process.env.INTENTLEAD_TEST_DATABASE_URL;
@@ -98,6 +106,31 @@ export async function bootstrapTask4Database(): Promise<void> {
     ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
     ${applyUnlessExists("public.workspaces", baseline[0])}
     ${applyUnlessExists("public.intentlead_worker_nonces", `${baseline[1]}\n${baseline[2]}\nGRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;\n${baseline[3]}`)}
+    DO $intentlead_populated_upgrade$
+    BEGIN
+      IF to_regclass('public.intentlead_offer_profiles') IS NULL THEN
+        INSERT INTO auth.users (id) VALUES ('${populatedBaseline.userId}') ON CONFLICT DO NOTHING;
+        INSERT INTO public.workspaces (id, owner_id, name)
+          VALUES ('${populatedBaseline.workspaceId}', '${populatedBaseline.userId}', 'Pre-Task4 populated workspace')
+          ON CONFLICT DO NOTHING;
+        INSERT INTO public.campaigns
+          (id, workspace_id, entry_mode, what_selling, icp, pain, status)
+          VALUES ('${populatedBaseline.campaignId}', '${populatedBaseline.workspaceId}', 'cold',
+            'Legacy offer', 'Legacy ICP', 'Legacy pain', 'draft')
+          ON CONFLICT DO NOTHING;
+        INSERT INTO public.signals
+          (id, campaign_id, source, source_url, author_handle, content)
+          VALUES ('${populatedBaseline.signalId}', '${populatedBaseline.campaignId}', 'reddit',
+            'https://example.test/pre-task4', 'fixture', 'Existing legacy signal')
+          ON CONFLICT DO NOTHING;
+        INSERT INTO public.leads
+          (id, campaign_id, signal_id, company_name, status)
+          VALUES ('${populatedBaseline.leadId}', '${populatedBaseline.campaignId}',
+            '${populatedBaseline.signalId}', 'Existing legacy lead', 'processing')
+          ON CONFLICT DO NOTHING;
+      END IF;
+    END
+    $intentlead_populated_upgrade$;
     ${task4.length === 0 ? "" : applyUnlessExists("public.intentlead_offer_profiles", task4[0])}
     ${task4.length === 0 ? "" : applyUnlessExists("public.intentlead_jobs", task4[1])}
     COMMIT;

@@ -45,6 +45,17 @@ async function enqueue(briefId: string, key: string, userId = owner): Promise<st
 }
 
 describe("durable job enqueue and leases", () => {
+  it("rejects a conflicting payload under an existing enqueue idempotency key", async () => {
+    const briefId = await brief();
+    const key = `payload-conflict-${briefId}`;
+    await enqueue(briefId, key);
+    await expect(sql(asRole("service_role", `SELECT public.intentlead_enqueue_discovery_job(
+      '${briefId}', '${owner}', '${key}', '{"different":true}'
+    )`))).rejects.toThrow(/idempotency_conflict/);
+    const jobId = await sql(`SELECT id FROM public.intentlead_jobs WHERE discovery_brief_id='${briefId}'`);
+    await sql(asRole("service_role", `SELECT public.intentlead_cancel_job('${jobId}', '${owner}')`));
+  });
+
   it("rolls back job creation when the linked campaign transition fails", async () => {
     const briefId = await brief("done");
     await expect(enqueue(briefId, `rollback-${briefId}`)).rejects.toThrow(/campaign_transition_denied/);
@@ -78,11 +89,27 @@ describe("durable job enqueue and leases", () => {
     expect(await sql(asRole("service_role", `SELECT public.intentlead_complete_job('${jobId}', 'worker-a', '${randomUUID()}', 'COMPLETED', '{}', NULL)`))).toContain("f");
     const worker = first ? "worker-a" : "worker-b";
     expect(await sql(asRole("service_role", `SELECT public.intentlead_heartbeat_job('${jobId}', '${worker}', '${token}', 30)`))).toContain("t");
+    const providerRun = randomUUID();
+    const foreignWorkspace = randomUUID();
+    const foreignProviderRun = randomUUID();
+    await sql(`INSERT INTO public.intentlead_provider_runs
+      (id,workspace_id,job_id,capability,provider,status,started_at)
+      VALUES ('${providerRun}','${workspaceId}','${jobId}','SOURCE_SEARCH','fixture','STARTED',now());
+      INSERT INTO public.workspaces (id,owner_id,name) VALUES ('${foreignWorkspace}','${owner}','Foreign job workspace');
+      INSERT INTO public.intentlead_provider_runs
+      (id,workspace_id,capability,provider,status,started_at)
+      VALUES ('${foreignProviderRun}','${foreignWorkspace}','SOURCE_SEARCH','fixture','STARTED',now())`);
     expect(await sql(asRole("service_role", `SELECT public.intentlead_record_job_step_attempt(
       '${jobId}', '${worker}', '${randomUUID()}', 'discover', 1, 'STARTED'
     )`))).toBe("");
+    await expect(sql(asRole("service_role", `SELECT public.intentlead_record_job_step_attempt(
+      '${jobId}', '${worker}', '${token}', 'discover', 2, 'STARTED'
+    )`))).rejects.toThrow(/step_job_attempt_mismatch/);
+    await expect(sql(asRole("service_role", `SELECT public.intentlead_record_job_step_attempt(
+      '${jobId}', '${worker}', '${token}', 'discover', 1, 'STARTED', ARRAY['${foreignProviderRun}'::uuid]
+    )`))).rejects.toThrow(/step_provider_run_mismatch/);
     const stepId = await sql(asRole("service_role", `SELECT public.intentlead_record_job_step_attempt(
-      '${jobId}', '${worker}', '${token}', 'discover', 1, 'STARTED'
+      '${jobId}', '${worker}', '${token}', 'discover', 1, 'STARTED', ARRAY['${providerRun}'::uuid]
     )`));
     expect(stepId).not.toBe("");
     expect(await sql(asRole("service_role", `SELECT public.intentlead_record_job_step_attempt(
@@ -90,8 +117,12 @@ describe("durable job enqueue and leases", () => {
       '{"cursor":"done"}', '{"maxCost":0}'
     )`))).toContain(stepId);
     expect(await sql(`SELECT count(*) FROM public.intentlead_job_step_attempts WHERE job_id='${jobId}'`)).toBe("1");
+    expect(await sql(`SELECT count(*) FROM public.intentlead_job_step_provider_runs WHERE step_attempt_id='${stepId}' AND provider_run_id='${providerRun}'`)).toBe("1");
     expect(await sql(asRole("service_role", `SELECT public.intentlead_complete_job('${jobId}', '${worker}', '${token}', 'COMPLETED', '{"opportunityIds":[]}', NULL)`))).toContain("t");
     expect(await sql(asRole("service_role", `SELECT public.intentlead_complete_job('${jobId}', '${worker}', '${token}', 'COMPLETED', '{"opportunityIds":[]}', NULL)`))).toContain("t");
+    expect(await sql(asRole("service_role", `SELECT public.intentlead_complete_job('${jobId}', 'conflicting-worker', '${token}', 'COMPLETED', '{"opportunityIds":[]}', NULL)`))).toContain("f");
+    expect(await sql(asRole("service_role", `SELECT public.intentlead_complete_job('${jobId}', '${worker}', '${token}', 'PARTIAL', '{"opportunityIds":[]}', NULL)`))).toContain("f");
+    expect(await sql(asRole("service_role", `SELECT public.intentlead_complete_job('${jobId}', '${worker}', '${token}', 'COMPLETED', '{"opportunityIds":["forged"]}', NULL)`))).toContain("f");
     expect(await sql(asRole("service_role", `SELECT public.intentlead_complete_job('${jobId}', '${worker}', '${randomUUID()}', 'COMPLETED', '{}', NULL)`))).toContain("f");
   }, 20_000);
 
@@ -99,7 +130,7 @@ describe("durable job enqueue and leases", () => {
     const staleBrief = await brief();
     const staleJob = await enqueue(staleBrief, `stale-${staleBrief}`);
     const first = await sql(asRole("service_role", `SELECT lease_token FROM public.intentlead_lease_next_job('stale-worker', 5)`));
-    await sql(`UPDATE public.intentlead_jobs SET lease_expires_at=now()-interval '1 second' WHERE id='${staleJob}'`);
+    await sql(`SELECT pg_sleep(5.1)`);
     const takeover = await sql(asRole("service_role", `SELECT lease_token FROM public.intentlead_lease_next_job('recovery-worker', 30)`));
     expect(takeover).not.toBe(first);
     expect(await sql(`SELECT attempt FROM public.intentlead_jobs WHERE id='${staleJob}'`)).toBe("2");
@@ -107,9 +138,11 @@ describe("durable job enqueue and leases", () => {
     const retryBrief = await brief();
     const retryJob = await enqueue(retryBrief, `retry-${retryBrief}`);
     const token = await sql(asRole("service_role", `SELECT lease_token FROM public.intentlead_lease_next_job('retry-worker', 30)`));
-    expect(await sql(asRole("service_role", `SELECT public.intentlead_retry_job('${retryJob}', 'retry-worker', '${token}', '{"code":"TIMEOUT"}', now()+interval '1 hour')`))).toContain("t");
+    expect(await sql(asRole("service_role", `SELECT public.intentlead_retry_job('${retryJob}', 'retry-worker', '${token}',
+      '{"schemaVersion":1,"message":"Temporary fixture timeout","capability":"SOURCE_SEARCH","traceId":"${randomUUID()}","retryable":true,"code":"TIMEOUT","retryAfterMs":1000}',
+      now()+interval '1 second')`))).toContain("t");
     expect(await sql(asRole("service_role", `SELECT count(*) FROM public.intentlead_lease_next_job('too-early', 30) WHERE id='${retryJob}'`))).toContain("0");
-    await sql(`UPDATE public.intentlead_jobs SET available_at=now()-interval '1 second' WHERE id='${retryJob}'`);
+    await sql(`SELECT pg_sleep(1.1)`);
     expect(await sql(asRole("service_role", `SELECT count(*) FROM public.intentlead_lease_next_job('retry-worker-2', 30) WHERE id='${retryJob}'`))).toContain("1");
   }, 20_000);
 
@@ -122,4 +155,17 @@ describe("durable job enqueue and leases", () => {
     expect(await sql(`SELECT count(*) FROM pg_proc WHERE proname LIKE 'intentlead_%job%'
       AND prosecdef AND 'search_path=pg_catalog, public'=ANY(proconfig)`)).not.toBe("0");
   });
+
+  it("terminalizes an expired final attempt instead of stranding it", async () => {
+    const briefId = await brief();
+    const jobId = await enqueue(briefId, `final-attempt-${briefId}`);
+    await sql(`UPDATE public.intentlead_jobs SET max_attempts=1 WHERE id='${jobId}'`);
+    await sql(asRole("service_role", `SELECT id FROM public.intentlead_lease_next_job('final-worker', 5)`));
+    await sql(`SELECT pg_sleep(5.1)`);
+    await sql(asRole("service_role", `SELECT count(*) FROM public.intentlead_lease_next_job('reaper', 30)`));
+    expect(await sql(`SELECT state FROM public.intentlead_jobs WHERE id='${jobId}'`)).toBe("FAILED");
+    expect(await sql(`SELECT error->>'code' FROM public.intentlead_jobs WHERE id='${jobId}'`)).toBe("INTERNAL_ERROR");
+    expect(await sql(`SELECT error ?& ARRAY['schemaVersion','message','capability','traceId','retryable','retryAfterMs']
+      FROM public.intentlead_jobs WHERE id='${jobId}'`)).toBe("t");
+  }, 15_000);
 });
