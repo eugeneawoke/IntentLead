@@ -107,7 +107,7 @@ Run `node .gitnexus/run.cjs detect-changes --repo IntentLead`; stage only the li
 
 ### Task 2: Close immediate security and correctness gaps
 
-**Local status, 2026-10-04:** Code and deterministic checks implemented; review-fix `npm run verify` passes (68 tests, app/worker types, lint with 24 pre-existing warnings, Next build). Fresh review requested nonce expiry-race and privilege hardening; local fixes add post-insert freshness validation, restricted workspace columns, and representative default-grant DB fixtures. The focused suite passes 37 tests. Real DB concurrency/privilege verification remains blocked: Docker daemon unavailable, no PostgreSQL server binary, and no disposable `INTENTLEAD_TEST_DATABASE_URL`. The 31-case integration suite fails explicitly on this prerequisite; Task 2 is not fully verified. No remote migration/deployment occurred.
+**Local status, 2026-10-04: complete.** Review-fix `npm run verify` passes (68 tests, app/worker types, lint with 24 pre-existing warnings, Next build); the focused suite passes 37 tests. Fresh security review findings were addressed with post-insert nonce freshness validation, restricted workspace columns, and representative default-grant DB fixtures. The earlier unavailable-runtime blocker is superseded: all **31/31 real PostgreSQL integration tests passed** in a disposable local `postgres:16-alpine` container (8.23 seconds), including quota concurrency and delayed replay versus expiry cleanup. The container was removed afterward. No remote or production migration/deployment occurred.
 
 **Files:**
 - Modify: `lib/glook/report.ts`
@@ -125,11 +125,11 @@ Run `node .gitnexus/run.cjs detect-changes --repo IntentLead`; stage only the li
 **Interfaces:**
 - Produces `getOwnedGlookContext(input: { scanId: string; userId: string }): Promise<GlookScanContext | null>`, enforced campaign limits, atomic chat quota and fail-closed timestamped HMAC worker authentication with nonce/idempotency replay protection.
 
-- [ ] **Step 1: Write failing foreign-owner tests**
+- [x] **Step 1: Write failing foreign-owner tests**
 
 Cover owner success, foreign user 404/denial, missing scan and not-ready scan for both report and chat warm entry. Also pin current failures for an awaited campaign rate limit, concurrent daily chat quota and missing/empty/wrong/expired/replayed worker signature.
 
-Tests are written and the API failures were observed before implementation; the missing-secret bypass was also reproduced against the baseline. The real DB concurrency baseline cannot run until the local database prerequisite is available.
+Tests were written and the API failures were observed before implementation; the missing-secret bypass was also reproduced against the baseline. The pre-implementation DB run was blocked by local prerequisites; after that blocker was cleared, the final 31-case real PostgreSQL suite passed on 2026-10-04. This final GREEN does not retroactively claim a DB baseline RED.
 
 - [x] **Step 2: Run focused tests**
 
@@ -143,13 +143,17 @@ Change the service-role query to include `.eq("user_id", userId)` and an allowed
 
 Pass the authenticated user id from every route and map unauthorized/not-found to the same non-enumerating response. Await the campaign limiter. Replace chat read-then-write with one owner-bound atomic quota RPC. Reject worker startup when the secret is missing/empty. Sign each dispatch with method/path/body hash, timestamp and nonce/idempotency key; verify with constant-time comparison, a narrow clock window and persisted replay protection.
 
-- [ ] **Step 5: Verify**
+- [x] **Step 5: Verify**
 
 Run the focused API/worker tests, `npm run test:integration -- tests/integration/chat-quota-concurrency.test.ts` (or the integration config's equivalent) and `npm run verify`. Expected: all pass.
 
-- [ ] **Step 6: Security review and commit**
+Evidence, 2026-10-04: 37 focused tests, 68 full deterministic tests/build, and 31/31 real PostgreSQL tests pass. The local migration and privilege fixtures executed only in the disposable container, which was removed after verification.
+
+- [x] **Step 6: Security review and commit**
 
 Have a fresh security reviewer inspect Glook call sites, quota concurrency, rate-limit enforcement and worker fail-closed behavior; run GitNexus detect-changes; commit `fix: close immediate authorization and quota gaps`.
+
+Completed with implementation commit `786824e` and security-review fix commit `5210057`; GitNexus scope and exact staged files were reviewed before each commit. Local Task 2 completion does not authorize a production release.
 
 ### Task 3: Add versioned domain contracts
 
