@@ -2,7 +2,7 @@
 
 ## Current problem
 
-IntentLead and Glook share Supabase. IntentLead currently reads Glook `scans` and internal JSON using service role. One API route checks `user_id`, while the shared helper accepts only `scanId`. This creates authorization and schema-coupling risk. Glook AI readiness is also not evidence of observed AI visibility or buying intent.
+The repositories are expected to share Supabase; the deployed project identity still needs confirmation. IntentLead reads Glook `scans` and internal JSON using service role. The 2026-10-04 local Task 2 change requires `scanId` plus the authenticated `userId` in `getOwnedGlookContext`, and both report and chat paths filter by owner and `status = 'done'`. Missing, foreign and unfinished scans all return the same 404 before warm context reaches embeddings or the model. Negative route tests pass; this has not been deployed. Direct schema coupling remains debt. Glook AI readiness is also not evidence of observed AI visibility or buying intent.
 
 ## Target boundary
 

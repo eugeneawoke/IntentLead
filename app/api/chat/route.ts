@@ -9,7 +9,7 @@ import { PLAN_SYSTEM_PROMPT } from "@/lib/ai/prompts/plan";
 import { STRATEGY_SYSTEM_PROMPT } from "@/lib/ai/prompts/strategy";
 import { extractIntakeTool } from "@/lib/ai/tools/extractIntake";
 import { offerScanTool } from "@/lib/ai/tools/offerScan";
-import { getGlookContext, buildWarmContext } from "@/lib/glook/report";
+import { getOwnedGlookContext, buildWarmContext } from "@/lib/glook/report";
 import { upsertChunks } from "@/lib/rag/embed";
 import { err } from "@/lib/utils/response";
 import { logger } from "@/lib/utils/logger";
@@ -17,25 +17,6 @@ import { logger } from "@/lib/utils/logger";
 export const runtime = "nodejs";
 
 type ChatMode = "search" | "plan" | "strategy";
-
-const DAILY_LIMITS: Record<string, number> = {
-  free: 20,
-  starter: 100,
-  growth: 300,
-  agency: Infinity,
-  starter_ltd: 100,
-  growth_ltd: 300,
-};
-
-function isPastMidnightUTC(resetAt: string | null): boolean {
-  if (!resetAt) return true;
-  const reset = new Date(resetAt);
-  const nowUtc = new Date();
-  const lastMidnight = new Date(
-    Date.UTC(nowUtc.getUTCFullYear(), nowUtc.getUTCMonth(), nowUtc.getUTCDate())
-  );
-  return reset < lastMidnight;
-}
 
 export async function POST(req: NextRequest) {
   const { user, response } = await requireUser();
@@ -69,11 +50,19 @@ export async function POST(req: NextRequest) {
 
   const mode: ChatMode = body.mode ?? "search";
 
+  // Authorize scan context before quota reservation, embeddings or model invocation.
+  const glookCtx = body.scanId
+    ? await getOwnedGlookContext({ scanId: body.scanId, userId: user!.id })
+    : null;
+  if (body.scanId && !glookCtx) {
+    return NextResponse.json(err("Scan not found"), { status: 404 });
+  }
+
   // Get or create workspace — select fields needed for credit/limit checks
   const supabase = getServiceClient();
   let { data: workspace } = await supabase
     .from("workspaces")
-    .select("id, plan, credits_remaining, chat_messages_today, chat_messages_reset_at")
+    .select("id, credits_remaining")
     .eq("owner_id", user!.id)
     .single();
 
@@ -81,7 +70,7 @@ export async function POST(req: NextRequest) {
     const { data: newWs } = await supabase
       .from("workspaces")
       .insert({ owner_id: user!.id, name: "My Workspace" })
-      .select("id, plan, credits_remaining, chat_messages_today, chat_messages_reset_at")
+      .select("id, credits_remaining")
       .single();
     workspace = newWs;
   }
@@ -99,39 +88,16 @@ export async function POST(req: NextRequest) {
       );
     }
   } else {
-    // plan / strategy — check daily message limit
-    const plan = workspace.plan ?? "free";
-    const limit = DAILY_LIMITS[plan] ?? DAILY_LIMITS.free;
-
-    // Reset counter if past UTC midnight
-    let messagesUsed: number = workspace.chat_messages_today ?? 0;
-    if (isPastMidnightUTC(workspace.chat_messages_reset_at ?? null)) {
-      messagesUsed = 0;
-      // Reset fire-and-forget — don't block response
-      void supabase
-        .from("workspaces")
-        .update({
-          chat_messages_today: 0,
-          chat_messages_reset_at: new Date().toISOString(),
-        })
-        .eq("id", workspace.id)
-        .then(({ error }) => {
-          if (error) {
-            logger.warn({ workspaceId: workspace!.id, error: error.message }, "Failed to reset daily message counter");
-          }
-        });
+    // SQL owns the plan limit, UTC reset and increment in a single locked transaction.
+    const { data: allowed, error: quotaError } = await supabase.rpc("intentlead_consume_chat_quota", {
+      p_workspace_id: workspace.id,
+      p_user_id: user!.id,
+    });
+    if (quotaError) {
+      logger.warn({ workspaceId: workspace.id }, "Chat quota reservation failed");
+      return NextResponse.json(err("Chat temporarily unavailable"), { status: 503 });
     }
-
-    // Atomic increment: PostgreSQL UPDATE with WHERE guard — only succeeds if under limit.
-    // Returns 0 rows when already at/over limit, preventing races between concurrent requests.
-    const { data: incRows, error: incErr } = await supabase
-      .from("workspaces")
-      .update({ chat_messages_today: messagesUsed + 1 })
-      .eq("id", workspace.id)
-      .lte("chat_messages_today", limit - 1)
-      .select("id");
-
-    if (incErr || !incRows || incRows.length === 0) {
+    if (allowed !== true) {
       return NextResponse.json(
         err("Daily message limit reached. Limit resets at midnight UTC."),
         { status: 429 }
@@ -162,29 +128,25 @@ export async function POST(req: NextRequest) {
     messages = (history ?? []) as typeof messages;
   }
 
-  // Warm entry: inject Glook context as first assistant message (user role — NOT in system prompt)
-  if (body.scanId && messages.length === 0) {
-    const glookCtx = await getGlookContext(body.scanId);
-    if (glookCtx) {
-      const warmContext = buildWarmContext(glookCtx);
-      // Store Glook context as RAG chunks
-      await upsertChunks(workspace.id, [
-        { content: warmContext, source: "glook_report" },
-      ]).catch((e) =>
-        logger.warn({ error: String(e) }, "Failed to store Glook RAG chunks")
-      );
+  // Warm entry: untrusted scan context stays in user messages, never in the system prompt.
+  if (glookCtx && messages.length === 0) {
+    const warmContext = buildWarmContext(glookCtx);
+    // Store Glook context as RAG chunks
+    await upsertChunks(workspace.id, [
+      { content: warmContext, source: "glook_report" },
+    ]).catch((e) =>
+      logger.warn({ error: String(e) }, "Failed to store Glook RAG chunks")
+    );
 
-      // Inject as context in messages — NOT in system prompt
-      messages.push({
-        role: "user",
-        content: `[Context from website scan]\n${warmContext}`,
-      });
-      messages.push({
-        role: "assistant",
-        content:
-          "I've reviewed your website context. Now, who are you looking to reach — what's the ideal profile of your target customer?",
-      });
-    }
+    messages.push({
+      role: "user",
+      content: `[Context from website scan]\n${warmContext}`,
+    });
+    messages.push({
+      role: "assistant",
+      content:
+        "I've reviewed your website context. Now, who are you looking to reach — what's the ideal profile of your target customer?",
+    });
   }
 
   // Append current user message

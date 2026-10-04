@@ -63,6 +63,12 @@ The successful Next build type-checks production code, but standalone TypeScript
 12. The chat daily counter uses a read-then-write update and can lose increments under concurrent requests.
 13. Worker authentication permits an empty configured/default secret path; startup and requests must fail closed before staging.
 
+## Local Task 2 follow-up (2026-10-04)
+
+The branch now replaces the bare-scan helper with `getOwnedGlookContext({scanId,userId})`, adds owner/ready filters in both warm paths, awaits campaign limits, moves chat quota reservation to an owner-checked SQL RPC, and replaces raw worker secrets with request-bound HMAC plus persisted nonce claims. Reproduction: `npx vitest run tests/api/glook-ownership.test.ts tests/api/rate-limit-enforcement.test.ts tests/worker/authentication.test.ts` passes 35 tests; `npm run verify` passes all 66 deterministic tests, both typechecks and the Next build, with 24 existing lint warnings.
+
+The Task 2 migration has **not** been applied remotely. Its real database suite exits 1 at setup because a disposable local database/runtime is unavailable; quota concurrency, migration execution and privilege behavior remain unverified on PostgreSQL. Findings 1/11/12/13 above describe the original inspected baseline; code fixes are local and are not production-resolution claims. Fire-and-forget reliability, legacy pipeline capabilities and versioned Glook-contract migration remain later tasks.
+
 ## Research reconciliation
 
 The supplied materials support two opportunity families:

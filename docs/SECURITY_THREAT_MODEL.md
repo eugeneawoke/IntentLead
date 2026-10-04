@@ -41,6 +41,14 @@ All external content and provider output are untrusted. Authentication does not 
 
 Service role exists only in narrow server/worker repositories. Each operation still receives a validated tenant subject and enforces ownership in its query or RPC. No browser bundle, generic helper or MCP tool receives the key.
 
+## Local Task 2 controls (2026-10-04, not deployed)
+
+- Both direct Glook reads require authenticated ownership and completed status. Foreign, absent and not-ready scan responses are identical.
+- Campaign creation awaits the existing asynchronous limiter. Chat plan/strategy reservation uses `intentlead_consume_chat_quota(workspace_id, user_id)`: SQL checks the owner, locks the workspace row, derives its existing plan limit, and resets/increments on UTC boundaries inside one transaction. The RPC is executable only by `service_role`; it does not charge credits.
+- Worker signatures use HMAC-SHA256 over newline-separated `v1`, method, exact path plus query, SHA-256 of raw body bytes, Unix-second timestamp and UUID-v4 nonce. Headers are `x-worker-timestamp`, `x-worker-nonce`, and `x-worker-signature`. The receiver compares fixed-size digests in constant time, allows at most 60 seconds of clock skew, and rejects the former raw-key header.
+- `intentlead_claim_worker_nonce` independently validates timestamp freshness and claims a unique nonce in PostgreSQL before execution. Only `service_role` may execute it; the RLS-enabled table has no client policies or direct role grants. Database failure returns 503 without executing work. Expired records are removed on subsequent claims after the last acceptable timestamp second; rows carry no tenant/source content.
+- All deterministic checks pass; real DB concurrency and privilege tests are pending a disposable local PostgreSQL runtime. This change does not satisfy the production security release gate or durable-job requirements by itself.
+
 ## Compliance boundary
 
 Public availability does not grant unrestricted commercial use. Every source has a legal/access status and market policy. Outreach remains human-approved, opt-outs enter a suppression list, and regional requirements are configuration inputs. Legal conclusions require qualified review; project documents are engineering controls, not legal advice.

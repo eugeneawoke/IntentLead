@@ -21,15 +21,12 @@ export async function GET(
     .select("id, url, status, results, created_at, user_id")
     .eq("id", scanId)
     .eq("user_id", user!.id)
+    .eq("status", "done")
     .single();
 
   if (error || !scan) {
     logger.warn({ scanId, userId: user!.id }, "Glook scan not found");
     return NextResponse.json(err("Scan not found"), { status: 404 });
-  }
-
-  if (scan.status !== "done") {
-    return NextResponse.json(err("Scan not ready"), { status: 202 });
   }
 
   return NextResponse.json(ok({ scan }));

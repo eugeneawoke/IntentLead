@@ -1,39 +1,17 @@
 import { getServiceClient } from "@/lib/supabase/client";
 import { logger } from "@/lib/utils/logger";
+import type { GlookScanContext, GlookScanResults, OwnedGlookInput } from "@/types/glook";
 
-// Glook `scans` table schema (shared Supabase, read-only from IntentLead)
-// results is JSONB containing ScanResult — businessContext lives inside it
-interface GlookBusinessContext {
-  detectedService: string | null;
-  targetAudience: string | null;
-  businessProfile: string | null;
-  icpHint?: string | null;
-  monetizationModel?: string | null;
-}
-
-interface GlookScanResults {
-  businessContext?: GlookBusinessContext | null;
-  aiSummary?: string | null;
-  topPriorities?: string[] | null;
-}
-
-export interface GlookScanContext {
-  scanId: string;
-  url: string;
-  detectedService: string | null;
-  targetAudience: string | null;
-  businessProfile: string | null;
-  aiSummary: string | null;
-  topPriorities: string[];
-}
-
-export async function getGlookContext(scanId: string): Promise<GlookScanContext | null> {
+export async function getOwnedGlookContext({ scanId, userId }: OwnedGlookInput): Promise<GlookScanContext | null> {
+  if (!scanId || !userId) return null;
   const supabase = getServiceClient();
 
   const { data, error } = await supabase
     .from("scans")
     .select("id, url, results")
     .eq("id", scanId)
+    .eq("user_id", userId)
+    .eq("status", "done")
     .single();
 
   if (error || !data) {

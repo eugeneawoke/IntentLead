@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
   const { user, supabase, response } = await requireUser();
   if (response) return response;
 
-  if (!checkRateLimit(`campaigns:${user.id}`, 20, 60_000)) {
+  if (!(await checkRateLimit(`campaigns:${user.id}`, 20, 60_000))) {
     return NextResponse.json(err("Rate limit exceeded"), { status: 429 });
   }
 

@@ -107,6 +107,8 @@ Run `node .gitnexus/run.cjs detect-changes --repo IntentLead`; stage only the li
 
 ### Task 2: Close immediate security and correctness gaps
 
+**Local status, 2026-10-04:** Code and deterministic checks implemented; `npm run verify` passes (66 tests, app/worker types, lint with 24 pre-existing warnings, Next build). Real DB concurrency/privilege verification remains blocked: Docker daemon unavailable, no PostgreSQL server binary, and no disposable `INTENTLEAD_TEST_DATABASE_URL`. The new integration suite fails explicitly on this prerequisite; Task 2 is not fully verified. No remote migration/deployment occurred. Fresh security review is scheduled by the coordinating agent against the checkpoint commit.
+
 **Files:**
 - Modify: `lib/glook/report.ts`
 - Modify: `app/api/glook/report/[scanId]/route.ts`
@@ -127,15 +129,17 @@ Run `node .gitnexus/run.cjs detect-changes --repo IntentLead`; stage only the li
 
 Cover owner success, foreign user 404/denial, missing scan and not-ready scan for both report and chat warm entry. Also pin current failures for an awaited campaign rate limit, concurrent daily chat quota and missing/empty/wrong/expired/replayed worker signature.
 
-- [ ] **Step 2: Run focused tests**
+Tests are written and the API failures were observed before implementation; the missing-secret bypass was also reproduced against the baseline. The real DB concurrency baseline cannot run until the local database prerequisite is available.
+
+- [x] **Step 2: Run focused tests**
 
 Run `npx vitest run tests/api/glook-ownership.test.ts`. Expected: foreign-user chat case fails against current helper.
 
-- [ ] **Step 3: Implement owner-bound repository call**
+- [x] **Step 3: Implement owner-bound repository call**
 
 Change the service-role query to include `.eq("user_id", userId)` and an allowed ready status; remove/export no helper that reads by bare scan id.
 
-- [ ] **Step 4: Update callers**
+- [x] **Step 4: Update callers**
 
 Pass the authenticated user id from every route and map unauthorized/not-found to the same non-enumerating response. Await the campaign limiter. Replace chat read-then-write with one owner-bound atomic quota RPC. Reject worker startup when the secret is missing/empty. Sign each dispatch with method/path/body hash, timestamp and nonce/idempotency key; verify with constant-time comparison, a narrow clock window and persisted replay protection.
 
