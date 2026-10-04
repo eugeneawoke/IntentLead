@@ -1,4 +1,6 @@
 # SPEC.md — IntentLead AI
+> ИСТОРИЧЕСКАЯ SPEC v1 (2026-06). Не использовать как текущий план или источник истины по Opportunity Core. Принятые продукт/модель/архитектура: `docs/INDEX.md` → PRODUCT, DOMAIN_MODEL, ARCHITECTURE, ADR-001–008; ближайшая реализация: `docs/IMPLEMENTATION_PLAN.md`. Исторические мотивы и verified-only гарантия сохранены; целевой триггер кредита — `PACKAGE_VERIFIED` (ADR-007).
+
 *Шаг 2 Spec-First. 6 обязательных блоков. Источник правды для SETUP_GENERATOR и субагентов.*
 *Версия 1.0 · 2026-06-05 · читать целиком до любого кода.*
 

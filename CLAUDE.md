@@ -1,7 +1,6 @@
 # CLAUDE.md — IntentLead AI · Agent Context
 
-> Короткий файл. Загружается агентами автоматически. Источник правды по продукту: `SPEC.md`.
-> Решения по стеку: `STACK_DECISION.md`. Визуал: `DESIGN_SYSTEM.md`. Идея: `PROJECT_IDEA.md`.
+> Активные инструкции. Иерархия источников — `docs/INDEX.md`: код/миграции для текущего поведения; `docs/PRODUCT.md`, `docs/DOMAIN_MODEL.md`, `docs/ARCHITECTURE.md` и принятые ADR-001–008 для цели; `docs/ROADMAP-V2.md` и `docs/IMPLEMENTATION_PLAN.md` для очередности. `SPEC.md`, `PLAN.md`, `TODO.md`, `MEMORY.md`, `DECISIONS.md`, `EVIDENCE.md`, `STACK_DECISION.md`, `PROJECT_IDEA.md` сохраняют историю, но не отменяют принятые решения. Визуал: `DESIGN_SYSTEM.md`.
 
 ---
 
@@ -9,12 +8,10 @@
 
 В порядке:
 0. **Прочитать релевантные документы молча, потом отвечать** (глобальное правило). Никаких «сейчас прочитаю и отвечу».
-1. `SPEC.md` — 6 блоков, текущая спецификация продукта
-2. `STACK_DECISION.md` — зафиксированный стек, что отвергнуто
-3. `PROJECT_IDEA.md` — пользователь, боль, монетизация
-4. `DESIGN_SYSTEM.md` — Signal Dark, токены, компоненты
-5. `DECISIONS.md` — принятые/отвергнутые архитектурные решения (создать при первой записи)
-6. `EVIDENCE.md` — проверенные факты и устаревшие предположения (создать при первой записи)
+1. `docs/INDEX.md` — источник порядка и статуса документов.
+2. Релевантные `docs/PRODUCT.md`, `docs/DOMAIN_MODEL.md`, `docs/ARCHITECTURE.md`, ADR, `docs/ROADMAP-V2.md`, `docs/IMPLEMENTATION_PLAN.md`.
+3. Для текущего состояния — код/миграции и датированный `docs/CURRENT_STATE_AUDIT.md`; проверить дрейф.
+4. `DESIGN_SYSTEM.md` — перед UI; исторические root-доки — только для обоснований и прежних ограничений.
 
 После завершённого изменения — обновить релевантный документ, не оставлять устаревшие планы.
 
@@ -57,44 +54,36 @@
 
 ## ПРОДУКТ
 
-IntentLead AI: сигнал → компания → email → письмо. Находит публичный intent
-(Reddit + HN), доводит до верифицированного контакта с готовым письмом.
-**Продолжение Glook** (старое имя ShipReady — аудит сайтов). Две точки входа:
-- **COLD** — минимал-чат, ассистент копает контекст, предлагает скан, запускает pipeline.
-- **WARM** — из Glook: боль и недостатки сайта уже известны (общая Supabase), сразу «кого ищешь».
+IntentLead AI — Opportunity Intelligence Engine: компания, наблюдаемая проблема/событие, доказательства, коммерческая релевантность и гипотеза о покупателе. Contact/draft — отдельные, policy-gated возможности. Glook остаётся возможным warm-входом через версионированный контракт (ADR-002), не через произвольное чтение его внутренних таблиц.
 
-Аудитория: growth-фрилансеры и outbound-агентства (1–5 чел). Фаза: **MVP build.**
-
-**Конкурентное преимущество, которое нельзя скопировать быстро:** 4 уровня верификации
-(сигнал/компания/контакт/email). Кредит не списан, если хоть один красный.
+Первый пилот — self-prospecting с профилем `EN_DISCOVERY_ONLY`: discovery и human review; контактное обогащение и outreach отключены. Код MVP уже существует; работа идёт по Opportunity Core, а не по старым семи фазам. Целевая аудитория проверяется исследованием и пилотом, не фиксируется историческим сегментом.
 
 ---
 
-## РАБОЧИЙ ПРОЦЕСС — SPEC-FIRST (нельзя нарушать)
+## РАБОЧИЙ ПРОЦЕСС
 
 ```
-PROJECT_IDEA.md → STACK_DECISION.md → SPEC.md (6 блоков)
-   → новая сессия: SETUP_GENERATOR + SPEC.md → автономная сборка субагентами
-   → CODE_REVIEWER → OWASP_AI_AUDIT → деплой
+docs/INDEX.md → принятые PRODUCT/DOMAIN_MODEL/ARCHITECTURE/ADR
+   → ROADMAP-V2 → docs/IMPLEMENTATION_PLAN.md → целевые проверки
 ```
-1. **Спека до кода.** Без заполненного SPEC.md — Claude Code не открывать.
-2. **CLAUDE.md — первое сообщение каждой сессии.**
-3. **CODE_REVIEWER + OWASP перед каждым деплоем.** Не опционально.
+1. До изменения читать релевантные канонические документы и проверять текущий код.
+2. Перед изменением символа — GitNexus impact; перед коммитом — detect_changes.
+3. Проверки выбирать по риску и gate из `docs/IMPLEMENTATION_PLAN.md`; релиз только после отдельного решения и проверки.
 
 ---
 
-## STACK (зафиксирован — менять только через DECISIONS.md)
+## STACK (текущее состояние сверять с кодом и package.json; целевые изменения — через ADR)
 
 ```
-Next.js 16 App Router · React 19 · TypeScript strict · Tailwind v4 · shadcn/ui
+Next.js 15.5.x App Router · React 19 · TypeScript strict · Tailwind v4 · shadcn/ui
 Vercel AI SDK (стриминг-ассистент) + OpenAI (GPT-4o-mini classify, GPT-4o message)
 Supabase PostgreSQL + Auth + RLS  (ОБЩИЙ проект с Glook)
 pgvector (RAG: grounding письма, text-embedding-3-small)
 Pipeline: Railway worker (Node.js, long-running) — НЕ Supabase Edge Fn (таймаут 10с)
-Источники: Reddit API · HN Algolia · Google Custom Search · Prospeo→Hunter→Apollo
-Deploy: Vercel (app) + Railway (worker) · Платежи: PayPro Global (MoR, как Glook D-28)
+Текущие источники: Reddit · HN; company resolution: Exa/Serper; contact: Prospeo→Hunter→Apollo (для EN_DISCOVERY_ONLY отключено)
+Целевой runtime: Vercel (app) + Railway (worker) · PayPro Global — исторический выбор, переиспользование требует проверки
 ```
-**Не Python/FastAPI** (ML не нужен — интеллект у OpenAI API). **Не Claude** для генерации (один провайдер). Подробности и отвергнутое → `STACK_DECISION.md`.
+Исторические причины выбора и отвергнутые альтернативы → `STACK_DECISION.md`; решения о новой архитектуре → ADR.
 
 ---
 
@@ -105,7 +94,7 @@ npm run dev          # Next.js app
 npm run lint
 npm run build        # практический type/build gate
 npm test
-npx supabase db push # миграции
+npx supabase db reset # только локальная тестовая БД; миграции в production требуют отдельного решения
 # worker (Railway): npm run worker  (long-running pipeline)
 ```
 
@@ -115,7 +104,7 @@ npx supabase db push # миграции
 
 Запрещено трекать:
 - `.claude/`, `.agents/`, `.kiro/`, `.windsurf/`, `.superpowers/`, `.cursor/` — IDE-конфиги
-- `MEMORY.md`, `PLAN.md`, `TODO.md`, `DECISIONS.md`, `EVIDENCE.md`, `ACTION-PLAN.md`
+- `AGENTS.md`, `MEMORY.md`, `PLAN.md`, `TODO.md`, `DECISIONS.md`, `EVIDENCE.md`, `ACTION-PLAN.md`, `MASTER_BUILD_PROMPT.md`
 - `docs/plans/`, `docs/superpowers/`, `docs/setup/` — рабочие планы
 - `.env`, любые секреты, ключи провайдеров
 - `*.pid`, `*.log`, runtime-файлы
@@ -128,29 +117,28 @@ npx supabase db push # миграции
 ## HARD RULES
 
 - Читать релевантные доки до ответа на проектные вопросы.
-- Читать Next.js 16 доки под `node_modules/next/dist/docs/` до изменения Next.js-кода.
+- Читать документацию установленной версии Next.js под `node_modules/next/dist/docs/` до изменения Next.js-кода; текущая версия 15.5.x.
 - Секреты только в `process.env.*`, никогда в коде.
 - **RLS на КАЖДОЙ таблице IntentLead.** Glook-таблицы — read-only через service role в worker.
-- **Кредит списывается ТОЛЬКО при переходе лида в verified, атомарно через RPC.** Нет состояния
-  credit_charged=true при status≠'verified'. Покрыто тестом, не ломать рефактором.
-- **Verified ⇔ все 4 уровня зелёные.** Красный уровень → rejected, кредит не списан.
+- **Кредит списывается только по `PACKAGE_VERIFIED` согласно версионированной `VerificationPolicy`, атомарно с проверкой владельца и идемпотентностью (ADR-007).** Human review и коммерческий платёж — отдельные события. Старое правило verified-only сохраняется до проверенного перехода; четыре флага — историческая реализация, не универсальная целевая политика.
 - Prompt injection: system prompt фиксирован; user/signal-текст только в role 'user', не в system.
 - **Assistant scope:** чат-ассистент держится ТОЛЬКО в контексте лидогенерации. Слои: system-refusal +
   capability-scoping (нет tools кроме intake/scan/run — картинки/код невозможны) + topic-gate при абьюзе.
   Полные слои → SPEC Блок 5 «Assistant scope & guardrails».
-- **L2 company-ID за адаптером провайдеров** (Exa primary, SERPER fallback). Не хардкодить один источник. См. AI_MODELS_AUDIT.md.
-- **Авто-отправки писем в MVP нет.** Assisted-send через свой ящик клиента — V2 (D-9).
-- Pipeline (long-running) — на Railway, не Edge Fn. App-endpoint только триггерит (202), не ждёт.
+- **Провайдеры за capability registry и MarketProfile** (ADR-004); текущее Exa/Serper — реализация, не вечная политика.
+- **В первом пилоте `EN_DISCOVERY_ONLY` контактное обогащение и outreach отключены.** Автономной отправки нет.
+- Pipeline — на Railway с durable jobs (ADR-003). App-endpoint отвечает 202 после атомарного сохранения job.
 - Технические факты — из измеренных данных/провайдеров, не выдумывать. AI может суммировать
   и улучшать промты, но не выдумывать компании, email или intent-score.
 - Типы лидов/сигналов — в одном месте (`types/*.ts`), без inline-дублей.
 - Файлы > 300 строк → разбить. Никаких `console.log` (использовать logger).
-- Новые архитектурные решения → `DECISIONS.md`. Новые проверенные факты → `EVIDENCE.md`.
+- Новые архитектурные решения → ADR в `docs/adr/` и релевантные канонические доки. Новые проверенные факты → `docs/CURRENT_STATE_AUDIT.md` или `EVIDENCE.md` с датой/методом проверки.
+- Данное принятие не разрешает production deploy/migration, real outreach, платные API, billing mutation или provider spend.
 - **Гибкость разрешена:** чего нет в документах — лучше уточни у автора, чем выдумывай.
 
 ---
 
-## QUALITY CONTRACT
+## QUALITY CONTRACT (исторический Lead-flow; целевой контракт — ADR-001/006/007)
 
 - Лид имеет 4 флага верификации; verified только при всех true.
 - **Rejected — это норма (серый), не ошибка (не красный).** Гарантия качества работает.
@@ -161,7 +149,7 @@ npx supabase db push # миграции
 
 ---
 
-## ENVIRONMENT VARIABLES
+## ENVIRONMENT VARIABLES (исторический перечень; фактические переменные проверять по коду и env.example)
 
 ```
 # App / Supabase (общий с Glook)
@@ -198,7 +186,7 @@ PAYPRO_PRODUCT_AGENCY
 
 ---
 
-## FILE MAP (планируемый, Тип Г — гибрид web + worker)
+## FILE MAP (исторический план, не текущая карта; см. docs/ARCHITECTURE.md и текущий код)
 
 ```
 app/
@@ -240,24 +228,25 @@ supabase/
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **IntentLead** (903 symbols, 1307 relationships, 37 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **IntentLead** (849 symbols, 1474 relationships, 54 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
-> If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
+> Index stale? Run `node .gitnexus/run.cjs analyze` from the project root — it auto-selects an available runner. No `.gitnexus/run.cjs` yet? `npx gitnexus analyze` (npm 11 crash → `npm i -g gitnexus`; #1939).
 
 ## Always Do
 
-- **MUST run impact analysis before editing any symbol.** Before modifying a function, class, or method, run `gitnexus_impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.
-- **MUST run `gitnexus_detect_changes()` before committing** to verify your changes only affect expected symbols and execution flows.
+- **MUST run impact analysis before editing any symbol.** Before modifying a function, class, or method, run `impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.
+- **MUST run `detect_changes()` before committing** to verify your changes only affect expected symbols and execution flows. For regression review, compare against the default branch: `detect_changes({scope: "compare", base_ref: "main"})`.
 - **MUST warn the user** if impact analysis returns HIGH or CRITICAL risk before proceeding with edits.
-- When exploring unfamiliar code, use `gitnexus_query({query: "concept"})` to find execution flows instead of grepping. It returns process-grouped results ranked by relevance.
-- When you need full context on a specific symbol — callers, callees, which execution flows it participates in — use `gitnexus_context({name: "symbolName"})`.
+- When exploring unfamiliar code, use `query({search_query: "concept"})` to find execution flows instead of grepping. It returns process-grouped results ranked by relevance.
+- When you need full context on a specific symbol — callers, callees, which execution flows it participates in — use `context({name: "symbolName"})`.
+- For security review, `explain({target: "fileOrSymbol"})` lists taint findings (source→sink flows; needs `analyze --pdg`).
 
 ## Never Do
 
-- NEVER edit a function, class, or method without first running `gitnexus_impact` on it.
+- NEVER edit a function, class, or method without first running `impact` on it.
 - NEVER ignore HIGH or CRITICAL risk warnings from impact analysis.
-- NEVER rename symbols with find-and-replace — use `gitnexus_rename` which understands the call graph.
-- NEVER commit changes without running `gitnexus_detect_changes()` to check affected scope.
+- NEVER rename symbols with find-and-replace — use `rename` which understands the call graph.
+- NEVER commit changes without running `detect_changes()` to check affected scope.
 
 ## Resources
 

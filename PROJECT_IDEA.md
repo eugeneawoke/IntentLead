@@ -1,4 +1,6 @@
 # PROJECT IDEA: IntentLead AI
+> ИСТОРИЧЕСКАЯ идея 2026-06. Текущая продуктовая граница принята в `docs/PRODUCT.md`; пилот `EN_DISCOVERY_ONLY` запрещает contact enrichment/outreach. Исторические гипотезы ниже не являются проверенными рыночными фактами. См. `docs/INDEX.md`.
+
 *Шаг 1 Spec-First. Заполнено 2026-06-05.*
 
 ---

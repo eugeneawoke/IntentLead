@@ -1,18 +1,18 @@
 # IntentLead AI
 
-Intent signal → verified lead + ready-to-send email. Full cycle: signal → company → email → letter.
+IntentLead develops evidence-backed Opportunities: a company, an observable problem or event, and a defensible reason for human review.
 
-Finds people and companies publicly expressing buying intent (Reddit, HN, GitHub, VK, Google Reviews, and more), maps each signal to a decision-maker, verifies the email through a 4-provider waterfall, and generates a personalized cold email grounded on your business context.
+The existing MVP contains a narrower signal-to-lead pipeline. The accepted Opportunity Core direction and current implementation status are documented in [docs/INDEX.md](docs/INDEX.md).
 
-**Credit charged only when all 4 verification levels pass. Rejected leads are free.**
+The first self-prospecting pilot uses `EN_DISCOVERY_ONLY`: contact enrichment and outreach are disabled. The accepted target ties customer credits to an atomic, owner-validated, idempotent `PACKAGE_VERIFIED` event under a versioned verification policy; human review and commercial payment are separate.
 
 ---
 
-## Two entry points
+## Entry points
 
 - **Cold** — new user: minimal chat assistant extracts your ICP and target, launches pipeline.
-- **Warm** — from [Glook](https://glook.dev): business pain and site audit already loaded from shared Supabase, skips discovery.
+- **Warm** — a Glook context path exists in the MVP; the accepted target is a versioned, owner-bound contract rather than direct shared-table access.
 
 ---
 
-> Better 10 perfect leads than 50 questionable ones.
+See [the implementation plan](docs/IMPLEMENTATION_PLAN.md) for the staged migration.
