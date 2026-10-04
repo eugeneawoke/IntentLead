@@ -1,5 +1,25 @@
 -- Task 2: server-only quota reservation and persistent internal-request replay protection.
 -- No credit or billing mutation. Deploy separately; application calls fail closed until applied.
+
+-- Workspace creation/deletion is already server-owned. A broad client UPDATE (or
+-- INSERT/DELETE replacement) would let owners forge their plan/credits/quota.
+-- Keep the safe owner rename under the existing RLS policy; service grants stay intact.
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER
+  ON TABLE public.workspaces FROM PUBLIC, anon, authenticated;
+DO $$
+DECLARE
+  v_columns text;
+BEGIN
+  -- Table-level REVOKE does not remove historical per-column grants.
+  SELECT string_agg(quote_ident(attname), ', ') INTO v_columns
+    FROM pg_attribute WHERE attrelid = 'public.workspaces'::regclass
+      AND attnum > 0 AND NOT attisdropped;
+  EXECUTE format('REVOKE INSERT (%s), UPDATE (%s), REFERENCES (%s) ON TABLE public.workspaces FROM PUBLIC, anon, authenticated',
+    v_columns, v_columns, v_columns);
+END;
+$$;
+GRANT UPDATE (name) ON TABLE public.workspaces TO authenticated;
+
 CREATE OR REPLACE FUNCTION public.intentlead_consume_chat_quota(
   p_workspace_id uuid,
   p_user_id uuid
@@ -72,13 +92,24 @@ BEGIN
     OR p_timestamp < v_seconds - 60 OR p_timestamp > v_seconds + 60
   THEN RETURN false; END IF;
 
-  DELETE FROM public.intentlead_worker_nonces WHERE expires_at <= v_now;
+  -- Do not wait behind active claims while collecting expired rows. Locks remain
+  -- held to transaction end, and duplicate claims still arbitrate on the primary key.
+  DELETE FROM public.intentlead_worker_nonces AS expired USING (
+    SELECT nonce FROM public.intentlead_worker_nonces
+      WHERE expires_at <= v_now FOR UPDATE SKIP LOCKED
+  ) AS candidates WHERE expired.nonce = candidates.nonce;
   INSERT INTO public.intentlead_worker_nonces (nonce, expires_at)
     -- Retain until the final acceptable second has elapsed, including future clock skew.
     VALUES (p_nonce, to_timestamp(p_timestamp + 61))
     ON CONFLICT (nonce) DO NOTHING;
   GET DIAGNOSTICS v_inserted = ROW_COUNT;
-  RETURN v_inserted = 1;
+  -- INSERT can wait on a concurrent deletion/unique check past this signature's
+  -- lifetime. Re-read the clock after the last blocking write, never the entry time.
+  -- If stale, retain the inserted tombstone until normal expiry cleanup; do not
+  -- delete a nonce here and accidentally reopen it for another claimant.
+  v_seconds := floor(extract(epoch FROM clock_timestamp()))::bigint;
+  RETURN v_inserted = 1
+    AND p_timestamp >= v_seconds - 60 AND p_timestamp <= v_seconds + 60;
 END;
 $$;
 

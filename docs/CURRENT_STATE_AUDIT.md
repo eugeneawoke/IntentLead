@@ -69,6 +69,8 @@ The branch now replaces the bare-scan helper with `getOwnedGlookContext({scanId,
 
 The Task 2 migration has **not** been applied remotely. Its real database suite exits 1 at setup because a disposable local database/runtime is unavailable; quota concurrency, migration execution and privilege behavior remain unverified on PostgreSQL. Findings 1/11/12/13 above describe the original inspected baseline; code fixes are local and are not production-resolution claims. Fire-and-forget reliability, legacy pipeline capabilities and versioned Glook-contract migration remain later tasks.
 
+Task 2 review follow-up: the local migration now checks nonce freshness after blocking insertion, skips locked cleanup rows, and restricts direct workspace writes to owner rename; service-role creation remains intact. The DB fixture models default and column-level grants before migration and adds the delayed-expiry race plus role/field privilege cases (31 total). DB execution is still blocked. Query-string and encoded-path signature coverage brings the focused suite to 37 passing tests.
+
 ## Research reconciliation
 
 The supplied materials support two opportunity families:

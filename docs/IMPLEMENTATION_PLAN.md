@@ -107,7 +107,7 @@ Run `node .gitnexus/run.cjs detect-changes --repo IntentLead`; stage only the li
 
 ### Task 2: Close immediate security and correctness gaps
 
-**Local status, 2026-10-04:** Code and deterministic checks implemented; `npm run verify` passes (66 tests, app/worker types, lint with 24 pre-existing warnings, Next build). Real DB concurrency/privilege verification remains blocked: Docker daemon unavailable, no PostgreSQL server binary, and no disposable `INTENTLEAD_TEST_DATABASE_URL`. The new integration suite fails explicitly on this prerequisite; Task 2 is not fully verified. No remote migration/deployment occurred. Fresh security review is scheduled by the coordinating agent against the checkpoint commit.
+**Local status, 2026-10-04:** Code and deterministic checks implemented; review-fix `npm run verify` passes (68 tests, app/worker types, lint with 24 pre-existing warnings, Next build). Fresh review requested nonce expiry-race and privilege hardening; local fixes add post-insert freshness validation, restricted workspace columns, and representative default-grant DB fixtures. The focused suite passes 37 tests. Real DB concurrency/privilege verification remains blocked: Docker daemon unavailable, no PostgreSQL server binary, and no disposable `INTENTLEAD_TEST_DATABASE_URL`. The 31-case integration suite fails explicitly on this prerequisite; Task 2 is not fully verified. No remote migration/deployment occurred.
 
 **Files:**
 - Modify: `lib/glook/report.ts`

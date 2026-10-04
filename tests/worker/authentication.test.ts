@@ -48,7 +48,7 @@ describe("worker authentication", () => {
     expect(() => createWorkerApp(value, consumeNonce)).toThrow("WORKER_SECRET");
   });
 
-  it("accepts a valid signature only after persistent nonce consumption", async () => {
+  it("accepts a valid signature after the nonce repository approves it", async () => {
     const url = await listen();
     const signed = headers();
     expect((await fetch(`${url}/internal/health`, { headers: signed })).status).toBe(200);
@@ -82,10 +82,29 @@ describe("worker authentication", () => {
     expect(mocks.run).not.toHaveBeenCalled();
   });
 
-  it("rejects a persisted replay even on another worker instance", async () => {
+  it("rejects a request when the mocked nonce repository reports a replay", async () => {
     const url = await listen();
     consumeNonce.mockResolvedValue(false);
     expect((await fetch(`${url}/internal/health`, { headers: headers() })).status).toBe(401);
+  });
+
+  it("accepts an exact signed query string and rejects a changed query", async () => {
+    const url = await listen();
+    const path = "/internal/health?probe=a%2Fb&count=1";
+    expect((await fetch(`${url}${path}`, { headers: headers("", path) })).status).toBe(200);
+    consumeNonce.mockClear();
+    expect((await fetch(`${url}${path}&extra=1`, { headers: headers("", path) })).status).toBe(401);
+    expect(consumeNonce).not.toHaveBeenCalled();
+  });
+
+  it("binds the signature to the encoded path bytes", async () => {
+    const url = await listen();
+    const path = "/internal/%68ealth";
+    expect((await fetch(`${url}${path}`, { headers: headers("", "/internal/health") })).status).toBe(401);
+    expect(consumeNonce).not.toHaveBeenCalled();
+    // Authentication succeeds for the exact bytes; Express has no route for this spelling.
+    expect((await fetch(`${url}${path}`, { headers: headers("", path) })).status).toBe(404);
+    expect(consumeNonce).toHaveBeenCalledOnce();
   });
 
   it("fails closed when replay persistence is unavailable", async () => {

@@ -28,13 +28,13 @@ Task 2 replaces `X-Internal-Key` with timestamped HMAC headers. The app signs re
 
 ### Task 2 database integration
 
-Use an **empty disposable local PostgreSQL database** whose name starts with `intentlead_test_`, with a fixture administrator able to create the Supabase role/schema stubs. Set `INTENTLEAD_TEST_DATABASE_URL` to that database and run:
+Use an **empty disposable local PostgreSQL database** whose name starts with `intentlead_test_`, with a fixture PostgreSQL superuser able to create the Supabase role/schema stubs (including `service_role BYPASSRLS`), inspect session wait events and cancel the fixture's blocking session. Set `INTENTLEAD_TEST_DATABASE_URL` to that database and run:
 
 ```bash
 npm run test:integration -- tests/integration/chat-quota-concurrency.test.ts
 ```
 
-The suite rejects remote addresses and other database names, requires `psql`, applies the relevant existing baseline migrations (001, 002, 006), and upgrades it with Task 2's additive migration. It tests quota limits/reset/ownership, actual concurrent connections, persistent nonce contention and negative RPC/table privileges. Each run needs a fresh empty disposable database; fixture state is left there for inspection. This narrow upgrade test is not the full from-zero migration gate assigned to Task 4.
+The suite rejects remote addresses and other database names, requires `psql`, applies the relevant existing baseline migrations (001, 002, 006), and upgrades it with Task 2's additive migration. It grants representative default/table privileges before the upgrade, plus historical workspace column grants, so denial proves the migration's revocations. Its 31 cases cover quota limits/reset/ownership, concurrent connections, delayed replay versus expiry cleanup, nonce-table denial for all three roles (including RLS-bypassing service role), protected workspace fields, allowed owner rename and preserved server creation. The delayed-race fixture uses a temporary trigger/advisory lock, bounded wait-state polling and cancellation of only its own named blocker; it does not replace PostgreSQL with a mock. Each run needs a fresh empty disposable database; fixture state is left there for inspection. This narrow upgrade test is not the full from-zero migration gate assigned to Task 4.
 
 On 2026-10-04 this command fails at setup: no `INTENTLEAD_TEST_DATABASE_URL`, Docker daemon unavailable, and only client-side libpq tools present (no `postgres` executable). No database assertions have passed yet; mock tests must not be presented as concurrency proof.
 
