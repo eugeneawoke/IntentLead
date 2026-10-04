@@ -2,9 +2,14 @@ import express from "express";
 import { requireWorkerSecret } from "../lib/auth/workerSignature";
 import type { ConsumeWorkerNonce } from "../types/worker-auth";
 import { consumeWorkerNonce, requireInternalKey } from "./authentication";
-import { runPipeline } from "./pipeline/runner";
 
-export function createWorkerApp(secret: string | undefined, consumeNonce: ConsumeWorkerNonce = consumeWorkerNonce) {
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export function createWorkerApp(
+  secret: string | undefined,
+  consumeNonce: ConsumeWorkerNonce = consumeWorkerNonce,
+  wakeJob: (jobId: string) => void = () => undefined,
+) {
   const configuredSecret = requireWorkerSecret(secret);
   const app = express();
   // Authenticate the exact wire bytes before JSON parsing; compressed bodies are unsupported.
@@ -15,7 +20,7 @@ export function createWorkerApp(secret: string | undefined, consumeNonce: Consum
     res.json({ success: true, data: { status: "ok", ts: new Date().toISOString() } });
   });
 
-  app.post("/internal/run-pipeline", async (req, res) => {
+  app.post("/internal/jobs/wake", (req, res) => {
     let body: unknown;
     try {
       body = JSON.parse(req.body.toString("utf8"));
@@ -23,16 +28,18 @@ export function createWorkerApp(secret: string | undefined, consumeNonce: Consum
       res.status(400).json({ success: false, error: "Invalid JSON" });
       return;
     }
-    const campaignId = body && typeof body === "object" && "campaignId" in body ? body.campaignId : undefined;
-    if (typeof campaignId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(campaignId)) {
-      res.status(400).json({ success: false, error: "Invalid campaignId format" });
+    const jobId = body && typeof body === "object" && !Array.isArray(body) && "jobId" in body
+      ? (body as { jobId?: unknown }).jobId
+      : undefined;
+    if (!body || typeof body !== "object" || Array.isArray(body)
+      || Object.keys(body).length !== 1 || typeof jobId !== "string" || !UUID_PATTERN.test(jobId)) {
+      res.status(400).json({ success: false, error: "Invalid job wake hint" });
       return;
     }
-    // Development-only until Task 5 replaces background work with persisted jobs.
-    res.status(202).json({ success: true, data: { message: "Pipeline started", campaignId } });
-    runPipeline(campaignId).catch(() => {
-      process.stderr.write(JSON.stringify({ level: "error", campaignId, msg: "Pipeline top-level error" }) + "\n");
-    });
+    try { wakeJob(jobId); } catch {
+      process.stderr.write(JSON.stringify({ level: "warn", jobId, code: "WAKE_SIGNAL_FAILED", msg: "Job wake hint was not delivered; polling remains active" }) + "\n");
+    }
+    res.status(202).json({ success: true, data: { accepted: true } });
   });
   return app;
 }

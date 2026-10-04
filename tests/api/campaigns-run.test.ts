@@ -1,201 +1,126 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { NextRequest } from "next/server";
+import { describe, expect, it, vi, beforeEach } from "vitest";
+import { NextRequest, NextResponse } from "next/server";
+import { ApplicationError } from "@/lib/application/errors";
 
-/**
- * Unit tests for POST /api/campaigns/:id/run — credit gate logic.
- *
- * The route is tested by mocking its dependencies (requireUser, getServiceClient,
- * checkRateLimit, dispatchToWorker, logger) and calling the real POST handler.
- * This validates the 402 / 202 branching without needing a live Next.js server.
- */
-
-// ── Dependency mocks ──────────────────────────────────────────────────────────
-
-// requireUser — returns an authenticated user by default
 const mockRequireUser = vi.fn();
-vi.mock("@/lib/auth/requireUser", () => ({
-  requireUser: mockRequireUser,
-}));
+const mockCreateContext = vi.fn();
+const mockStart = vi.fn();
+const mockDispatch = vi.fn();
+const mockRateLimit = vi.fn();
+const mockLoggerError = vi.fn();
 
-// getServiceClient — wraps workspace queries; configure per test
-const mockServiceFrom = vi.fn();
-vi.mock("@/lib/supabase/client", () => ({
-  getServiceClient: () => ({ from: mockServiceFrom }),
-}));
+vi.mock("@/lib/auth/requireUser", () => ({ requireUser: mockRequireUser }));
+vi.mock("@/lib/application/context", () => ({ createApplicationContext: mockCreateContext }));
+vi.mock("@/lib/application/opportunities", () => ({ startOpportunitySearch: mockStart }));
+vi.mock("@/lib/auth/dispatchToWorker", () => ({ dispatchToWorker: mockDispatch }));
+vi.mock("@/lib/ratelimit", () => ({ checkRateLimit: mockRateLimit }));
+vi.mock("@/lib/utils/logger", () => ({ logger: { error: mockLoggerError, info: vi.fn(), warn: vi.fn() } }));
 
-// checkRateLimit — allow by default
-vi.mock("@/lib/ratelimit", () => ({
-  checkRateLimit: vi.fn().mockReturnValue(true),
-}));
+const campaignContext = {
+  authenticatedUserId: "owner-1",
+  workspace: { id: "workspace-1", role: "OWNER" },
+  campaignId: "campaign-1",
+  discoveryBriefId: "brief-1",
+  traceId: "trace-1",
+  permissions: new Set(["SOURCE_SEARCH"]),
+  budget: { currency: "USD", maxTotalCost: 0, maxProviderCalls: 0 },
+  marketProfile: { id: "EN_DISCOVERY_ONLY" },
+};
 
-// dispatchToWorker — fire-and-forget; we just verify it's called (or not)
-const mockDispatch = vi.fn().mockResolvedValue(undefined);
-vi.mock("@/lib/auth/dispatchToWorker", () => ({
-  dispatchToWorker: mockDispatch,
-}));
-
-// logger — suppress output in tests
-vi.mock("@/lib/utils/logger", () => ({
-  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-}));
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-const CAMPAIGN = { id: "campaign-1", workspace_id: "ws-1", status: "pending" };
-
-function buildUserSupabaseMock(campaignOverride?: Partial<typeof CAMPAIGN>) {
-  const campaign = { ...CAMPAIGN, ...campaignOverride };
-  return {
-    from: vi.fn().mockReturnValue({
-      select: vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          single: vi.fn().mockResolvedValue({ data: campaign, error: null }),
-        }),
-      }),
-      update: vi.fn().mockReturnValue({
-        eq: vi.fn().mockResolvedValue({ error: null }),
-      }),
-    }),
-  };
-}
-
-function buildWorkspaceMock(workspace: Record<string, unknown>) {
-  mockServiceFrom.mockReturnValue({
-    select: vi.fn().mockReturnValue({
-      eq: vi.fn().mockReturnValue({
-        single: vi.fn().mockResolvedValue({ data: workspace, error: null }),
-      }),
-    }),
-  });
-}
-
-async function callRoute(campaignId = "campaign-1") {
-  // Dynamic import so vi.mock() hoisting applies
-  const { POST } = await import("@/app/api/campaigns/[id]/run/route");
+function callRoute(headers: Record<string, string> = {}) {
   const req = new NextRequest("http://localhost/api/campaigns/campaign-1/run", {
     method: "POST",
+    headers,
   });
-  return POST(req, { params: Promise.resolve({ id: campaignId }) });
+  return import("@/app/api/campaigns/[id]/run/route").then(({ POST }) =>
+    POST(req, { params: Promise.resolve({ id: "campaign-1" }) }),
+  );
 }
 
-// ── Tests ─────────────────────────────────────────────────────────────────────
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>(done => { resolve = done; });
+  return { promise, resolve };
+}
 
-describe("POST /api/campaigns/:id/run — credit gate", () => {
+describe("POST /api/campaigns/:id/run", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockRateLimit.mockResolvedValue(true);
+    mockRequireUser.mockResolvedValue({ user: { id: "owner-1" }, supabase: {}, response: null });
+    mockCreateContext.mockResolvedValue(campaignContext);
+    mockStart.mockResolvedValue({ jobId: "job-1" });
+    mockDispatch.mockReturnValue(undefined);
   });
 
-  it("returns 402 when free_converter_used=true and credits_remaining=0", async () => {
-    mockRequireUser.mockResolvedValue({
-      user: { id: "user-1" },
-      supabase: buildUserSupabaseMock(),
-      response: null,
-    });
-    buildWorkspaceMock({
-      id: "ws-1",
-      credits_remaining: 0,
-      plan: "free",
-      free_converter_used: true,
+  it("waits for durable enqueue and atomic campaign transition before returning 202", async () => {
+    const accepted = deferred<{ jobId: string }>();
+    mockStart.mockReturnValue(accepted.promise);
+    let routeSettled = false;
+    const responsePromise = callRoute({ "Idempotency-Key": "request-1" }).then(response => {
+      routeSettled = true;
+      return response;
     });
 
-    const res = await callRoute();
+    await vi.waitFor(() => expect(mockStart).toHaveBeenCalledWith(campaignContext, {
+      schemaVersion: 1,
+      campaignId: "campaign-1",
+      idempotencyKey: "request-1",
+    }));
+    expect(routeSettled).toBe(false);
+    expect(mockDispatch).not.toHaveBeenCalled();
 
-    expect(res.status).toBe(402);
-    const body = await res.json();
-    expect(body.error).toContain("Insufficient credits");
+    accepted.resolve({ jobId: "job-1" });
+    const response = await responsePromise;
+
+    expect(response.status).toBe(202);
+    expect((await response.json()).data).toEqual({ jobId: "job-1", status: "queued" });
+    expect(mockDispatch).toHaveBeenCalledWith("job-1");
+  });
+
+  it("keeps accepted work successful when the optional wake hint throws", async () => {
+    mockDispatch.mockImplementation(() => { throw new Error("worker offline"); });
+
+    const response = await callRoute({ "Idempotency-Key": "request-1" });
+
+    expect(response.status).toBe(202);
+    expect((await response.json()).data).toEqual({ jobId: "job-1", status: "queued" });
+    expect(mockLoggerError).toHaveBeenCalled();
+  });
+
+  it("returns an honest setup conflict when no linked DiscoveryBrief or profile exists", async () => {
+    mockCreateContext.mockRejectedValue(new ApplicationError("CONFLICT", "Discovery setup is incomplete"));
+
+    const response = await callRoute();
+
+    expect(response.status).toBe(409);
+    expect((await response.json()).error).toContain("Discovery setup is incomplete");
+    expect(mockStart).not.toHaveBeenCalled();
     expect(mockDispatch).not.toHaveBeenCalled();
   });
 
-  it("returns 402 when credits_remaining=0 and plan is not free", async () => {
-    mockRequireUser.mockResolvedValue({
-      user: { id: "user-1" },
-      supabase: buildUserSupabaseMock(),
-      response: null,
-    });
-    buildWorkspaceMock({
-      id: "ws-1",
-      credits_remaining: 0,
-      plan: "starter",
-      free_converter_used: false,
-    });
+  it("does not trust workspace input or perform a separate campaign mutation", async () => {
+    const response = await callRoute({ "Idempotency-Key": "request-1" });
 
-    const res = await callRoute();
-
-    expect(res.status).toBe(402);
-    expect(mockDispatch).not.toHaveBeenCalled();
+    expect(response.status).toBe(202);
+    expect(mockCreateContext).toHaveBeenCalledWith(expect.objectContaining({
+      authenticatedUserId: "owner-1",
+      campaignId: "campaign-1",
+    }), {});
+    expect(mockStart).not.toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ workspaceId: expect.anything() }));
   });
 
-  it("returns 202 and dispatches worker when credits_remaining > 0", async () => {
-    mockRequireUser.mockResolvedValue({
-      user: { id: "user-1" },
-      supabase: buildUserSupabaseMock(),
-      response: null,
-    });
-    buildWorkspaceMock({
-      id: "ws-1",
-      credits_remaining: 5,
-      plan: "starter",
-      free_converter_used: false,
-    });
-
-    const res = await callRoute();
-
-    expect(res.status).toBe(202);
-    expect(mockDispatch).toHaveBeenCalledWith("campaign-1");
-  });
-
-  it("returns 202 for free plan first run (free_converter_used=false, credits=0)", async () => {
-    mockRequireUser.mockResolvedValue({
-      user: { id: "user-1" },
-      supabase: buildUserSupabaseMock(),
-      response: null,
-    });
-    buildWorkspaceMock({
-      id: "ws-1",
-      credits_remaining: 0,
-      plan: "free",
-      free_converter_used: false,
-    });
-
-    const res = await callRoute();
-
-    expect(res.status).toBe(202);
-    expect(mockDispatch).toHaveBeenCalledWith("campaign-1");
-  });
-
-  it("returns 401 when user is not authenticated", async () => {
-    const { NextResponse } = await import("next/server");
+  it("preserves authentication and rate-limit denials", async () => {
     mockRequireUser.mockResolvedValue({
       user: null,
       supabase: null,
       response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
     });
+    expect((await callRoute()).status).toBe(401);
 
-    const res = await callRoute();
-
-    expect(res.status).toBe(401);
-    expect(mockDispatch).not.toHaveBeenCalled();
-  });
-
-  it("returns 404 when campaign does not exist", async () => {
-    mockRequireUser.mockResolvedValue({
-      user: { id: "user-1" },
-      supabase: {
-        from: vi.fn().mockReturnValue({
-          select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              single: vi.fn().mockResolvedValue({ data: null, error: { message: "Not found" } }),
-            }),
-          }),
-          update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) }),
-        }),
-      },
-      response: null,
-    });
-
-    const res = await callRoute();
-
-    expect(res.status).toBe(404);
-    expect(mockDispatch).not.toHaveBeenCalled();
+    mockRequireUser.mockResolvedValue({ user: { id: "owner-1" }, supabase: {}, response: null });
+    mockRateLimit.mockResolvedValue(false);
+    expect((await callRoute()).status).toBe(429);
+    expect(mockStart).not.toHaveBeenCalled();
   });
 });

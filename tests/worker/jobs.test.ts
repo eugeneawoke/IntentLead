@@ -1,0 +1,244 @@
+import { describe, expect, it, vi } from "vitest";
+import { createJobWorker, type ProviderConcurrencyHook } from "@/worker/jobs/worker";
+import type { JobRepository, LeasedJob } from "@/worker/jobs/repository";
+import type { MarketProfile } from "@/types/market-profile";
+
+const now = "2026-10-05T10:00:00.000Z";
+const discoveryProfile: MarketProfile = {
+  schemaVersion: 1,
+  id: "EN_DISCOVERY_ONLY",
+  workspaceId: "workspace-1",
+  jurisdictions: [],
+  regions: [],
+  languages: ["en"],
+  capabilities: ["SOURCE_SEARCH", "WEB_FETCH", "COMPANY_RESOLUTION", "OPPORTUNITY_ASSESSMENT", "HUMAN_REVIEW"],
+  disabledCapabilities: ["PEOPLE_SEARCH", "CONTACT_ENRICHMENT", "EMAIL_FIND", "EMAIL_VERIFY", "DRAFT_GENERATION", "OUTREACH_READY", "OUTREACH_SEND", "OUTCOME_RECORDING", "PACKAGE_VERIFIED"],
+  legalPolicyId: "policy-legal-v1",
+  retentionPolicyId: "policy-retention-v1",
+  outreachPolicyId: null,
+  outreachChannels: [],
+  defaultCurrency: "USD",
+  timezone: "UTC",
+  workflow: "DISCOVERY_ONLY",
+};
+
+const lease: LeasedJob = {
+  schemaVersion: 1,
+  id: "job-1",
+  workspaceId: "workspace-1",
+  capability: "SOURCE_SEARCH",
+  marketProfileId: "EN_DISCOVERY_ONLY",
+  discoveryBriefId: "brief-1",
+  idempotencyKey: "request-1",
+  traceId: "trace-1",
+  attempt: 1,
+  maxAttempts: 3,
+  createdAt: now,
+  updatedAt: now,
+  state: "LEASED",
+  lease: { owner: "worker-1", token: "lease-1", expiresAt: "2026-10-05T10:01:00.000Z" },
+};
+
+function fakeRepository(overrides: Partial<JobRepository> = {}) {
+  const repo: JobRepository = {
+    leaseNextJob: vi.fn().mockResolvedValueOnce(lease).mockResolvedValue(null),
+    getMarketProfile: vi.fn().mockResolvedValue(discoveryProfile),
+    isCancelled: vi.fn().mockResolvedValue(false),
+    heartbeat: vi.fn().mockResolvedValue(true),
+    checkpoint: vi.fn().mockResolvedValue(true),
+    recordStepAttempt: vi.fn().mockResolvedValue("step-1"),
+    retry: vi.fn().mockResolvedValue(true),
+    complete: vi.fn().mockResolvedValue(true),
+    ...overrides,
+  };
+  return repo;
+}
+
+async function waitFor(assertion: () => void) {
+  const deadline = Date.now() + 1_000;
+  while (Date.now() < deadline) {
+    try { assertion(); return; } catch { await new Promise(resolve => setTimeout(resolve, 5)); }
+  }
+  assertion();
+}
+
+describe("durable job worker", () => {
+  it("polls independently, runs no legacy pipeline and completes with the exact lease", async () => {
+    const repository = fakeRepository();
+    const worker = createJobWorker({
+      repository,
+      workerId: "worker-1",
+      minPollIntervalMs: 2,
+      maxPollIntervalMs: 8,
+      heartbeatIntervalMs: 10,
+      handler: async () => ({ state: "COMPLETED", result: { opportunityIds: [] } }),
+    });
+
+    worker.start();
+    await waitFor(() => expect(repository.complete).toHaveBeenCalledWith(expect.objectContaining({
+      jobId: "job-1", workerId: "worker-1", leaseToken: "lease-1",
+    }), "COMPLETED", { opportunityIds: [] }, null));
+    await worker.shutdown();
+
+    expect(repository.leaseNextJob).toHaveBeenCalled();
+    expect(repository.heartbeat).toHaveBeenCalled();
+  });
+
+  it("routes an authorized injected operation through its per-provider concurrency hook", async () => {
+    const repository = fakeRepository();
+    const provider = { id: "fixture-only" };
+    const gateCalls: Array<{ capability: string; provider: unknown }> = [];
+    const gate: ProviderConcurrencyHook = async ({ capability, provider, execute }) => {
+      gateCalls.push({ capability, provider });
+      return execute();
+    };
+    const operation = vi.fn().mockResolvedValue("fixture-result");
+    const worker = createJobWorker({
+      repository,
+      workerId: "worker-1",
+      minPollIntervalMs: 2,
+      maxPollIntervalMs: 8,
+      providerConcurrency: gate,
+      handler: async (_job, execution) => {
+        const result = await execution.runExternalOperation("SOURCE_SEARCH", () => provider, operation);
+        return { state: "COMPLETED", result: { value: result } };
+      },
+    });
+
+    worker.start();
+    await waitFor(() => expect(repository.complete).toHaveBeenCalled());
+    await worker.shutdown();
+
+    expect(gateCalls).toEqual([{ capability: "SOURCE_SEARCH", provider }]);
+    expect(operation).toHaveBeenCalledExactlyOnceWith(provider, expect.any(AbortSignal));
+    expect(repository.complete).toHaveBeenCalledWith(expect.anything(), "COMPLETED", { value: "fixture-result" }, null);
+  });
+
+  it("denies discovery-only contact capabilities before provider selection or operation", async () => {
+    const repository = fakeRepository();
+    const selectProvider = vi.fn().mockReturnValue("provider");
+    const operation = vi.fn();
+    const worker = createJobWorker({
+      repository,
+      workerId: "worker-1",
+      minPollIntervalMs: 2,
+      maxPollIntervalMs: 8,
+      handler: async (_job, execution) => {
+        await execution.runExternalOperation("EMAIL_FIND", selectProvider, operation);
+        return { state: "COMPLETED", result: {} };
+      },
+    });
+
+    worker.start();
+    await waitFor(() => expect(repository.complete).toHaveBeenCalled());
+    await worker.shutdown();
+
+    expect(selectProvider).not.toHaveBeenCalled();
+    expect(operation).not.toHaveBeenCalled();
+    expect(repository.complete).toHaveBeenCalledWith(expect.anything(), "FAILED", null,
+      expect.objectContaining({ code: "POLICY_DENIED", retryable: false }));
+  });
+
+  it.each([
+    "PEOPLE_SEARCH", "CONTACT_ENRICHMENT", "EMAIL_FIND", "EMAIL_VERIFY", "DRAFT_GENERATION",
+    "OUTREACH_READY", "OUTREACH_SEND", "OUTCOME_RECORDING", "PACKAGE_VERIFIED",
+  ] as const)("denies %s before provider selection", async (capability) => {
+    const repository = fakeRepository();
+    const selectProvider = vi.fn().mockReturnValue("provider");
+    const operation = vi.fn();
+    const worker = createJobWorker({
+      repository,
+      workerId: "worker-1",
+      minPollIntervalMs: 2,
+      maxPollIntervalMs: 8,
+      handler: async (_job, execution) => {
+        await execution.runExternalOperation(capability, selectProvider, operation);
+        return { state: "COMPLETED", result: {} };
+      },
+    });
+
+    worker.start();
+    await waitFor(() => expect(repository.complete).toHaveBeenCalled());
+    await worker.shutdown();
+
+    expect(selectProvider).not.toHaveBeenCalled();
+    expect(operation).not.toHaveBeenCalled();
+    expect(repository.complete).toHaveBeenCalledWith(expect.anything(), "FAILED", null,
+      expect.objectContaining({ code: "POLICY_DENIED", retryable: false }));
+  });
+
+  it("does not start a provider operation if cancellation is already recorded", async () => {
+    const repository = fakeRepository({ isCancelled: vi.fn().mockResolvedValue(true) });
+    const handler = vi.fn().mockResolvedValue({ state: "COMPLETED", result: {} });
+    const worker = createJobWorker({
+      repository,
+      workerId: "worker-1",
+      minPollIntervalMs: 2,
+      maxPollIntervalMs: 8,
+      handler,
+    });
+
+    worker.start();
+    await waitFor(() => expect(repository.isCancelled).toHaveBeenCalled());
+    await worker.shutdown();
+
+    expect(handler).not.toHaveBeenCalled();
+    expect(repository.complete).not.toHaveBeenCalled();
+  });
+
+  it("aborts active external work when cancellation is observed and starts no later step", async () => {
+    let cancelled = false;
+    const repository = fakeRepository({ isCancelled: vi.fn().mockImplementation(async () => cancelled) });
+    const providerStarted = vi.fn();
+    const nextStep = vi.fn();
+    const worker = createJobWorker({
+      repository,
+      workerId: "worker-1",
+      cancellationCheckIntervalMs: 5,
+      minPollIntervalMs: 2,
+      maxPollIntervalMs: 8,
+      handler: async (_job, execution) => {
+        await execution.runExternalOperation("SOURCE_SEARCH", () => "fixture", (_provider, signal) => {
+          providerStarted();
+          return new Promise((_resolve, reject) => signal.addEventListener("abort", () => reject(signal.reason), { once: true }));
+        });
+        nextStep();
+        return { state: "COMPLETED", result: {} };
+      },
+    });
+
+    worker.start();
+    await waitFor(() => expect(providerStarted).toHaveBeenCalled());
+    cancelled = true;
+    await waitFor(() => expect(repository.isCancelled).toHaveBeenCalled());
+    await waitFor(() => expect(nextStep).not.toHaveBeenCalled());
+    await worker.shutdown();
+
+    expect(repository.complete).not.toHaveBeenCalled();
+  });
+
+  it("stops leasing on shutdown and leaves an interrupted lease recoverable", async () => {
+    const repository = fakeRepository();
+    const started = vi.fn();
+    const worker = createJobWorker({
+      repository,
+      workerId: "worker-1",
+      concurrency: 1,
+      minPollIntervalMs: 2,
+      maxPollIntervalMs: 8,
+      shutdownGraceMs: 100,
+      handler: async (_job, execution) => {
+        started();
+        await new Promise((_resolve, reject) => execution.signal.addEventListener("abort", () => reject(execution.signal.reason), { once: true }));
+        return { state: "COMPLETED", result: {} };
+      },
+    });
+
+    worker.start();
+    await waitFor(() => expect(started).toHaveBeenCalled());
+    await worker.shutdown();
+
+    expect(repository.leaseNextJob).toHaveBeenCalledTimes(1);
+    expect(repository.complete).not.toHaveBeenCalled();
+  });
+});

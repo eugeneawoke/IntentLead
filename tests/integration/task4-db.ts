@@ -142,6 +142,23 @@ export async function bootstrapTask4Database(): Promise<void> {
   `);
 }
 
+export async function bootstrapTask5Database(): Promise<void> {
+  await bootstrapTask4Database();
+  const task5Migration = await migration("202610050000_task5_data_lifecycle.sql");
+  await sql(`
+    BEGIN;
+    SELECT pg_advisory_xact_lock(7210050000);
+    DO $intentlead_task5_upgrade$
+    BEGIN
+      IF to_regprocedure('public.intentlead_delete_discovery_brief(uuid,uuid,text)') IS NULL THEN
+        EXECUTE ${quotedMigration(task5Migration)};
+      END IF;
+    END
+    $intentlead_task5_upgrade$;
+    COMMIT;
+  `, "intentlead-task5-bootstrap");
+}
+
 export async function insertUsers(...ids: string[]): Promise<void> {
   if (ids.length === 0) return;
   await sql(`INSERT INTO auth.users (id) VALUES ${ids.map((id) => `('${id}')`).join(",")}

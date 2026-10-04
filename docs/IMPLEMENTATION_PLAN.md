@@ -238,6 +238,8 @@ Fresh reviewers inspect ownership joins, service-role assumptions, indexes and r
 
 ### Task 5: Implement application services and job runtime
 
+**Local implementation status, 2026-10-05: implemented and verified; independent reliability/data-governance review remains pending.** RED was captured before runtime changes. The compatibility route now persists through the Task 4 enqueue RPC before returning 202; HTTP dispatch is a best-effort signed wake hint, while polling and lease recovery provide liveness. The application context derives owner/workspace/DiscoveryBrief/MarketProfile from stored relations; the worker wraps Task 4 lease RPCs, capability policy, heartbeat/checkpoint, cancellation and graceful shutdown, and exposes an injectable per-provider concurrency hook. The additive Task 5 migration provides owner-authorized, shared-safe relational deletion and suppression retention. No provider handler is configured in this milestone: the default worker fails closed with `CAPABILITY_UNAVAILABLE`; no provider, legacy pipeline, outreach, charge, or remote operation ran. Local PostgreSQL 16 recovery/cancellation and deletion suites passed 2/2 each; Task 4 regressions passed 26/26, Task 2 quota/replay passed 31/31; unit tests passed 317/317, both typechecks and production build passed, and lint had zero errors with 24 existing warnings. No object artifacts, embeddings or evaluation copies were created. Provider/Supabase backup expiry remains unverified and is a pilot blocker.
+
 **Files:**
 - Create: `lib/application/context.ts`
 - Create: `lib/application/errors.ts`
@@ -255,11 +257,11 @@ Fresh reviewers inspect ownership joins, service-role assumptions, indexes and r
 - Consumes Task 3 schemas and Task 4 RPCs.
 - Produces `startOpportunitySearch(ctx, input) -> { jobId }` and worker lease loop.
 
-- [ ] **Step 1: Write failing job acceptance/recovery tests**
+- [x] **Step 1: Write failing job acceptance/recovery tests**
 
 Cover durable row before 202, missing worker configuration, duplicate idempotency key, lost wake-up recovered by polling, crash after lease, expired lease recovery, poison/dead-letter exhaustion, graceful shutdown and cancellation during an external call.
 
-- [ ] **Step 2: Implement application context**
+- [x] **Step 2: Implement application context**
 
 Context contains authenticated user, server-derived workspace membership, trace id, permissions and budget. No capability accepts workspace authority from request body.
 
@@ -267,11 +269,11 @@ Resolve the workspace's authorized MarketProfile in application context and retu
 
 Implement an owner-authorized relational deletion workflow covering this milestone's source, evidence, contact, opportunity, provider and job records while retaining only policy-required suppression tombstones. Do not persist live object artifacts, embeddings or evaluation copies until deletion adapters exist; document supported backup expiry.
 
-- [ ] **Step 3: Implement job repository and worker loop**
+- [x] **Step 3: Implement job repository and worker loop**
 
 Lease atomically, heartbeat, checkpoint, map retryable/permanent errors and complete with `COMPLETED`, `PARTIAL` or `FAILED`. Define independent polling with backoff/jitter, graceful shutdown, global and per-provider concurrency, dead-letter policy, lease-token validation and cancellation between/around external calls.
 
-- [ ] **Step 4: Replace fire-and-forget acceptance**
+- [x] **Step 4: Replace fire-and-forget acceptance**
 
 The run route creates the job and campaign-state transition in one transaction and returns `{jobId,status:"queued"}`. HTTP dispatch becomes a wake-up hint; independent polling/recovery is the source of liveness.
 

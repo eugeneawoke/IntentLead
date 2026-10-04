@@ -16,15 +16,24 @@ npx vitest run tests --exclude 'tests/e2e/**' --exclude '.claude/**' --exclude '
 npx tsc -p worker/tsconfig.json --noEmit
 ```
 
-Standalone app `tsc` currently fails in `tests/auth.test.ts`; Phase 0 fixes this and introduces stable scripts. Do not hide the baseline failure.
+Use `npm run typecheck:app` and `npm run typecheck:worker` for strict app/worker checks. `npm run verify` runs both checks, lint, unit tests and the production build.
 
 ## Local services
 
 Start local Supabase using the project CLI, apply migrations to a disposable database, then run app and worker in separate terminals. The worker requires the same Supabase URL/service role and a shared `WORKER_SECRET`; the app uses `WORKER_URL` to dispatch.
 
-Until durable jobs are implemented, the current worker background promise is development-only reliability and must not be treated as a production queue.
+Task 5 replaces campaign background-promise execution with durable PostgreSQL enqueue plus an independently polling worker. This local implementation is not a production rollout or production queue-readiness approval.
 
 Task 2 replaces `X-Internal-Key` with timestamped HMAC headers. The app signs requests automatically; internal health probes also need signed method/path/body/timestamp/nonce requests. Missing or blank `WORKER_SECRET` stops worker startup. Deploying this change later requires the additive `202610040000_atomic_chat_quota.sql` migration first and compatible app/worker versions; quota/replay database failures intentionally deny execution. No production rollout is authorized by local implementation.
+
+### Task 5 durable discovery jobs and deletion
+
+- Apply the Task 2 quota migration, Task 4 Opportunity/durable-job migrations and `202610050000_task5_data_lifecycle.sql` to a disposable local database before exercising the matching runtime. No remote migration or deployment has been performed.
+- The campaign run route commits through `intentlead_enqueue_discovery_job` before it returns HTTP 202. It then sends a signed `{jobId}` hint to `WORKER_URL/internal/jobs/wake` if `WORKER_URL` and `WORKER_SECRET` are configured. Missing or rejected wake configuration is logged and does not undo the durable job; independent polling is the liveness source.
+- Worker startup fails closed unless `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` and `WORKER_SECRET` are non-empty. `PORT` defaults to 3001, `WORKER_ID` defaults to a process-derived id, `WORKER_CONCURRENCY` defaults to 2 (allowed 1–32), and `WORKER_LEASE_SECONDS` defaults to 60 (allowed 5–3600). Polling uses bounded backoff with jitter, lease heartbeats, cancellation checks, and graceful SIGTERM/SIGINT shutdown. The worker exposes an injectable per-provider concurrency hook; Task 5 wires no provider-specific limiter.
+- Task 5 intentionally configures no discovery provider handler. The default handler terminalizes work with `CAPABILITY_UNAVAILABLE`; it never invokes `runPipeline`, contact/email/message providers, charging, or outreach. Do not enable this worker for a live pilot until a later approved task supplies the discovery handler and a fresh reliability/data-governance review clears it.
+- `deleteDiscoveryBrief` calls the owner-checked `intentlead_delete_discovery_brief` boundary. The migration cancels and redacts active jobs, scrubs unshared relational source/evidence/contact/opportunity/provider data, preserves shared records still referenced by live Opportunities, and retains suppression minima. Task 5 creates no object artifacts, embeddings or evaluation copies; the PostgreSQL test asserts no artifact metadata is produced for its fixture workspace.
+- Provider/Supabase backup expiry is unverified. Do not promise deletion from backups or authorize a production pilot until the actual provider retention/expiry behavior is externally confirmed and documented.
 
 ### Task 2 database integration
 

@@ -5,13 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createWorkerApp } from "../../worker/app";
 import { dispatchToWorker } from "@/lib/auth/dispatchToWorker";
 
-const mocks = vi.hoisted(() => ({ run: vi.fn().mockResolvedValue(undefined) }));
-vi.mock("../../worker/pipeline/runner", () => ({ runPipeline: mocks.run }));
 vi.mock("@/lib/utils/logger", () => ({ logger: { error: vi.fn() } }));
 
 const secret = "test-only-worker-secret";
 let server: Server | undefined;
 const consumeNonce = vi.fn();
+const wakeJob = vi.fn();
 
 // Independent protocol implementation so signer and verifier cannot agree on the same bug.
 function headers(body = "", path = "/internal/health", method = "GET", timestamp = Math.floor(Date.now() / 1000), signingSecret = secret) {
@@ -26,7 +25,7 @@ function headers(body = "", path = "/internal/health", method = "GET", timestamp
 }
 
 async function listen() {
-  const app = createWorkerApp(secret, consumeNonce);
+  const app = createWorkerApp(secret, consumeNonce, wakeJob);
   server = app.listen(0, "127.0.0.1");
   await new Promise<void>((resolve) => server!.once("listening", resolve));
   return `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -35,6 +34,7 @@ async function listen() {
 beforeEach(() => {
   vi.clearAllMocks();
   consumeNonce.mockResolvedValue(true);
+  wakeJob.mockReset();
 });
 afterEach(async () => {
   vi.unstubAllGlobals();
@@ -72,14 +72,14 @@ describe("worker authentication", () => {
 
   it.each(["method", "path", "body"])("binds the signature to the %s", async (kind) => {
     const url = await listen();
-    const body = JSON.stringify({ campaignId: randomUUID() });
-    const signed = headers(body, kind === "path" ? "/internal/other" : "/internal/run-pipeline", kind === "method" ? "GET" : "POST");
-    const response = await fetch(`${url}/internal/run-pipeline`, {
+    const body = JSON.stringify({ jobId: randomUUID() });
+    const signed = headers(body, kind === "path" ? "/internal/other" : "/internal/jobs/wake", kind === "method" ? "GET" : "POST");
+    const response = await fetch(`${url}/internal/jobs/wake`, {
       method: "POST", headers: signed, body: kind === "body" ? `${body} ` : body,
     });
     expect(response.status).toBe(401);
     expect(consumeNonce).not.toHaveBeenCalled();
-    expect(mocks.run).not.toHaveBeenCalled();
+    expect(wakeJob).not.toHaveBeenCalled();
   });
 
   it("rejects a request when the mocked nonce repository reports a replay", async () => {
@@ -111,17 +111,17 @@ describe("worker authentication", () => {
     const url = await listen();
     consumeNonce.mockRejectedValue(new Error("database offline"));
     expect((await fetch(`${url}/internal/health`, { headers: headers() })).status).toBe(503);
-    expect(mocks.run).not.toHaveBeenCalled();
+    expect(wakeJob).not.toHaveBeenCalled();
   });
 
-  it("authenticates the exact JSON bytes before executing the pipeline", async () => {
+  it("authenticates the exact JSON bytes before signaling the durable job poller", async () => {
     const url = await listen();
-    const campaignId = randomUUID();
-    const body = `{ "campaignId": "${campaignId}" }`;
-    expect((await fetch(`${url}/internal/run-pipeline`, {
-      method: "POST", headers: headers(body, "/internal/run-pipeline", "POST"), body,
+    const jobId = randomUUID();
+    const body = `{ "jobId": "${jobId}" }`;
+    expect((await fetch(`${url}/internal/jobs/wake`, {
+      method: "POST", headers: headers(body, "/internal/jobs/wake", "POST"), body,
     })).status).toBe(202);
-    expect(mocks.run).toHaveBeenCalledExactlyOnceWith(campaignId);
+    expect(wakeJob).toHaveBeenCalledExactlyOnceWith(jobId);
   });
 });
 
@@ -131,14 +131,16 @@ describe("signed app dispatch", () => {
     vi.stubEnv("WORKER_SECRET", secret);
     const send = vi.fn().mockResolvedValue(new Response("", { status: 202 }));
     vi.stubGlobal("fetch", send);
-    dispatchToWorker("campaign");
-    dispatchToWorker("campaign");
+    const jobId = randomUUID();
+    dispatchToWorker(jobId);
+    dispatchToWorker(jobId);
     const [url, request] = send.mock.calls[0] as [string, RequestInit];
     const signed = request.headers as Record<string, string>;
     const normalized = new Headers(signed);
-    expect(url).toBe("https://worker.example.test/internal/run-pipeline");
+    expect(url).toBe("https://worker.example.test/internal/jobs/wake");
+    expect(request.body).toBe(JSON.stringify({ jobId }));
     expect(normalized.has("x-internal-key")).toBe(false);
-    const canonical = ["v1", "POST", "/internal/run-pipeline", createHash("sha256").update(request.body as string).digest("hex"), normalized.get("x-worker-timestamp"), normalized.get("x-worker-nonce")].join("\n");
+    const canonical = ["v1", "POST", "/internal/jobs/wake", createHash("sha256").update(request.body as string).digest("hex"), normalized.get("x-worker-timestamp"), normalized.get("x-worker-nonce")].join("\n");
     expect(normalized.get("x-worker-signature")).toBe(createHmac("sha256", secret).update(canonical).digest("hex"));
     expect(new Headers(send.mock.calls[1][1].headers).get("x-worker-nonce")).not.toBe(normalized.get("x-worker-nonce"));
   });
