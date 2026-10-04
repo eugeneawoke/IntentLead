@@ -29,6 +29,7 @@ const provenance = JSON.stringify({ sourceType: "WEB", sourceId: "task4-fixture"
 async function createOpportunity(
   profileKey: "LOCAL_CUSTOM" | "EN_DISCOVERY_ONLY" = "LOCAL_CUSTOM",
   countryCode = "US",
+  contactCountryCode = countryCode,
 ): Promise<Fixture> {
   const marketId = randomUUID();
   const briefId = randomUUID();
@@ -96,7 +97,7 @@ async function createOpportunity(
       (id, workspace_id, person_id, company_id, channel, value, value_hash, jurisdiction, captured_at)
     VALUES ('${contactId}', '${workspaceId}', '${personId}', '${companyId}', 'email', 'alex@${opportunityId}.example',
       md5('alex@${opportunityId}.example')||md5('alex@${opportunityId}.example'),
-      '{"countryCode":"${countryCode}","subdivisionCode":null}', now());
+      '{"countryCode":"${contactCountryCode}","subdivisionCode":null}', now());
     INSERT INTO public.intentlead_contact_point_evidence (workspace_id, contact_point_id, evidence_id)
     VALUES ('${workspaceId}', '${contactId}', '${evidenceId}');
     INSERT INTO public.intentlead_contact_verifications
@@ -201,11 +202,21 @@ describe("verified package credit idempotency", () => {
     await expect(charge(packageId, `discovery-chain-${packageId}`)).rejects.toThrow(/package_verification_disabled/);
   });
 
-  it("rejects a US-only policy for authoritative FR company and contact context without charging", async () => {
+  it("rejects a US-only policy for authoritative FR company context without charging", async () => {
     const french = await createOpportunity("LOCAL_CUSTOM", "FR");
     const initial = await sql(`SELECT credits_remaining FROM public.workspaces WHERE id='${workspaceId}'`);
     await expect(charge(await packageWithChecks(french), `jurisdiction-${randomUUID()}`))
       .rejects.toThrow(/verification_jurisdiction_denied/);
+    expect(await sql(`SELECT credits_remaining FROM public.workspaces WHERE id='${workspaceId}'`)).toBe(initial);
+  });
+
+  it("rejects contact_jurisdiction_not_allowed when company is allowed without charging", async () => {
+    const contactMismatch = await createOpportunity("LOCAL_CUSTOM", "US", "FR");
+    const packageId = await packageWithChecks(contactMismatch);
+    const initial = await sql(`SELECT credits_remaining FROM public.workspaces WHERE id='${workspaceId}'`);
+    await expect(charge(packageId, `contact-jurisdiction-${randomUUID()}`))
+      .rejects.toThrow(/verification_jurisdiction_denied:contact/);
+    expect(await sql(`SELECT count(*) FROM public.intentlead_cost_events WHERE verified_package_id='${packageId}'`)).toBe("0");
     expect(await sql(`SELECT credits_remaining FROM public.workspaces WHERE id='${workspaceId}'`)).toBe(initial);
   });
 
