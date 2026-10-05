@@ -2,7 +2,6 @@ import { z } from "zod";
 import { DiscoveryCapabilitySchema } from "../../lib/domain/schemas/common";
 import { MarketProfileSchema } from "../../lib/domain/schemas/market-profile";
 import type { CapabilityError } from "../../types/job";
-import type { MarketProfile } from "../../types/market-profile";
 import {
   ProviderCancelledError,
   ProviderSelectionError,
@@ -16,6 +15,7 @@ import {
   type ProviderSelectionRequest,
 } from "./contracts";
 import { ProviderResultSchema } from "./results";
+import { descriptorSupportsJurisdiction, isValidJurisdiction, profileAllowsJurisdiction } from "./jurisdiction";
 
 const ProviderDescriptorSchema = z.object({
   id: z.enum(["reddit", "hackernews", "exa", "serper", "openai"]),
@@ -74,44 +74,6 @@ function regionMatches(supported: string[], requested: string): boolean {
   return supported.includes("*") || supported.some(region => region.toLowerCase() === requested.toLowerCase());
 }
 
-function parseJurisdiction(value: string): { countryCode: string; subdivisionCode: string | null } | null {
-  const normalized = value.trim().toUpperCase();
-  if (!/^[A-Z]{2}(?:-[A-Z0-9][A-Z0-9-]{0,30})?$/.test(normalized)) return null;
-  const separator = normalized.indexOf("-");
-  return {
-    countryCode: normalized.slice(0, 2),
-    subdivisionCode: separator === -1 ? null : normalized.slice(separator + 1),
-  };
-}
-
-function normalizedSubdivision(countryCode: string, subdivisionCode: string | null): string | null {
-  if (!subdivisionCode) return null;
-  const normalized = subdivisionCode.trim().toUpperCase();
-  const prefix = `${countryCode.toUpperCase()}-`;
-  return normalized.startsWith(prefix) ? normalized.slice(prefix.length) : normalized;
-}
-
-function profileAllowsJurisdiction(profile: MarketProfile, requested: string): boolean {
-  const parsed = parseJurisdiction(requested);
-  if (!parsed) return false;
-  return profile.jurisdictions.some(authorized => {
-    if (authorized.countryCode !== parsed.countryCode) return false;
-    const authorizedSubdivision = normalizedSubdivision(authorized.countryCode, authorized.subdivisionCode);
-    return authorizedSubdivision === null || authorizedSubdivision === parsed.subdivisionCode;
-  });
-}
-
-function descriptorSupportsJurisdiction(supported: string[], requested: string): boolean {
-  if (supported.includes("*")) return true;
-  const request = parseJurisdiction(requested);
-  if (!request) return false;
-  return supported.some(value => {
-    const descriptor = parseJurisdiction(value);
-    if (!descriptor || descriptor.countryCode !== request.countryCode) return false;
-    return descriptor.subdivisionCode === null || descriptor.subdivisionCode === request.subdivisionCode;
-  });
-}
-
 function validateSelectionRequest(request: ProviderSelectionRequest): void {
   const profile = MarketProfileSchema.safeParse(request.profile);
   if (!profile.success) fail(request, "INVALID_INPUT", "Authorized MarketProfile is invalid");
@@ -133,7 +95,7 @@ function validateSelectionRequest(request: ProviderSelectionRequest): void {
   if (!languageMatches(profile.data.languages, request.language)) {
     fail(request, "POLICY_DENIED", "Language is outside the authorized MarketProfile");
   }
-  if (request.jurisdiction !== null && !parseJurisdiction(request.jurisdiction)) {
+  if (request.jurisdiction !== null && !isValidJurisdiction(request.jurisdiction)) {
     fail(request, "INVALID_INPUT", "Request jurisdiction is invalid");
   }
   if (profile.data.id !== "EN_DISCOVERY_ONLY") {

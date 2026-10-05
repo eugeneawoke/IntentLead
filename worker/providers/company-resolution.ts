@@ -5,21 +5,17 @@ import {
   ProviderSelectionError,
   PROVIDER_SCHEMA_VERSION,
   type CompanyCandidate,
-  type CompanyEvidence,
   type CompanyInferenceProvider,
   type CompanyResolutionProvider,
   type ProviderDescriptor,
-  type ProviderId,
-  type ProviderProvenance,
   type ProviderResult,
   type ProviderRuntimeDependencies,
 } from "./contracts";
+import { evidenceProvenance, normalizeCandidates, type SearchEvidence } from "./company-resolution-candidates";
 import { COMPANY_INFERENCE_SYSTEM_INSTRUCTION } from "./inference";
 import { ProviderHttpError, ProviderMalformedResponseError, requestJson } from "./http";
 import {
-  normalizeCompanyRootDomain,
   normalizeHttpUrl,
-  normalizePlainText,
   normalizePublicSignalText,
   sanitizeCompanySignal,
   stableProviderSourceId,
@@ -34,91 +30,6 @@ const ExaResponseSchema = z.object({
 const SerperResponseSchema = z.object({
   organic: z.array(z.object({ title: z.string().min(1), link: z.string().min(1), snippet: z.string().nullable().optional() }).passthrough()),
 }).passthrough();
-const NormalizedCandidateSchema = z.object({
-  companyName: z.string().min(1).max(200),
-  companyDomain: z.string().max(253).nullable(),
-  confidence: z.number().finite().min(0).max(1),
-  resolutionStatus: z.enum(["RESOLVED", "UNCERTAIN", "AMBIGUOUS"]),
-  evidence: z.array(z.object({
-    providerId: z.enum(["reddit", "hackernews", "exa", "serper"]),
-    providerSourceId: z.string().min(1),
-    providerRunId: z.string().min(1),
-    sourceUrl: z.string().url(),
-    title: z.string().min(1),
-    excerpt: z.string().min(1),
-    capturedAt: z.string().datetime({ offset: true }),
-    schemaVersion: z.literal(PROVIDER_SCHEMA_VERSION),
-  }).strict()).min(1),
-}).strict();
-
-type SearchEvidence = Omit<CompanyEvidence, "providerRunId">;
-
-function evidenceSupportsDomain(items: SearchEvidence[], domain: string): boolean {
-  return items.some(item => normalizeCompanyRootDomain(item.sourceUrl) === domain);
-}
-
-function evidenceSupportsName(items: SearchEvidence[], name: string): boolean {
-  const normalized = name.toLowerCase();
-  return items.some(item => `${item.title} ${item.excerpt}`.toLowerCase().includes(normalized));
-}
-
-function normalizeCandidates(
-  raw: unknown,
-  searchEvidence: SearchEvidence[],
-  providerId: ProviderId,
-  providerRunId: string,
-): CompanyCandidate[] {
-  if (!raw || typeof raw !== "object" || !Array.isArray((raw as { candidates?: unknown }).candidates)) {
-    throw new ProviderMalformedResponseError();
-  }
-  const byId = new Map(searchEvidence.map(item => [item.providerSourceId, item]));
-  const candidates: CompanyCandidate[] = [];
-  const seen = new Set<string>();
-
-  for (const item of (raw as { candidates: Array<{ companyName: string; companyDomain: string | null; confidence: number; evidenceSourceIds: string[] }> }).candidates) {
-    const companyName = normalizePlainText(item.companyName, 200);
-    const companyDomain = item.companyDomain === null ? null : normalizeCompanyRootDomain(item.companyDomain);
-    const evidenceItems = [...new Set(item.evidenceSourceIds)].map(id => byId.get(id));
-    if (!companyName || evidenceItems.some(evidence => !evidence)) throw new ProviderMalformedResponseError();
-    const validEvidence = evidenceItems as SearchEvidence[];
-    if (!evidenceSupportsName(validEvidence, companyName)
-      || (companyDomain !== null && !evidenceSupportsDomain(validEvidence, companyDomain))) {
-      throw new ProviderMalformedResponseError();
-    }
-    const identity = `${companyName.toLowerCase()}|${companyDomain ?? ""}`;
-    if (seen.has(identity)) continue;
-    seen.add(identity);
-    const evidence = validEvidence.map(value => ({ ...value, providerId, providerRunId }));
-    const normalized = NormalizedCandidateSchema.safeParse({
-      companyName,
-      companyDomain,
-      confidence: item.confidence,
-      resolutionStatus: "UNCERTAIN",
-      evidence,
-    });
-    if (!normalized.success) throw new ProviderMalformedResponseError();
-    candidates.push(normalized.data);
-  }
-
-  const ambiguous = candidates.length > 1;
-  for (const candidate of candidates) {
-    candidate.resolutionStatus = ambiguous
-      ? "AMBIGUOUS"
-      : candidate.confidence >= 0.7 && candidate.companyDomain !== null ? "RESOLVED" : "UNCERTAIN";
-  }
-  return candidates;
-}
-
-function evidenceProvenance(evidence: SearchEvidence[], provider: ProviderId, providerRunId: string): ProviderProvenance[] {
-  return evidence.map(item => ({
-    schemaVersion: PROVIDER_SCHEMA_VERSION,
-    providerId: provider,
-    providerSourceId: item.providerSourceId,
-    providerRunId,
-    capturedAt: item.capturedAt,
-    sourceUrl: item.sourceUrl,
-  }));
-}
 
 function createSearchProvider(config: {
   provider: "exa" | "serper";
