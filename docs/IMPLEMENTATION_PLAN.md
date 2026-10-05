@@ -357,6 +357,8 @@ Completed in `8e83f81` (`feat: deliver evidence-backed self-prospecting opportun
 
 ### Task 8: Add human Opportunity review UI
 
+**Local implementation status, 2026-10-05: Steps 1–4 implemented and verified; Step 5 intentionally remains unchecked pending independent parent review.** The authenticated Opportunity list/detail/review path and additive idempotent review RPC are local-only. Owner/member reads and non-enumerating outsider denial are covered; `ACCEPTED` records only a human review and does not advance beyond `HUMAN_REVIEW`, while rejection/research are deterministic. The UI and API expose no contacts, drafts, outreach, outcomes, export or credit action; legacy Lead read/export routes deny discovery-only campaigns before reading leads. Verification: 487/487 unit tests; app and worker typechecks; 41/41 PostgreSQL integration tests on a fresh disposable database plus the isolated quota/replay suite 31/31; Playwright 1/1 at 375/768/1440px; lint 0 errors (24 pre-existing warnings); Next.js production build passed. The PostgreSQL suite was split because the legacy quota/replay fixture explicitly requires an empty database. The browser journey uses a local-only, production-guarded fixture page and intercepted fake API; no auth or production boundary was weakened. Keyboard focus/validation and responsive overflow were checked; axe-core is not installed and visual comparison has no approved baseline. No production migration/deploy, provider call, outreach, or billing/credit mutation occurred. Evidence: `.superpowers/sdd/IMPLEMENTATION_PLAN/task-8-report.md`.
+
 **Files:**
 - Create: `app/workspace/opportunities/page.tsx`
 - Create: `app/workspace/opportunities/[id]/page.tsx`
@@ -373,19 +375,19 @@ Completed in `8e83f81` (`feat: deliver evidence-backed self-prospecting opportun
 - Consumes application capability services only.
 - Produces paginated list/detail, evidence inspection and human `ACCEPT/REJECT/NEEDS_RESEARCH` review decisions. Contact details, drafts, outreach controls and sent/reply outcomes are absent for `EN_DISCOVERY_ONLY`.
 
-- [ ] **Step 1: Write API authorization and component state tests**
+- [x] **Step 1: Write API authorization and component state tests**
 
 Cover owner/member/outsider, pagination, loading, empty, partial, error/retry, missing evidence and stale Opportunity. Add negative API/component tests: review payloads cannot set contact, draft, outreach-ready or sent/reply state; list/detail omit contact/draft fields; review `ACCEPT` does not unlock those capabilities. Existing legacy downstream routes, if any, must return policy denial for this profile.
 
-- [ ] **Step 2: Implement server routes and pages**
+- [x] **Step 2: Implement server routes and pages**
 
 Use authenticated application context; no direct service-role reads in components/routes. Facts and interpretations have distinct labels. Display source, captured time, confidence and limitations.
 
-- [ ] **Step 3: Implement review commands**
+- [x] **Step 3: Implement review commands**
 
 Require a rejection reason, idempotency key and deterministic review transition. Only `ACCEPT`, `REJECT` and `NEEDS_RESEARCH` are available in this slice. Do not add a sent/reply outcome route, copy/mailto control or other outreach action.
 
-- [ ] **Step 4: Implement Playwright journey**
+- [x] **Step 4: Implement Playwright journey**
 
 Seed an `EN_DISCOVERY_ONLY` workspace/job/Opportunity; inspect evidence; reject one; accept one; mark one `NEEDS_RESEARCH`; assert keyboard/mobile behavior. Assert no contact details, draft, copy/mailto/export-for-outreach, sent/reply action or credit charge appears. Direct requests to existing downstream routes must be policy-denied; an unimplemented route must remain absent.
 

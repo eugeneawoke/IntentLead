@@ -41,11 +41,10 @@ export default function Sidebar({
 
   return (
     <aside
-      className="flex flex-col h-full flex-shrink-0"
+      className="flex w-full flex-col flex-shrink-0 border-b md:h-full md:w-[240px] md:border-b-0 md:border-r"
       style={{
-        width: 240,
         background: "var(--surface)",
-        borderRight: "1px solid var(--border)",
+        borderColor: "var(--border)",
       }}
     >
       {/* Logo */}
@@ -68,8 +67,24 @@ export default function Sidebar({
         </Link>
       </div>
 
+      <nav aria-label="Workspace" className="px-3 py-2">
+        <Link
+          href="/workspace/opportunities"
+          aria-current={pathname.startsWith("/workspace/opportunities") ? "page" : undefined}
+          className="flex min-h-11 items-center rounded-lg border px-3 text-sm font-medium"
+          style={{
+            background: pathname.startsWith("/workspace/opportunities") ? "var(--surface-2)" : "transparent",
+            borderColor: pathname.startsWith("/workspace/opportunities") ? "var(--border)" : "transparent",
+            color: pathname.startsWith("/workspace/opportunities") ? "var(--text)" : "var(--text-muted)",
+            textDecoration: "none",
+          }}
+        >
+          Opportunities
+        </Link>
+      </nav>
+
       {/* Campaigns */}
-      <div className="flex-1 overflow-y-auto px-3 pt-4">
+      <div className="hidden flex-1 overflow-y-auto px-3 pt-4 md:block">
         <div className="flex items-center justify-between px-2 mb-2">
           <span
             className="text-xs font-medium uppercase tracking-widest"
@@ -152,7 +167,7 @@ export default function Sidebar({
 
       {/* Footer */}
       <div
-        className="px-3 pt-3 pb-4"
+        className="hidden px-3 pt-3 pb-4 md:block"
         style={{ borderTop: "1px solid var(--border)" }}
       >
         {/* Credits */}

@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import dynamic from "next/dynamic";
+import { usePathname } from "next/navigation";
 import { useAuthModal } from "@/components/auth/AuthModalContext";
 import { useLang } from "@/lib/i18n/LangContext";
 import { useUser } from "@/lib/auth/UserContext";
@@ -9,9 +10,12 @@ import { useUser } from "@/lib/auth/UserContext";
 const FluidGlassPill = dynamic(() => import("./FluidGlassPill"), { ssr: false });
 
 export default function SiteHeader() {
+  const pathname = usePathname();
   const user = useUser();
   const { lang, setLang, t } = useLang();
   const { openModal } = useAuthModal();
+
+  if (pathname.startsWith("/workspace") || pathname.startsWith("/e2e-fixtures")) return null;
 
   return (
     <header

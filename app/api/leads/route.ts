@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth/requireUser";
+import { assertLegacyLeadRouteAllowed } from "@/lib/application/legacy-lead-policy";
+import { ApplicationError } from "@/lib/application/errors";
 import { ok, err } from "@/lib/utils/response";
 import { logger } from "@/lib/utils/logger";
 
@@ -17,6 +19,16 @@ export async function GET(req: NextRequest) {
 
   if (!campaignId) {
     return NextResponse.json(err("campaignId is required"), { status: 400 });
+  }
+
+  try {
+    await assertLegacyLeadRouteAllowed(campaignId, supabase);
+  } catch (policyError) {
+    if (policyError instanceof ApplicationError && policyError.code === "POLICY_DENIED") {
+      return NextResponse.json({ success: false, code: policyError.code, error: policyError.message }, { status: policyError.status });
+    }
+    logger.error({ campaignId, userId: user.id }, "Could not verify legacy lead policy");
+    return NextResponse.json(err("Could not verify lead access policy"), { status: 500 });
   }
 
   // RLS policy leads_workspace_read scopes results to user's workspaces automatically
