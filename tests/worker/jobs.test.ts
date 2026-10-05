@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createJobWorker, type ProviderConcurrencyHook } from "@/worker/jobs/worker";
 import type { JobRepository, LeasedJob } from "@/worker/jobs/repository";
 import type { MarketProfile } from "@/types/market-profile";
+import { MarketProfileSchema } from "@/lib/domain/schemas/market-profile";
 
 const now = "2026-10-05T10:00:00.000Z";
 const discoveryProfile: MarketProfile = {
@@ -70,7 +71,7 @@ describe("durable job worker", () => {
       workerId: "worker-1",
       minPollIntervalMs: 2,
       maxPollIntervalMs: 8,
-      heartbeatIntervalMs: 10,
+      heartbeatIntervalMs: 1_000,
       handler: async () => ({ state: "COMPLETED", result: { opportunityIds: [] } }),
     });
 
@@ -214,6 +215,155 @@ describe("durable job worker", () => {
     await waitFor(() => expect(nextStep).not.toHaveBeenCalled());
     await worker.shutdown();
 
+    expect(repository.complete).not.toHaveBeenCalled();
+  });
+
+  it("derives a safe default heartbeat for a five-second lease and rejects an unsafe override", async () => {
+    const repository = fakeRepository();
+    expect(() => createJobWorker({
+      repository,
+      workerId: "worker-1",
+      leaseSeconds: 5,
+      heartbeatIntervalMs: 2_000,
+    })).toThrow(/heartbeat.*lease/i);
+    expect(() => createJobWorker({
+      repository,
+      workerId: "worker-1",
+      leaseSeconds: 5,
+      heartbeatIntervalMs: 999,
+    })).toThrow(/heartbeat.*lease/i);
+
+    const heartbeatTimes: number[] = [];
+    const shortLeaseRepository = fakeRepository({
+      heartbeat: vi.fn(async () => {
+        heartbeatTimes.push(Date.now());
+        return true;
+      }),
+    });
+    let finishHandler!: () => void;
+    const handlerFinished = new Promise<void>(resolve => { finishHandler = resolve; });
+    const worker = createJobWorker({
+      repository: shortLeaseRepository,
+      workerId: "worker-1",
+      leaseSeconds: 5,
+      minPollIntervalMs: 2,
+      maxPollIntervalMs: 8,
+      handler: async () => {
+        await new Promise(resolve => setTimeout(resolve, 1_900));
+        finishHandler();
+        return { state: "COMPLETED", result: {} };
+      },
+    });
+
+    worker.start();
+    await handlerFinished;
+    await waitFor(() => expect(shortLeaseRepository.complete).toHaveBeenCalled());
+    await worker.shutdown();
+
+    expect(heartbeatTimes.length).toBeGreaterThanOrEqual(2);
+    expect(heartbeatTimes[1] - heartbeatTimes[0]).toBeLessThan(2_500);
+  }, 5_000);
+
+  it.each(["CIS_RU", "LOCAL_CUSTOM"] as const)(
+    "terminalizes a %s job before invoking its handler or provider selector",
+    async id => {
+      const nonPilotProfile = MarketProfileSchema.parse({
+        ...discoveryProfile,
+        id,
+        workflow: "DISCOVERY_ONLY",
+        jurisdictions: [{ countryCode: "RU", subdivisionCode: null }],
+        ...(id === "LOCAL_CUSTOM" ? { category: "technology", geography: "Russia" } : {}),
+      });
+      const repository = fakeRepository({ getMarketProfile: vi.fn().mockResolvedValue(nonPilotProfile) });
+      const handler = vi.fn().mockResolvedValue({ state: "COMPLETED", result: {} });
+      const selectProvider = vi.fn().mockReturnValue("provider");
+      const worker = createJobWorker({
+        repository,
+        workerId: "worker-1",
+        minPollIntervalMs: 2,
+        maxPollIntervalMs: 8,
+        handler: async (job, execution) => {
+          await execution.runExternalOperation("SOURCE_SEARCH", selectProvider, async () => "unexpected");
+          return handler(job, execution);
+        },
+      });
+
+      worker.start();
+      await waitFor(() => expect(repository.complete).toHaveBeenCalled());
+      await worker.shutdown();
+
+      expect(handler).not.toHaveBeenCalled();
+      expect(selectProvider).not.toHaveBeenCalled();
+      expect(repository.complete).toHaveBeenCalledWith(expect.anything(), "FAILED", null,
+        expect.objectContaining({ code: "POLICY_DENIED", retryable: false }));
+    },
+  );
+
+  it.each(["CIS_RU", "LOCAL_CUSTOM"] as const)(
+    "rejects a %s job declaration even if its stored MarketProfile resolves to EN_DISCOVERY_ONLY",
+    async marketProfileId => {
+      const nonPilotJob = { ...lease, marketProfileId };
+      const repository = fakeRepository({
+        leaseNextJob: vi.fn().mockResolvedValueOnce(nonPilotJob).mockResolvedValue(null),
+      });
+      const handler = vi.fn().mockResolvedValue({ state: "COMPLETED", result: {} });
+      const worker = createJobWorker({
+        repository,
+        workerId: "worker-1",
+        minPollIntervalMs: 2,
+        maxPollIntervalMs: 8,
+        handler,
+      });
+
+      worker.start();
+      await waitFor(() => expect(repository.complete).toHaveBeenCalled());
+      await worker.shutdown();
+
+      expect(handler).not.toHaveBeenCalled();
+      expect(repository.complete).toHaveBeenCalledWith(expect.anything(), "FAILED", null,
+        expect.objectContaining({ code: "POLICY_DENIED", retryable: false }));
+    },
+  );
+
+  it("does not complete or mutate a job when an injected operation resolves after cancellation", async () => {
+    let cancelled = false;
+    let resolveLate!: (value: string) => void;
+    let releaseProviderStarted!: () => void;
+    let releaseHandlerReturned!: () => void;
+    let observedAbort!: () => void;
+    const providerStarted = new Promise<void>(resolve => { releaseProviderStarted = resolve; });
+    const handlerReturned = new Promise<void>(resolve => { releaseHandlerReturned = resolve; });
+    const abortObserved = new Promise<void>(resolve => { observedAbort = resolve; });
+    const repository = fakeRepository({
+      isCancelled: vi.fn().mockImplementation(async () => cancelled),
+    });
+    const worker = createJobWorker({
+      repository,
+      workerId: "worker-1",
+      cancellationCheckIntervalMs: 5,
+      minPollIntervalMs: 2,
+      maxPollIntervalMs: 8,
+      handler: async (_job, execution) => {
+        await execution.runExternalOperation("SOURCE_SEARCH", () => "fixture", (_provider, signal) => {
+          releaseProviderStarted();
+          signal.addEventListener("abort", () => observedAbort(), { once: true });
+          return new Promise<string>(resolve => { resolveLate = resolve; });
+        }).catch(() => undefined);
+        releaseHandlerReturned();
+        return { state: "COMPLETED", result: { value: "late" } };
+      },
+    });
+
+    worker.start();
+    await providerStarted;
+    cancelled = true;
+    await abortObserved;
+    resolveLate("late provider result");
+    await handlerReturned;
+    await worker.shutdown();
+
+    expect(repository.recordStepAttempt).toHaveBeenCalledTimes(1);
+    expect(repository.recordStepAttempt).toHaveBeenCalledWith(expect.objectContaining({ state: "STARTED" }));
     expect(repository.complete).not.toHaveBeenCalled();
   });
 

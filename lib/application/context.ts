@@ -123,6 +123,9 @@ export async function createApplicationContext(
   if (!parsedProfile.success) {
     throw new ApplicationError("CONFLICT", "Discovery setup is incomplete: MarketProfile configuration is invalid");
   }
+  if (parsedProfile.data.id !== "EN_DISCOVERY_ONLY" || parsedProfile.data.workflow !== "DISCOVERY_ONLY") {
+    throw new ApplicationError("POLICY_DENIED", "Only EN_DISCOVERY_ONLY discovery is enabled for this milestone");
+  }
 
   return {
     authenticatedUserId: input.authenticatedUserId,

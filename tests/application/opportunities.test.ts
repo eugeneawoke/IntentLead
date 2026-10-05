@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ApplicationContext } from "@/lib/application/context";
 import type { MarketProfile } from "@/types/market-profile";
+import { MarketProfileSchema } from "@/lib/domain/schemas/market-profile";
 import {
   StartOpportunitySearchInputSchema,
   startOpportunitySearch,
@@ -71,4 +72,30 @@ describe("startOpportunitySearch", () => {
       idempotencyKey: "request-1",
     }, { enqueueDiscoveryJob })).rejects.toMatchObject({ code: "CONFLICT" });
   });
+
+  it.each(["CIS_RU", "LOCAL_CUSTOM"] as const)(
+    "does not enqueue from a stored %s profile even when SOURCE_SEARCH is enabled",
+    async id => {
+      const marketProfile = MarketProfileSchema.parse({
+        ...profile,
+        id,
+        workflow: "DISCOVERY_ONLY",
+        jurisdictions: [{ countryCode: "RU", subdivisionCode: null }],
+        ...(id === "LOCAL_CUSTOM" ? { category: "technology", geography: "Russia" } : {}),
+      });
+      const enqueueDiscoveryJob = vi.fn().mockResolvedValue("job-1");
+      const authorizedContext: ApplicationContext = {
+        ...context,
+        permissions: new Set(marketProfile.capabilities),
+        marketProfile,
+      };
+
+      await expect(startOpportunitySearch(authorizedContext, {
+        schemaVersion: 1,
+        campaignId: "campaign-1",
+        idempotencyKey: `profile-${id}`,
+      }, { enqueueDiscoveryJob })).rejects.toMatchObject({ code: "POLICY_DENIED" });
+      expect(enqueueDiscoveryJob).not.toHaveBeenCalled();
+    },
+  );
 });

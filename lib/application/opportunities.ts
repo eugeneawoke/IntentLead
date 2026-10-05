@@ -51,6 +51,9 @@ export async function startOpportunitySearch(
   rawInput: unknown,
   dependencies: StartOpportunitySearchDependencies = { enqueueDiscoveryJob: enqueueThroughRpc },
 ): Promise<{ jobId: string }> {
+  if (context.marketProfile.id !== "EN_DISCOVERY_ONLY" || context.marketProfile.workflow !== "DISCOVERY_ONLY") {
+    throw new ApplicationError("POLICY_DENIED", "Only EN_DISCOVERY_ONLY discovery is enabled for this milestone");
+  }
   const parsed = StartOpportunitySearchInputSchema.safeParse(rawInput);
   if (!parsed.success) throw new ApplicationError("INVALID_INPUT", "Invalid discovery request");
   if (parsed.data.campaignId !== context.campaignId) {

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { beforeAll, describe, expect, it } from "vitest";
 import { createSupabaseJobRepository, type JobDatabaseClient } from "@/worker/jobs/repository";
 import { createJobWorker } from "@/worker/jobs/worker";
-import { asRole, bootstrapTask4Database, insertUsers, sql } from "./task4-db";
+import { asRole, bootstrapTask5Database, insertUsers, sql } from "./task4-db";
 
 const owner = randomUUID();
 const workspaceId = randomUUID();
@@ -101,16 +101,16 @@ async function makeBrief(key: string): Promise<{ briefId: string; campaignId: st
   return { briefId, campaignId };
 }
 
-async function waitFor(assertion: () => void): Promise<void> {
+async function waitFor(assertion: () => void | Promise<void>): Promise<void> {
   const until = Date.now() + 5_000;
   while (Date.now() < until) {
-    try { assertion(); return; } catch { await new Promise(resolve => setTimeout(resolve, 10)); }
+    try { await assertion(); return; } catch { await new Promise(resolve => setTimeout(resolve, 10)); }
   }
-  assertion();
+  await assertion();
 }
 
 beforeAll(async () => {
-  await bootstrapTask4Database();
+  await bootstrapTask5Database();
   await insertUsers(owner);
   await sql(`
     INSERT INTO public.workspaces(id,owner_id,name) VALUES ('${workspaceId}','${owner}','Task 5 recovery');
@@ -126,7 +126,7 @@ beforeAll(async () => {
 
 describe("Task 5 real PostgreSQL job recovery", () => {
   it("recovers a crashed worker lease and enforces exact heartbeat/checkpoint/completion tokens", async () => {
-    const { briefId } = await makeBrief(`recovery-${randomUUID()}`);
+    const { briefId, campaignId } = await makeBrief(`recovery-${randomUUID()}`);
     const jobId = await sql(`SELECT id FROM public.intentlead_jobs WHERE discovery_brief_id='${briefId}'`);
     const repository = createSupabaseJobRepository(psqlJobClient());
     const first = await repository.leaseNextJob("crashed-worker", 5);
@@ -147,12 +147,76 @@ describe("Task 5 real PostgreSQL job recovery", () => {
     expect(takeover?.attempt).toBe(2);
     expect(takeover?.lease.token).not.toBe(first.lease.token);
     if (!takeover) throw new Error("Expected takeover lease");
-    expect(await repository.complete({ jobId, workerId: "recovery-worker", leaseToken: takeover.lease.token }, "COMPLETED", { opportunityIds: [] }, null)).toBe(true);
+    const completedLease = { jobId, workerId: "recovery-worker", leaseToken: takeover.lease.token };
+    expect(await repository.complete(completedLease, "COMPLETED", { opportunityIds: [] }, null)).toBe(true);
+    expect(await repository.complete(completedLease, "COMPLETED", { opportunityIds: [] }, null)).toBe(true);
     expect(await sql(`SELECT state FROM public.intentlead_jobs WHERE id='${jobId}'`)).toBe("COMPLETED");
+    expect(await sql(`SELECT state FROM public.intentlead_discovery_briefs WHERE id='${briefId}'`)).toBe("COMPLETED");
+    expect(await sql(`SELECT status FROM public.campaigns WHERE id='${campaignId}'`)).toBe("done");
+  }, 20_000);
+
+  it("maps permanent job failure to FAILED brief and error campaign state", async () => {
+    const { briefId, campaignId } = await makeBrief(`failure-${randomUUID()}`);
+    const jobId = await sql(`SELECT id FROM public.intentlead_jobs WHERE discovery_brief_id='${briefId}'`);
+    const repository = createSupabaseJobRepository(psqlJobClient());
+    const job = await repository.leaseNextJob("permanent-failure-worker", 30);
+    expect(job?.id).toBe(jobId);
+    if (!job) throw new Error("Expected a leased job");
+    const lease = { jobId, workerId: job.lease.owner, leaseToken: job.lease.token };
+    const error = {
+      schemaVersion: 1 as const, code: "POLICY_DENIED" as const,
+      message: "Fixture permanent failure", capability: "SOURCE_SEARCH" as const,
+      traceId: job.traceId, retryable: false as const, retryAfterMs: null,
+    };
+
+    expect(await repository.complete(lease, "FAILED", null, error)).toBe(true);
+    expect(await repository.complete(lease, "FAILED", null, error)).toBe(true);
+    expect(await sql(`SELECT state FROM public.intentlead_jobs WHERE id='${jobId}'`)).toBe("FAILED");
+    expect(await sql(`SELECT state FROM public.intentlead_discovery_briefs WHERE id='${briefId}'`)).toBe("FAILED");
+    expect(await sql(`SELECT status FROM public.campaigns WHERE id='${campaignId}'`)).toBe("error");
+  }, 20_000);
+
+  it("maps partial completion to COMPLETED brief and done campaign state", async () => {
+    const { briefId, campaignId } = await makeBrief(`partial-${randomUUID()}`);
+    const jobId = await sql(`SELECT id FROM public.intentlead_jobs WHERE discovery_brief_id='${briefId}'`);
+    const repository = createSupabaseJobRepository(psqlJobClient());
+    const job = await repository.leaseNextJob("partial-worker", 30);
+    expect(job?.id).toBe(jobId);
+    if (!job) throw new Error("Expected a leased job");
+    const error = {
+      schemaVersion: 1 as const, code: "DEPENDENCY_UNAVAILABLE" as const,
+      message: "Fixture partial result", capability: "SOURCE_SEARCH" as const,
+      traceId: job.traceId, retryable: true as const, retryAfterMs: null,
+    };
+
+    expect(await repository.complete({
+      jobId, workerId: job.lease.owner, leaseToken: job.lease.token,
+    }, "PARTIAL", { partial: true }, error)).toBe(true);
+    expect(await sql(`SELECT state FROM public.intentlead_jobs WHERE id='${jobId}'`)).toBe("PARTIAL");
+    expect(await sql(`SELECT state FROM public.intentlead_discovery_briefs WHERE id='${briefId}'`)).toBe("COMPLETED");
+    expect(await sql(`SELECT status FROM public.campaigns WHERE id='${campaignId}'`)).toBe("done");
+  }, 20_000);
+
+  it("dead-letters an expired final attempt and synchronizes linked brief/campaign", async () => {
+    const { briefId, campaignId } = await makeBrief(`final-attempt-${randomUUID()}`);
+    const jobId = await sql(`SELECT id FROM public.intentlead_jobs WHERE discovery_brief_id='${briefId}'`);
+    await sql(`UPDATE public.intentlead_jobs SET attempt=max_attempts-1 WHERE id='${jobId}'`);
+    const repository = createSupabaseJobRepository(psqlJobClient());
+    const finalLease = await repository.leaseNextJob("crashed-final-attempt-worker", 5);
+    expect(finalLease?.id).toBe(jobId);
+    expect(finalLease?.attempt).toBe(finalLease?.maxAttempts);
+
+    await sql("SELECT pg_sleep(5.1)");
+    expect(await repository.leaseNextJob("recovery-after-final-attempt", 30)).toBeNull();
+    expect(await sql(`SELECT state FROM public.intentlead_jobs WHERE id='${jobId}'`)).toBe("FAILED");
+    expect(await sql(`SELECT error->>'message' FROM public.intentlead_jobs WHERE id='${jobId}'`))
+      .toBe("Lease expired after retry budget exhausted");
+    expect(await sql(`SELECT state FROM public.intentlead_discovery_briefs WHERE id='${briefId}'`)).toBe("FAILED");
+    expect(await sql(`SELECT status FROM public.campaigns WHERE id='${campaignId}'`)).toBe("error");
   }, 20_000);
 
   it("observes relational cancellation during an injected call and starts no later operation", async () => {
-    const { briefId } = await makeBrief(`cancel-${randomUUID()}`);
+    const { briefId, campaignId } = await makeBrief(`cancel-${randomUUID()}`);
     const jobId = await sql(`SELECT id FROM public.intentlead_jobs WHERE discovery_brief_id='${briefId}'`);
     const repository = createSupabaseJobRepository(psqlJobClient());
     let cancellationChecks = 0;
@@ -188,6 +252,8 @@ describe("Task 5 real PostgreSQL job recovery", () => {
     await sql(asRole("service_role", `SELECT public.intentlead_cancel_job('${jobId}','${owner}')`));
     expect(await repository.isCancelled(jobId)).toBe(true);
     expect(await sql(`SELECT state FROM public.intentlead_jobs WHERE id='${jobId}'`)).toBe("CANCELLED");
+    expect(await sql(`SELECT state FROM public.intentlead_discovery_briefs WHERE id='${briefId}'`)).toBe("CANCELLED");
+    expect(await sql(`SELECT status FROM public.campaigns WHERE id='${campaignId}'`)).toBe("error");
     await waitFor(() => expect(cancellationChecks).toBeGreaterThan(2));
     await waitFor(() => expect(aborted).toBe(true));
     await worker.shutdown();
@@ -195,5 +261,32 @@ describe("Task 5 real PostgreSQL job recovery", () => {
     expect(laterStepStarted).toBe(false);
     expect(await sql(`SELECT state FROM public.intentlead_jobs WHERE id='${jobId}'`)).toBe("CANCELLED");
     expect(await sql(`SELECT lease_token IS NULL AND payload='{}'::jsonb FROM public.intentlead_jobs WHERE id='${jobId}'`)).toBe("t");
+  }, 20_000);
+
+  it("does not let completion regress a brief while owner deletion holds its workspace lock", async () => {
+    const { briefId, campaignId } = await makeBrief(`delete-race-${randomUUID()}`);
+    const jobId = await sql(`SELECT id FROM public.intentlead_jobs WHERE discovery_brief_id='${briefId}'`);
+    const repository = createSupabaseJobRepository(psqlJobClient());
+    const job = await repository.leaseNextJob("delete-race-worker", 30);
+    expect(job?.id).toBe(jobId);
+    if (!job) throw new Error("Expected a leased job");
+    const lease = { jobId, workerId: job.lease.owner, leaseToken: job.lease.token };
+    const deletion = sql(asRole("service_role", `
+      SELECT pg_advisory_xact_lock(hashtextextended('intentlead-workspace:' || '${workspaceId}'::text, 0));
+      SELECT pg_sleep(0.5);
+      SELECT public.intentlead_delete_discovery_brief('${briefId}','${owner}','race-test');
+    `));
+    await waitFor(async () => {
+      const locks = await sql(`SELECT count(*) FROM pg_locks
+        WHERE locktype='advisory' AND granted AND pid <> pg_backend_pid()`);
+      expect(Number(locks)).toBeGreaterThan(0);
+    });
+
+    expect(await repository.complete(lease, "COMPLETED", { late: true }, null)).toBe(false);
+    await deletion;
+
+    expect(await sql(`SELECT state FROM public.intentlead_jobs WHERE id='${jobId}'`)).toBe("CANCELLED");
+    expect(await sql(`SELECT state FROM public.intentlead_discovery_briefs WHERE id='${briefId}'`)).toBe("CANCELLED");
+    expect(await sql(`SELECT status FROM public.campaigns WHERE id='${campaignId}'`)).toBe("error");
   }, 20_000);
 });

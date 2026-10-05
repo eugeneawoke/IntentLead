@@ -88,4 +88,31 @@ describe("createApplicationContext", () => {
     await expect(createApplicationContext({ authenticatedUserId: "owner-1", campaignId: "campaign-1" }, client))
       .rejects.toMatchObject({ code: "CONFLICT" });
   });
+
+  it.each(["CIS_RU", "LOCAL_CUSTOM"] as const)(
+    "fails closed for stored %s profiles even when they declare discovery capability",
+    async profileKey => {
+      const localConfiguration = {
+        ...profileConfig,
+        jurisdictions: [{ countryCode: "RU", subdivisionCode: null }],
+      };
+      const storedProfile = {
+        ...profileRow,
+        profile_key: profileKey,
+        workflow: "DISCOVERY_ONLY",
+        configuration: profileKey === "LOCAL_CUSTOM"
+          ? { ...localConfiguration, category: "technology", geography: "Russia" }
+          : localConfiguration,
+      };
+      const { client } = fakeClient([
+        { data: { id: "campaign-1", workspace_id: "workspace-from-db" }, error: null },
+        { data: { id: "workspace-from-db", owner_id: "owner-1" }, error: null },
+        { data: { id: "brief-1", workspace_id: "workspace-from-db", legacy_campaign_id: "campaign-1", market_profile_id: "profile-id" }, error: null },
+        { data: storedProfile, error: null },
+      ]);
+
+      await expect(createApplicationContext({ authenticatedUserId: "owner-1", campaignId: "campaign-1" }, client))
+        .rejects.toMatchObject({ code: "POLICY_DENIED" });
+    },
+  );
 });

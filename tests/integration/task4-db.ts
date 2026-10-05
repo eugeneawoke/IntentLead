@@ -145,6 +145,7 @@ export async function bootstrapTask4Database(): Promise<void> {
 export async function bootstrapTask5Database(): Promise<void> {
   await bootstrapTask4Database();
   const task5Migration = await migration("202610050000_task5_data_lifecycle.sql");
+  const task5TerminalMigration = await migration("202610050001_task5_terminal_state_sync.sql");
   await sql(`
     BEGIN;
     SELECT pg_advisory_xact_lock(7210050000);
@@ -155,6 +156,13 @@ export async function bootstrapTask5Database(): Promise<void> {
       END IF;
     END
     $intentlead_task5_upgrade$;
+    DO $intentlead_task5_terminal_upgrade$
+    BEGIN
+      IF to_regprocedure('public.intentlead_delete_discovery_brief_task5_v1(uuid,uuid,text)') IS NULL THEN
+        EXECUTE ${quotedMigration(task5TerminalMigration)};
+      END IF;
+    END
+    $intentlead_task5_terminal_upgrade$;
     COMMIT;
   `, "intentlead-task5-bootstrap");
 }

@@ -89,6 +89,44 @@ async function addOpportunity(input: {
   return { opportunityId, assessmentId };
 }
 
+async function addBuyerCandidate(input: {
+  workspaceId: string;
+  companyId: string;
+  opportunityId: string;
+}) {
+  const personId = randomUUID();
+  const buyerId = randomUUID();
+  await sql(`
+    INSERT INTO public.intentlead_people
+      (id,workspace_id,company_id,full_name,role_title,jurisdiction,confidence,resolved_at)
+    VALUES ('${personId}','${input.workspaceId}','${input.companyId}','Private Buyer','VP of Growth',
+      '{"countryCode":"US"}',0.9,now());
+    INSERT INTO public.intentlead_buyer_candidates
+      (id,workspace_id,opportunity_id,company_id,person_id,role_title,hypothesis,confidence,relevance)
+    VALUES ('${buyerId}','${input.workspaceId}','${input.opportunityId}','${input.companyId}','${personId}',
+      'VP of Growth','Private buyer hypothesis',0.8,0.7);
+  `);
+  return { personId, buyerId };
+}
+
+async function addLegacyGraph(campaignId: string, prefix: string) {
+  const signalId = randomUUID();
+  const leadId = randomUUID();
+  const messageId = randomUUID();
+  await sql(`
+    INSERT INTO public.signals(id,campaign_id,source,source_url,author_handle,content,context)
+    VALUES ('${signalId}','${campaignId}','reddit','https://example.test/${prefix}','author-${prefix}',
+      'Private legacy signal ${prefix}','Private legacy context ${prefix}');
+    INSERT INTO public.leads
+      (id,campaign_id,signal_id,company_name,contact_name,email,why_now,opening_line,status)
+    VALUES ('${leadId}','${campaignId}','${signalId}','Private legacy company','Private legacy person',
+      '${prefix}@example.test','Private timing','Private opening','processing');
+    INSERT INTO public.messages(id,lead_id,subject,body)
+    VALUES ('${messageId}','${leadId}','Private subject ${prefix}','Private message body ${prefix}');
+  `);
+  return { signalId, leadId, messageId };
+}
+
 beforeAll(async () => {
   await bootstrapTask5Database();
   await insertUsers(owner, outsider);
@@ -108,6 +146,10 @@ describe("Task 5 relational data deletion", () => {
       VALUES ('${companyId}','${data.workspaceId}','Private Company','private.example',0.9,now(),now());
     `);
     const { opportunityId } = await addOpportunity({ ...data, companyId, sourceId, evidenceId, providerRunId, jobId, suffix: "a" });
+    const { personId, buyerId } = await addBuyerCandidate({
+      workspaceId: data.workspaceId, companyId, opportunityId,
+    });
+    await addLegacyGraph(data.campaignId, "target-delete");
     await sql(`
       INSERT INTO public.intentlead_contact_points
         (id,workspace_id,company_id,channel,value,value_hash,jurisdiction,captured_at)
@@ -128,6 +170,10 @@ describe("Task 5 relational data deletion", () => {
 
     const call = () => sql(asRole("service_role", `SELECT public.intentlead_delete_discovery_brief(
       '${data.briefId}','${owner}','owner_requested')`));
+    await expect(sql(asRole("anon", `SELECT public.intentlead_delete_discovery_brief(
+      '${data.briefId}','${owner}','owner_requested')`))).rejects.toThrow(/permission denied/);
+    await expect(sql(asRole("authenticated", `SELECT public.intentlead_delete_discovery_brief(
+      '${data.briefId}','${owner}','owner_requested')`, owner))).rejects.toThrow(/permission denied/);
     expect(await call()).toBe("t");
     expect(await call()).toBe("t");
     expect(await sql(`SELECT state || '|' || payload::text || '|' || checkpoint::text || '|' || coalesce(result::text,'null') || '|' || coalesce(error::text,'null')
@@ -146,6 +192,17 @@ describe("Task 5 relational data deletion", () => {
     expect(await sql(`SELECT canonical_name='[deleted]' AND domain IS NULL AND tombstoned_at IS NOT NULL
       FROM public.intentlead_companies WHERE id='${companyId}'`)).toBe("t");
     expect(await sql(`SELECT tombstoned_at IS NOT NULL FROM public.intentlead_opportunities WHERE id='${opportunityId}'`)).toBe("t");
+    expect(await sql(`SELECT role_title='[deleted]' AND hypothesis='[deleted]' AND tombstoned_at IS NOT NULL
+      FROM public.intentlead_buyer_candidates WHERE id='${buyerId}'`)).toBe("t");
+    expect(await sql(`SELECT full_name='[deleted]' AND role_title IS NULL AND tombstoned_at IS NOT NULL
+      FROM public.intentlead_people WHERE id='${personId}'`)).toBe("t");
+    expect(await sql(`SELECT count(*) FROM public.signals WHERE campaign_id='${data.campaignId}'`)).toBe("0");
+    expect(await sql(`SELECT count(*) FROM public.leads WHERE campaign_id='${data.campaignId}'`)).toBe("0");
+    expect(await sql(`SELECT count(*) FROM public.messages m JOIN public.leads l ON l.id=m.lead_id
+      WHERE l.campaign_id='${data.campaignId}'`)).toBe("0");
+    expect(await sql(`SELECT status='error' AND what_selling='[deleted]' AND icp='[deleted]' AND pain='[deleted]'
+      AND geo IS NULL AND example_customers IS NULL AND cardinality(keywords)=0 AND tone IS NULL
+      FROM public.campaigns WHERE id='${data.campaignId}' AND workspace_id='${data.workspaceId}'`)).toBe("t");
     expect(await sql(`SELECT count(*) FROM public.intentlead_suppression_entries WHERE workspace_id='${data.workspaceId}'`)).toBe("1");
     expect(await sql(`SELECT count(*) FROM public.intentlead_deletion_tombstones WHERE resource_type='OPPORTUNITY' AND resource_id='${opportunityId}'`)).toBe("1");
     expect(await sql(`SELECT count(*) FROM public.intentlead_artifact_metadata WHERE workspace_id='${data.workspaceId}'`)).toBe("0");
@@ -192,6 +249,9 @@ describe("Task 5 relational data deletion", () => {
     `);
     const outsiderData = await fixture("deletion-outsider");
     await enqueue(outsiderData.briefId);
+    await addLegacyGraph(data.campaignId, "target-shared");
+    await addLegacyGraph(otherCampaign, "same-workspace-other");
+    await addLegacyGraph(outsiderData.campaignId, "other-workspace");
     await expect(sql(asRole("service_role", `SELECT public.intentlead_delete_discovery_brief(
       '${data.briefId}','${outsider}','owner_requested')`))).rejects.toThrow(/forbidden/);
 
@@ -202,5 +262,29 @@ describe("Task 5 relational data deletion", () => {
     expect(await sql(`SELECT canonical_name='Private Company' AND tombstoned_at IS NULL FROM public.intentlead_companies WHERE id='${companyId}'`)).toBe("t");
     expect(await sql(`SELECT tombstoned_at IS NOT NULL FROM public.intentlead_opportunities WHERE id='${first.opportunityId}'`)).toBe("t");
     expect(await sql(`SELECT state FROM public.intentlead_jobs WHERE id='${jobId}'`)).toBe("CANCELLED");
+    expect(await sql(`SELECT count(*) FROM public.signals WHERE campaign_id='${data.campaignId}'`)).toBe("0");
+    expect(await sql(`SELECT count(*) FROM public.leads WHERE campaign_id='${data.campaignId}'`)).toBe("0");
+    expect(await sql(`SELECT count(*) FROM public.messages m JOIN public.leads l ON l.id=m.lead_id
+      WHERE l.campaign_id='${data.campaignId}'`)).toBe("0");
+    expect(await sql(`SELECT count(*) FROM public.signals WHERE campaign_id='${otherCampaign}'`)).toBe("1");
+    expect(await sql(`SELECT count(*) FROM public.leads WHERE campaign_id='${otherCampaign}'`)).toBe("1");
+    expect(await sql(`SELECT count(*) FROM public.messages m JOIN public.leads l ON l.id=m.lead_id
+      WHERE l.campaign_id='${otherCampaign}'`)).toBe("1");
+    expect(await sql(`SELECT c.what_selling='offer'
+      AND EXISTS (SELECT 1 FROM public.signals s WHERE s.campaign_id=c.id AND s.content='Private legacy signal same-workspace-other')
+      AND EXISTS (SELECT 1 FROM public.leads l WHERE l.campaign_id=c.id AND l.email='same-workspace-other@example.test')
+      AND EXISTS (SELECT 1 FROM public.messages m JOIN public.leads l ON l.id=m.lead_id
+        WHERE l.campaign_id=c.id AND m.body='Private message body same-workspace-other')
+      FROM public.campaigns c WHERE c.id='${otherCampaign}'`)).toBe("t");
+    expect(await sql(`SELECT count(*) FROM public.signals WHERE campaign_id='${outsiderData.campaignId}'`)).toBe("1");
+    expect(await sql(`SELECT count(*) FROM public.leads WHERE campaign_id='${outsiderData.campaignId}'`)).toBe("1");
+    expect(await sql(`SELECT count(*) FROM public.messages m JOIN public.leads l ON l.id=m.lead_id
+      WHERE l.campaign_id='${outsiderData.campaignId}'`)).toBe("1");
+    expect(await sql(`SELECT c.what_selling='offer'
+      AND EXISTS (SELECT 1 FROM public.signals s WHERE s.campaign_id=c.id AND s.content='Private legacy signal other-workspace')
+      AND EXISTS (SELECT 1 FROM public.leads l WHERE l.campaign_id=c.id AND l.email='other-workspace@example.test')
+      AND EXISTS (SELECT 1 FROM public.messages m JOIN public.leads l ON l.id=m.lead_id
+        WHERE l.campaign_id=c.id AND m.body='Private message body other-workspace')
+      FROM public.campaigns c WHERE c.id='${outsiderData.campaignId}'`)).toBe("t");
   }, 20_000);
 });

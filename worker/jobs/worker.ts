@@ -84,6 +84,20 @@ function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+export function resolveHeartbeatIntervalMs(leaseSeconds: number, configuredIntervalMs?: number): number {
+  const maxSafeIntervalMs = Math.floor(leaseSeconds * 1_000 / 3);
+  if (!Number.isInteger(leaseSeconds) || leaseSeconds < 5 || leaseSeconds > 3_600
+    || (configuredIntervalMs !== undefined
+      && (!Number.isInteger(configuredIntervalMs) || configuredIntervalMs < 1_000))) {
+    throw new Error("Invalid worker heartbeat/lease configuration");
+  }
+  const intervalMs = configuredIntervalMs ?? maxSafeIntervalMs;
+  if (intervalMs > maxSafeIntervalMs) {
+    throw new Error("Worker heartbeat interval must be no more than one third of the lease duration");
+  }
+  return intervalMs;
+}
+
 export function createJobWorker(options: JobWorkerOptions) {
   const repository = options.repository;
   const workerId = options.workerId.trim();
@@ -92,7 +106,7 @@ export function createJobWorker(options: JobWorkerOptions) {
   const leaseSeconds = Math.max(5, Math.min(options.leaseSeconds ?? 60, 3600));
   const minPollIntervalMs = Math.max(10, options.minPollIntervalMs ?? 250);
   const maxPollIntervalMs = Math.max(minPollIntervalMs, options.maxPollIntervalMs ?? 5_000);
-  const heartbeatIntervalMs = Math.max(1_000, options.heartbeatIntervalMs ?? 15_000);
+  const heartbeatIntervalMs = resolveHeartbeatIntervalMs(leaseSeconds, options.heartbeatIntervalMs);
   const cancellationCheckIntervalMs = Math.max(100, options.cancellationCheckIntervalMs ?? 1_000);
   const random = options.random ?? Math.random;
   const handler = options.handler ?? defaultHandler;
@@ -135,6 +149,15 @@ export function createJobWorker(options: JobWorkerOptions) {
     try {
       const profile = await repository.getMarketProfile(job);
       if (await repository.isCancelled(job.id)) return;
+      if (job.marketProfileId !== "EN_DISCOVERY_ONLY"
+        || profile.id !== "EN_DISCOVERY_ONLY" || profile.workflow !== "DISCOVERY_ONLY") {
+        throw new PolicyError(structuredError(
+          job,
+          job.capability,
+          "POLICY_DENIED",
+          "Only EN_DISCOVERY_ONLY discovery is enabled for this worker",
+        ));
+      }
       if (!await repository.heartbeat(lease, leaseSeconds)) throw new LeaseLostError();
 
       const pollCancellation = async () => {
