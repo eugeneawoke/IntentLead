@@ -190,29 +190,29 @@ describe.skipIf(!enabled)("Task 8 disposable PostgreSQL review boundary", () => 
     expect(projected).toContain('"problemStatement": null');
     expect(projected).toContain('"sourceUrl": null');
   });
-
   it("sanitizes source URLs in the direct authenticated detail RPC", async () => {
-    const project = async (opportunityId: string, sourceUrl: string) => {
-      const evidenceId = randomUUID(), sourceId = randomUUID(), contentHash = randomUUID().replaceAll("-", "").repeat(2);
+    const project = async (sourceUrl: string) => {
+      const evidenceId = randomUUID(), sourceId = randomUUID(), hash = randomUUID().replaceAll("-", "").repeat(2);
       await sql(`INSERT INTO public.intentlead_evidence_items (id,workspace_id,evidence_type,source_url,captured_at,excerpt,structured_facts,verification_method,confidence,content_hash,provenance)
-        VALUES ('${evidenceId}','${workspace}','structured_fact','${sourceUrl.replaceAll("'", "''")}',now(),'Fixture source URL evidence','{"companyName":"Fixture Company","companyDomain":"fixture.example","problem":{"category":"website","observedCondition":"Homepage returns an unavailable page"}}','fixture_public_source_capture',.9,'${contentHash}','{"sourceType":"WEB","sourceId":"${sourceId}","providerRunId":null,"rawArtifactId":null}');
-        INSERT INTO public.intentlead_opportunity_evidence (workspace_id,opportunity_id,evidence_id) VALUES ('${workspace}','${opportunityId}','${evidenceId}');`);
-      const raw = await sql(asRole("authenticated", `SELECT public.intentlead_get_opportunity_for_review('${opportunityId}')`, member));
-      const dto = JSON.parse(raw) as { evidence: Array<{ id: string; sourceUrl: string | null }> };
+        VALUES ('${evidenceId}','${workspace}','structured_fact','${sourceUrl.replaceAll("'", "''")}',now(),'Fixture URL evidence','{"companyName":"Fixture Company","companyDomain":"fixture.example","problem":{"category":"website","observedCondition":"Homepage unavailable"}}','fixture_public_source_capture',.9,'${hash}','{"sourceType":"WEB","sourceId":"${sourceId}","providerRunId":null,"rawArtifactId":null}');
+        INSERT INTO public.intentlead_opportunity_evidence (workspace_id,opportunity_id,evidence_id) VALUES ('${workspace}','${opportunities[0]}','${evidenceId}');`);
+      const raw = await sql(asRole("authenticated", `SELECT public.intentlead_get_opportunity_for_review('${opportunities[0]}')`, member)); const dto = JSON.parse(raw) as { evidence: Array<{ id: string; sourceUrl: string | null }> };
       return { sourceUrl: dto.evidence.find(entry => entry.id === evidenceId)?.sourceUrl ?? null, raw };
     };
-    const privateQuery = await project(opportunities[0], "https://example.com/p?email=alice%40example.com&token=secret#private");
-    expect(privateQuery).toMatchObject({ sourceUrl: "https://example.com/p" });
-    expect(privateQuery.raw).not.toMatch(/alice%40|email=|token=secret|private|\?|#/);
-    expect((await project(opportunities[1], "https://example.com/in/jane%2Edoe")).sourceUrl).toBeNull();
-    expect((await project(opportunities[3], "HTTPS://EXAMPLE.COM/research?campaign=private#section")).sourceUrl).toBe("https://example.com/research");
-    const migration = await readFile(new URL("../../supabase/migrations/202610060012_task8_source_url_sanitization.sql", import.meta.url), "utf8");
-    await sql(migration, "task8-source-url-migration-reapply");
-    expect(await sql(`SELECT count(*)=2 FROM pg_proc p WHERE p.oid IN ('public.intentlead_sanitize_review_source_url(text)'::regprocedure,'public.intentlead_build_opportunity_review_dto(uuid,boolean)'::regprocedure) AND 'search_path=pg_catalog, public'=ANY(p.proconfig) AND NOT has_function_privilege('authenticated',p.oid,'EXECUTE') AND NOT has_function_privilege('service_role',p.oid,'EXECUTE')`)).toBe("t");
-    expect((await project(opportunities[3], "HTTPS://EXAMPLE.COM/research?campaign=private#section")).sourceUrl).toBe("https://example.com/research");
+    const cases = [
+      ["https://example.com/用户@example.com", null], ["https://example.com/posts/user@example.com", null], ["https://example.com/in/jane%2Edoe", null], ["https://user@example.com/posts/abc-123", null],
+      ["https://example.com/posts/abc-123?token=secret%40example.com#private", "https://example.com/posts/abc-123"], ["https://example.com:99999/posts/abc-123", null], ["https://999.999.999.999/posts/abc-123", null], ["https://example.com/posts\\abc-123", null],
+      ["HTTPS://EXAMPLE.COM/posts/abc-123", "https://example.com/posts/abc-123"], ["https://EXAMPLE.COM", "https://example.com/"], ["HTTPS://EXAMPLE.COM/posts/", "https://example.com/posts/"],
+    ] as const;
+    for (const [sourceUrl, expected] of cases) {
+      const projected = await project(sourceUrl);
+      expect(projected.sourceUrl).toBe(expected); if (sourceUrl.includes("token=")) expect(projected.raw).not.toMatch(/token=secret|alice%40|\?|#/);
+    }
+    await sql(await readFile(new URL("../../supabase/migrations/202610060013_task8_strict_source_url_allowlist.sql", import.meta.url), "utf8"), "task8-source-url-migration-reapply");
+    expect(await sql(`SELECT count(*)=3 FROM pg_proc p WHERE p.oid IN ('public.intentlead_review_source_url_path_is_safe(text)'::regprocedure,'public.intentlead_sanitize_review_source_url(text)'::regprocedure,'public.intentlead_build_opportunity_review_dto(uuid,boolean)'::regprocedure) AND 'search_path=pg_catalog, public'=ANY(p.proconfig) AND NOT has_function_privilege('authenticated',p.oid,'EXECUTE') AND NOT has_function_privilege('anon',p.oid,'EXECUTE') AND NOT has_function_privilege('service_role',p.oid,'EXECUTE')`)).toBe("t");
+    expect(await sql(`SELECT has_function_privilege('authenticated','public.intentlead_get_opportunity_for_review(uuid)','EXECUTE')`)).toBe("t"); expect((await project("HTTPS://EXAMPLE.COM/research?campaign=private#section")).sourceUrl).toBe("https://example.com/research");
     expect(await sql(asRole("authenticated", `SELECT coalesce(public.intentlead_get_opportunity_for_review('${opportunities[0]}')::text,'null')`, outsider))).toBe("null");
   });
-
   it.each([
     "jane.example.com/in/jane",
     "linkedin.com/in/x",

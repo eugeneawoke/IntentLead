@@ -71,9 +71,21 @@ describe("Opportunity review API text sanitization", () => {
     expect(await response.text()).toContain(prose);
   });
 
-  it("strips source query and fragment before returning a normalized HTTPS URL", async () => {
+  it.each([
+    ["Unicode SMTPUTF8 path", "https://example.com/用户@example.com", null],
+    ["ASCII address path", "https://example.com/posts/user@example.com", null],
+    ["percent-encoded path", "https://example.com/in/jane%2Edoe", null],
+    ["userinfo", "https://user@example.com/posts/abc-123", null],
+    ["malformed port", "https://example.com:99999/posts/abc-123", null],
+    ["numeric hostname", "https://999.999.999.999/posts/abc-123", null],
+    ["backslash path", "https://example.com/posts\\abc-123", null],
+    ["encoded query/token", "https://example.com/posts/abc-123?token=secret%40example.com#private", "https://example.com/posts/abc-123"],
+    ["normalized safe path", "HTTPS://EXAMPLE.COM/posts/abc-123", "https://example.com/posts/abc-123"],
+    ["root URL", "https://EXAMPLE.COM", "https://example.com/"],
+    ["trailing slash", "HTTPS://EXAMPLE.COM/posts/", "https://example.com/posts/"],
+  ] as const)("returns only allowlisted source URL data for %s", async (_label, sourceUrl, expected) => {
     const candidate = detail("The homepage returns an unavailable page.");
-    candidate.evidence[0].sourceUrl = "HTTPS://EXAMPLE.COM/research?email=alice%40example.com&token=secret#private";
+    candidate.evidence[0].sourceUrl = sourceUrl;
     mockRepository.get.mockResolvedValue(candidate);
     const { GET } = await import("@/app/api/opportunities/[id]/route");
 
@@ -83,21 +95,7 @@ describe("Opportunity review API text sanitization", () => {
     const body = await response.text();
 
     expect(response.status).toBe(200);
-    expect(body).toContain('"sourceUrl":"https://example.com/research"');
-    expect(body).not.toMatch(/alice%40|token=secret|private/);
-  });
-
-  it("redacts percent-encoded source path segments", async () => {
-    const candidate = detail("The homepage returns an unavailable page.");
-    candidate.evidence[0].sourceUrl = "https://example.com/in/jane%2Edoe";
-    mockRepository.get.mockResolvedValue(candidate);
-    const { GET } = await import("@/app/api/opportunities/[id]/route");
-
-    const response = await GET(new NextRequest(`http://localhost/api/opportunities/${opportunityId}`), {
-      params: Promise.resolve({ id: opportunityId }),
-    });
-
-    expect(response.status).toBe(200);
-    expect(await response.text()).toContain('"sourceUrl":null');
+    expect(JSON.parse(body).data.evidence[0].sourceUrl).toBe(expected);
+    expect(body).not.toMatch(/token=secret|#private|\?/);
   });
 });

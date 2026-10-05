@@ -130,27 +130,27 @@ describe("Opportunity review application service", () => {
     }))).rejects.toMatchObject({ code: "INTERNAL_ERROR" });
   });
 
-  it("normalizes safe HTTPS source URLs and removes query and fragment data", async () => {
+  it.each([
+    ["Unicode SMTPUTF8 path", "https://example.com/用户@example.com", null],
+    ["ASCII address path", "https://example.com/posts/user@example.com", null],
+    ["percent-encoded path", "https://example.com/in/jane%2Edoe", null],
+    ["userinfo", "https://user@example.com/posts/abc-123", null],
+    ["malformed port", "https://example.com:99999/posts/abc-123", null],
+    ["numeric hostname", "https://999.999.999.999/posts/abc-123", null],
+    ["backslash path", "https://example.com/posts\\abc-123", null],
+    ["encoded query/token", "https://example.com/posts/abc-123?token=secret%40example.com#private", "https://example.com/posts/abc-123"],
+    ["normalized safe path", "HTTPS://EXAMPLE.COM/posts/abc-123", "https://example.com/posts/abc-123"],
+    ["root URL", "https://EXAMPLE.COM", "https://example.com/"],
+    ["trailing slash", "HTTPS://EXAMPLE.COM/posts/", "https://example.com/posts/"],
+  ] as const)("applies the source URL allowlist to %s", async (_label, sourceUrl, expected) => {
     const candidate = detail();
-    candidate.evidence[0].sourceUrl = "HTTPS://EXAMPLE.COM/research?email=alice%40example.com&token=secret#private";
-
+    candidate.evidence[0].sourceUrl = sourceUrl;
     const result = await getOpportunityForReview("member-1", opportunityId, repository({
       get: vi.fn().mockResolvedValue(candidate),
     }));
 
-    expect(result.evidence[0].sourceUrl).toBe("https://example.com/research");
-    expect(JSON.stringify(result)).not.toMatch(/alice%40|token=secret|private/);
-  });
-
-  it("rejects percent-encoded source path segments", async () => {
-    const candidate = detail();
-    candidate.evidence[0].sourceUrl = "https://example.com/in/jane%2Edoe";
-
-    const result = await getOpportunityForReview("member-1", opportunityId, repository({
-      get: vi.fn().mockResolvedValue(candidate),
-    }));
-
-    expect(result.evidence[0].sourceUrl).toBeNull();
+    expect(result.evidence[0].sourceUrl).toBe(expected);
+    expect(JSON.stringify(result)).not.toMatch(/token=secret|#private|\?/);
   });
 
   it.each([

@@ -31,6 +31,8 @@ const listLimit = { minimum: 1, maximum: 50, defaultValue: 20 } as const;
 const emailPattern = /[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/i;
 const phonePattern = /(?<!\d)\+?\d[\d(). -]{7,}\d(?!\d)/;
 const forbiddenHosts = new Set(["localhost", "localhost.localdomain"]);
+const sourceUrlHostLabelPattern = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/;
+const sourceUrlPathPattern = /^\/[A-Za-z0-9/_~.-]*$/;
 
 function actor(userId: string): void {
   if (typeof userId !== "string" || !userId.trim()) {
@@ -98,11 +100,24 @@ function privateIp(host: string): boolean {
 function safeSourceUrl(value: unknown): string | null {
   if (typeof value !== "string") return null;
   try {
-    const url = new URL(value.trim());
+    const input = value.trim();
+    const bareUrl = input.split(/[?#]/, 1)[0];
+    if (!bareUrl) return null;
+    const parts = /^https:\/\/([^/]+)(\/.*)?$/i.exec(bareUrl);
+    if (!parts) return null;
+    const authority = /^((?:[A-Za-z0-9-]+\.)+[A-Za-z0-9-]+)(?::([0-9]{1,5}))?$/.exec(parts[1]);
+    if (!authority) return null;
+    const rawHost = authority[1].toLowerCase();
+    const labels = rawHost.split(".");
+    const path = parts[2] ?? "/";
+    if (rawHost.length > 253 || /^[0-9.]+$/.test(rawHost) || labels.length < 2 || labels.some(label => !sourceUrlHostLabelPattern.test(label))
+      || (authority[2] !== undefined && Number(authority[2]) > 65535)
+      || !sourceUrlPathPattern.test(path) || path.split("/").some(segment => segment === "." || segment === "..")) return null;
+
+    const url = new URL(input);
     const host = url.hostname.toLowerCase();
     if (url.protocol !== "https:" || url.username || url.password || forbiddenHosts.has(host)
-      || host.endsWith(".localhost") || host.endsWith(".local") || privateIp(host) || isIP(host) || !host.includes(".")
-      || url.pathname.includes("%")) return null;
+      || host !== rawHost || host.endsWith(".localhost") || host.endsWith(".local") || privateIp(host) || isIP(host)) return null;
     url.search = "";
     url.hash = "";
     const sanitized = url.toString();
