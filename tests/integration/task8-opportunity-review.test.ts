@@ -151,6 +151,54 @@ describe.skipIf(!enabled)("Task 8 disposable PostgreSQL review boundary", () => 
     expect(projected).toContain('"problemStatement": null');
   });
 
+  it("filters protocol-less domain paths in SQL facts, interpretation, and source URL", async () => {
+    const factText = "Profile references: jane.example.com/in/jane, linkedin.com/in/x, example.co.uk/path.";
+    const interpretation = "Possible profile: jane.example.com/in/jane; linkedin.com/in/x; example.co.uk/path.";
+    const projectedOpportunity = randomUUID();
+    const projectedEvidence = randomUUID();
+    const projectedAssessment = randomUUID();
+    await sql(`
+      INSERT INTO public.intentlead_evidence_items
+        (id,workspace_id,evidence_type,source_url,captured_at,excerpt,structured_facts,verification_method,confidence,content_hash,provenance)
+      VALUES ('${projectedEvidence}','${workspace}','structured_fact','jane.example.com/in/jane',now(),
+        'Fixture-only evidence excerpt','{"companyName":"Fixture Company","companyDomain":"fixture.example","problem":{"category":"website","observedCondition":"${factText}"}}',
+        'fixture_public_source_capture',.9,repeat('9',64),
+        '{"sourceType":"WEB","sourceId":"${randomUUID()}","providerRunId":null,"rawArtifactId":null}');
+      INSERT INTO public.intentlead_opportunities
+        (id,workspace_id,discovery_brief_id,company_id,state,signal)
+      VALUES ('${projectedOpportunity}','${workspace}','${brief}','${company}','DISCOVERED','${signal}'::jsonb);
+      INSERT INTO public.intentlead_opportunity_evidence (workspace_id,opportunity_id,evidence_id)
+        VALUES ('${workspace}','${projectedOpportunity}','${projectedEvidence}');
+      INSERT INTO public.intentlead_opportunity_assessments
+        (id,workspace_id,opportunity_id,version,decision,signal,problem_type,problem_statement,
+         evidence_strength,explicitness,urgency,freshness,commercial_impact,icp_fit,company_confidence,
+         buyer_relevance,actionability,confidence,review_reasons,assessed_at)
+      VALUES ('${projectedAssessment}','${workspace}','${projectedOpportunity}',1,'REVIEW','${signal}'::jsonb,
+        'WEBSITE','${interpretation}',.9,.8,.7,1,.8,.85,.95,.8,.8,.88,ARRAY['POLICY_REVIEW_REQUIRED'],now());
+      INSERT INTO public.intentlead_assessment_evidence (workspace_id,assessment_id,opportunity_id,evidence_id)
+        VALUES ('${workspace}','${projectedAssessment}','${projectedOpportunity}','${projectedEvidence}');
+      UPDATE public.intentlead_opportunities SET current_assessment_id='${projectedAssessment}',state='HUMAN_REVIEW'
+        WHERE id='${projectedOpportunity}' AND workspace_id='${workspace}';
+    `);
+
+    const projected = await sql(asRole("authenticated", `SELECT public.intentlead_get_opportunity_for_review('${projectedOpportunity}')`, member));
+
+    for (const unsafe of ["jane.example.com/in/jane", "linkedin.com/in/x", "example.co.uk/path"]) {
+      expect(projected).not.toContain(unsafe);
+    }
+    expect(projected).toContain('"problemStatement": null');
+    expect(projected).toContain('"sourceUrl": null');
+  });
+
+  it.each([
+    "jane.example.com/in/jane",
+    "linkedin.com/in/x",
+    "example.co.uk/path",
+  ])("rejects protocol-less domain paths in direct SQL review notes: %s", async note => {
+    await expect(sql(rpc(member, opportunities[3], "NEEDS_RESEARCH", "OTHER", `task8-url-note-${randomUUID()}`, note)))
+      .rejects.toThrow(/invalid_review_note/);
+  });
+
   it("denies a pilot linked after two earlier briefs and leaves outsider/non-pilot behavior unchanged", async () => {
     expect(await sql(asRole("authenticated", `SELECT public.intentlead_legacy_campaign_is_discovery_only('${multiBriefCampaign}')`, member))).toBe("t");
     expect(await sql(asRole("authenticated", `SELECT public.intentlead_legacy_campaign_is_discovery_only('${multiBriefCampaign}')`, outsider))).toBe("f");

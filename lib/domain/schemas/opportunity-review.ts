@@ -7,10 +7,15 @@ const ExistingReviewReasonSchema = z.enum([
   "DUPLICATE", "POLICY_CONCERN", "OTHER",
 ]);
 
+// Block URL-shaped domain/path tokens, but preserve plain domains and ordinary prose.
+// This is a narrow contact-link heuristic, not generic person or role de-identification.
+const protocolLessDomainPathPattern = /(?:^|[^A-Za-z0-9@_-])(?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,}(?::\d+)?\/[^ \t\n\r]*/i;
+
 const ReviewNoteSchema = z.string().trim().min(1).max(500).nullable().refine(
   value => value === null || (
     !/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/i.test(value)
     && !/(?:https?:\/\/|www\.)/i.test(value)
+    && !protocolLessDomainPathPattern.test(value)
     && !/@[A-Za-z0-9_]{2,}/.test(value)
     && !/(?<!\d)\+?\d[\d(). -]{7,}\d(?!\d)/.test(value)
   ),
@@ -44,6 +49,7 @@ const ReviewCompanySchema = z.object({
 const SafeReviewTextSchema = (maximum: number) => z.string().trim().min(1).max(maximum).refine(
   value => !/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/i.test(value)
     && !/(?:https?:\/\/|www\.)/i.test(value)
+    && !protocolLessDomainPathPattern.test(value)
     && !/@[A-Za-z0-9_]{2,}/.test(value)
     && !/(?<!\d)\+?\d[\d(). -]{7,}\d(?!\d)/.test(value),
   "Text cannot contain contact details",

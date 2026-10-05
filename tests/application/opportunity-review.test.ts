@@ -130,6 +130,51 @@ describe("Opportunity review application service", () => {
     }))).rejects.toMatchObject({ code: "INTERNAL_ERROR" });
   });
 
+  it.each([
+    "Profile: jane.example.com/in/jane",
+    "Profile: linkedin.com/in/x",
+    "Reference: example.co.uk/path",
+  ])("rejects protocol-less domain paths in facts and interpretation: %s", async text => {
+    const unsafeFact = detail();
+    unsafeFact.evidence[0].facts.problem = { observedCondition: text };
+    await expect(getOpportunityForReview("member-1", opportunityId, repository({
+      get: vi.fn().mockResolvedValue(unsafeFact),
+    }))).rejects.toMatchObject({ code: "INTERNAL_ERROR" });
+
+    const unsafeInterpretation = detail();
+    unsafeInterpretation.assessment!.problemStatement = text;
+    await expect(getOpportunityForReview("member-1", opportunityId, repository({
+      get: vi.fn().mockResolvedValue(unsafeInterpretation),
+    }))).rejects.toMatchObject({ code: "INTERNAL_ERROR" });
+  });
+
+  it("preserves ordinary business prose with punctuation and percentages", async () => {
+    const text = "Conversion fell 12.5%; the home page now returns an error.";
+    const candidate = detail();
+    candidate.evidence[0].facts.problem = { observedCondition: text };
+    candidate.assessment!.problemStatement = text;
+
+    const result = await getOpportunityForReview("member-1", opportunityId, repository({
+      get: vi.fn().mockResolvedValue(candidate),
+    }));
+
+    expect(result.evidence[0].facts.problem?.observedCondition).toBe(text);
+    expect(result.assessment?.problemStatement).toBe(text);
+  });
+
+  it.each([
+    "jane.example.com/in/jane",
+    "linkedin.com/in/x",
+    "example.co.uk/path",
+  ])("rejects protocol-less domain paths in submitted review notes: %s", async note => {
+    const repo = repository();
+
+    await expect(submitOpportunityReview("member-1", opportunityId, {
+      decision: "NEEDS_RESEARCH", reason: "OTHER", note, idempotencyKey: "review-protocol-url-001",
+    }, "review-protocol-url-001", repo)).rejects.toMatchObject({ code: "INVALID_INPUT" });
+    expect(repo.review).not.toHaveBeenCalled();
+  });
+
   it("does not serialize unexpected contact or downstream fields from a repository", async () => {
     const repo = repository({
       get: vi.fn().mockResolvedValue({ ...detail(), contactEmail: "person@example.test" }),

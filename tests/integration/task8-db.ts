@@ -10,6 +10,7 @@ const migrations = [
   ["202610050008_task8_least_privilege_rpc.sql", "to_regprocedure('public.intentlead_legacy_campaign_is_discovery_only(uuid)') IS NULL"],
   ["202610050009_task8_tombstone_replay_guard.sql", "to_regprocedure('public.intentlead_delete_discovery_brief_task8_v3(uuid,uuid,text)') IS NULL"],
   ["202610050010_task8_review_constraint_acl.sql", "EXISTS (SELECT 1 FROM pg_proc WHERE oid=to_regprocedure('public.intentlead_assert_opportunity_has_evidence()') AND NOT prosecdef) OR EXISTS (SELECT 1 FROM pg_proc WHERE oid=to_regprocedure('public.intentlead_validate_opportunity_snapshot()') AND NOT prosecdef)"],
+  ["202610060011_task8_protocol_less_url_projection.sql", "to_regprocedure('public.intentlead_review_text_is_safe(text,integer)') IS NULL OR to_regprocedure('public.intentlead_build_opportunity_review_dto_unfiltered(uuid,boolean)') IS NULL OR to_regprocedure('public.intentlead_build_opportunity_review_dto(uuid,boolean)') IS NULL OR NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgrelid='public.intentlead_human_reviews'::regclass AND tgname='intentlead_human_review_safe_note' AND NOT tgisinternal)"],
 ] as const;
 
 function dollarQuoted(value: string): string {
