@@ -107,14 +107,14 @@ function safeSourceUrl(value: unknown): string | null {
     if (!bareUrl) return null;
     const parts = /^https:\/\/([^/]+)(\/.*)?$/i.exec(bareUrl);
     if (!parts) return null;
-    const authority = /^((?:[A-Za-z0-9-]+\.)+[A-Za-z0-9-]+)(?::([0-9]{1,5}))?$/.exec(parts[1]);
+    const authority = /^((?:[A-Za-z0-9-]+\.)+[A-Za-z0-9-]+)$/.exec(parts[1]);
     if (!authority) return null;
     const rawHost = authority[1].toLowerCase();
     const labels = rawHost.split(".");
-    if (numericHostnameSuffixPattern.test(labels.at(-1) ?? "")) return null;
+    if (numericHostnameSuffixPattern.test(labels.at(-1) ?? "")
+      || !/^[a-z]+$/.test(labels.at(-1) ?? "") || labels.some(label => label.startsWith("xn--"))) return null;
     const path = parts[2] ?? "/";
     if (rawHost.length > 253 || /^[0-9.]+$/.test(rawHost) || labels.length < 2 || labels.some(label => !sourceUrlHostLabelPattern.test(label))
-      || (authority[2] !== undefined && Number(authority[2]) > 65535)
       || !sourceUrlPathPattern.test(path) || path.split("/").some(segment => segment === "." || segment === "..")) return null;
 
     const url = new URL(input);

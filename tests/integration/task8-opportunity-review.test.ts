@@ -200,7 +200,7 @@ describe.skipIf(!enabled)("Task 8 disposable PostgreSQL review boundary", () => 
       return { sourceUrl: dto.evidence.find(entry => entry.id === evidenceId)?.sourceUrl ?? null, raw };
     };
     const cases = [
-      ["https://example.com/用户@example.com", null], ["https://example.com/posts/user@example.com", null], ["https://example.com/in/jane%2Edoe", null], ["https://user@example.com/posts/abc-123", null],
+      ["https://example.com/用户@example.com", null], ["https://example.com/posts/user@example.com", null], ["https://example.com/in/jane%2Edoe", null], ["https://user@example.com/posts/abc-123", null], ["https://example.com:8443/path", null], ["https://example.com:443/path", null], ["https://xn--a.example/path", null], ["https://xn--bcher-kva.de/path", null],
       ["https://example.com/posts/abc-123?token=secret%40example.com#private", "https://example.com/posts/abc-123"], ["https://example.com:99999/posts/abc-123", null], ["https://999.999.999.999/posts/abc-123", null], ["https://example.com/posts\\abc-123", null],
       ["HTTPS://EXAMPLE.COM/posts/abc-123", "https://example.com/posts/abc-123"], ["https://EXAMPLE.COM", "https://example.com/"], ["HTTPS://EXAMPLE.COM/posts/", "https://example.com/posts/"],
       ["https://0x7f.0.0.1/x", null], ["https://0x7f.1/x", null], ["https://0177.0.0.1/x", null],
@@ -211,8 +211,8 @@ describe.skipIf(!enabled)("Task 8 disposable PostgreSQL review boundary", () => 
       const projected = await project(sourceUrl);
       expect(projected.sourceUrl).toBe(expected); if (sourceUrl.includes("token=")) expect(projected.raw).not.toMatch(/token=secret|alice%40|\?|#/);
     }
-    await sql(await readFile(new URL("../../supabase/migrations/202610060014_task8_url_host_control_parity.sql", import.meta.url), "utf8"), "task8-source-url-migration-reapply");
-    expect(await sql(`SELECT count(*)=4 FROM pg_proc p WHERE p.oid IN ('public.intentlead_review_source_url_path_is_safe(text)'::regprocedure,'public.intentlead_review_source_url_host_is_safe(text)'::regprocedure,'public.intentlead_sanitize_review_source_url(text)'::regprocedure,'public.intentlead_build_opportunity_review_dto(uuid,boolean)'::regprocedure) AND 'search_path=pg_catalog, public'=ANY(p.proconfig) AND NOT has_function_privilege('authenticated',p.oid,'EXECUTE') AND NOT has_function_privilege('anon',p.oid,'EXECUTE') AND NOT has_function_privilege('service_role',p.oid,'EXECUTE')`)).toBe("t");
+    await sql(await readFile(new URL("../../supabase/migrations/202610060015_task8_dns_host_policy.sql", import.meta.url), "utf8"), "task8-source-url-migration-reapply");
+    expect(await sql(`SELECT count(*)=5 FROM pg_proc p WHERE p.oid IN ('public.intentlead_review_source_url_path_is_safe(text)'::regprocedure,'public.intentlead_review_source_url_host_is_safe(text)'::regprocedure,'public.intentlead_review_source_url_domain_is_allowed(text)'::regprocedure,'public.intentlead_sanitize_review_source_url(text)'::regprocedure,'public.intentlead_build_opportunity_review_dto(uuid,boolean)'::regprocedure) AND 'search_path=pg_catalog, public'=ANY(p.proconfig) AND NOT has_function_privilege('authenticated',p.oid,'EXECUTE') AND NOT has_function_privilege('anon',p.oid,'EXECUTE') AND NOT has_function_privilege('service_role',p.oid,'EXECUTE')`)).toBe("t");
     expect(await sql(`SELECT has_function_privilege('authenticated','public.intentlead_get_opportunity_for_review(uuid)','EXECUTE')`)).toBe("t"); expect((await project("HTTPS://EXAMPLE.COM/research?campaign=private#section")).sourceUrl).toBe("https://example.com/research");
     expect(await sql(asRole("authenticated", `SELECT coalesce(public.intentlead_get_opportunity_for_review('${opportunities[0]}')::text,'null')`, outsider))).toBe("null");
   });

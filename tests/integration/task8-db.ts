@@ -14,6 +14,7 @@ const migrations = [
   ["202610060012_task8_source_url_sanitization.sql", "to_regprocedure('public.intentlead_sanitize_review_source_url(text)') IS NULL OR to_regprocedure('public.intentlead_build_opportunity_review_dto(uuid,boolean)') IS NULL"],
   ["202610060013_task8_strict_source_url_allowlist.sql", "to_regprocedure('public.intentlead_review_source_url_path_is_safe(text)') IS NULL"],
   ["202610060014_task8_url_host_control_parity.sql", "to_regprocedure('public.intentlead_review_source_url_host_is_safe(text)') IS NULL"],
+  ["202610060015_task8_dns_host_policy.sql", "to_regprocedure('public.intentlead_review_source_url_domain_is_allowed(text)') IS NULL"],
 ] as const;
 
 function dollarQuoted(value: string): string {

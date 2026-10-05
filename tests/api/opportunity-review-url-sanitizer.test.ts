@@ -77,6 +77,8 @@ describe("Opportunity review API text sanitization", () => {
     ["percent-encoded path", "https://example.com/in/jane%2Edoe", null],
     ["userinfo", "https://user@example.com/posts/abc-123", null],
     ["malformed port", "https://example.com:99999/posts/abc-123", null],
+    ["nondefault port", "https://example.com:8443/path", null], ["explicit default port", "https://example.com:443/path", null],
+    ["invalid punycode host", "https://xn--a.example/path", null], ["valid punycode host", "https://xn--bcher-kva.de/path", null],
     ["numeric hostname", "https://999.999.999.999/posts/abc-123", null],
     ["backslash path", "https://example.com/posts\\abc-123", null],
     ["encoded query/token", "https://example.com/posts/abc-123?token=secret%40example.com#private", "https://example.com/posts/abc-123"],
