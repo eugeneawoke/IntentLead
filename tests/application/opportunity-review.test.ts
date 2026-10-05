@@ -130,6 +130,29 @@ describe("Opportunity review application service", () => {
     }))).rejects.toMatchObject({ code: "INTERNAL_ERROR" });
   });
 
+  it("normalizes safe HTTPS source URLs and removes query and fragment data", async () => {
+    const candidate = detail();
+    candidate.evidence[0].sourceUrl = "HTTPS://EXAMPLE.COM/research?email=alice%40example.com&token=secret#private";
+
+    const result = await getOpportunityForReview("member-1", opportunityId, repository({
+      get: vi.fn().mockResolvedValue(candidate),
+    }));
+
+    expect(result.evidence[0].sourceUrl).toBe("https://example.com/research");
+    expect(JSON.stringify(result)).not.toMatch(/alice%40|token=secret|private/);
+  });
+
+  it("rejects percent-encoded source path segments", async () => {
+    const candidate = detail();
+    candidate.evidence[0].sourceUrl = "https://example.com/in/jane%2Edoe";
+
+    const result = await getOpportunityForReview("member-1", opportunityId, repository({
+      get: vi.fn().mockResolvedValue(candidate),
+    }));
+
+    expect(result.evidence[0].sourceUrl).toBeNull();
+  });
+
   it.each([
     "Profile: jane.example.com/in/jane",
     "Profile: linkedin.com/in/x",

@@ -70,4 +70,34 @@ describe("Opportunity review API text sanitization", () => {
     expect(response.status).toBe(200);
     expect(await response.text()).toContain(prose);
   });
+
+  it("strips source query and fragment before returning a normalized HTTPS URL", async () => {
+    const candidate = detail("The homepage returns an unavailable page.");
+    candidate.evidence[0].sourceUrl = "HTTPS://EXAMPLE.COM/research?email=alice%40example.com&token=secret#private";
+    mockRepository.get.mockResolvedValue(candidate);
+    const { GET } = await import("@/app/api/opportunities/[id]/route");
+
+    const response = await GET(new NextRequest(`http://localhost/api/opportunities/${opportunityId}`), {
+      params: Promise.resolve({ id: opportunityId }),
+    });
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(body).toContain('"sourceUrl":"https://example.com/research"');
+    expect(body).not.toMatch(/alice%40|token=secret|private/);
+  });
+
+  it("redacts percent-encoded source path segments", async () => {
+    const candidate = detail("The homepage returns an unavailable page.");
+    candidate.evidence[0].sourceUrl = "https://example.com/in/jane%2Edoe";
+    mockRepository.get.mockResolvedValue(candidate);
+    const { GET } = await import("@/app/api/opportunities/[id]/route");
+
+    const response = await GET(new NextRequest(`http://localhost/api/opportunities/${opportunityId}`), {
+      params: Promise.resolve({ id: opportunityId }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain('"sourceUrl":null');
+  });
 });

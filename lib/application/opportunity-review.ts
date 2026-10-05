@@ -96,17 +96,17 @@ function privateIp(host: string): boolean {
 }
 
 function safeSourceUrl(value: unknown): string | null {
-  if (typeof value !== "string" || emailPattern.test(value) || phonePattern.test(value)) return null;
+  if (typeof value !== "string") return null;
   try {
-    const url = new URL(value);
+    const url = new URL(value.trim());
     const host = url.hostname.toLowerCase();
-    const decoded = decodeURIComponent(value);
     if (url.protocol !== "https:" || url.username || url.password || forbiddenHosts.has(host)
-      || host.endsWith(".localhost") || host.endsWith(".local") || privateIp(host) || !host.includes(".")
-      || emailPattern.test(decoded) || phonePattern.test(decoded)) return null;
+      || host.endsWith(".localhost") || host.endsWith(".local") || privateIp(host) || isIP(host) || !host.includes(".")
+      || url.pathname.includes("%")) return null;
     url.search = "";
     url.hash = "";
-    return url.toString();
+    const sanitized = url.toString();
+    return emailPattern.test(sanitized) || phonePattern.test(sanitized) ? null : sanitized;
   } catch {
     return null;
   }
