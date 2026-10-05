@@ -3,13 +3,13 @@
     {
       "id": "fixture-exa-001",
       "title": "Acme Example: fictional operations team",
-      "url": "https://www.acme.test/about/team?ref=fixture",
+      "url": "https://www.acme.example.com/about/team?ref=fixture",
       "text": "Acme Example describes a fictional operations platform for regional studios."
     },
     {
       "id": "fixture-exa-002",
       "title": "Acme Example Studio: synthetic workflow note",
-      "url": "https://studio.acme.test/about",
+      "url": "https://studio.acme.example.com/about",
       "text": "Acme Example Studio is a second fictional organization used only by this fixture."
     }
   ]

@@ -1,14 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MarketProfileSchema } from "../../lib/domain/schemas/market-profile";
 import { marketProfile } from "../domain/contract-fixtures";
 import { executeProviderWithFallback, selectProvider } from "../../worker/providers/registry";
+import { createHackerNewsAdapter } from "../../worker/providers/hackernews";
+import { createRedditAdapter } from "../../worker/providers/reddit";
 import type {
   ProviderDescriptor,
   ProviderExecutionResult,
   ProviderResult,
   ProviderSelectionRequest,
 } from "../../worker/providers/contracts";
-import { providerDescriptor } from "./helpers";
+import { makeDependencies, providerDescriptor, waitForAbort } from "./helpers";
 
 const profile = MarketProfileSchema.parse({
   ...marketProfile,
@@ -44,7 +46,7 @@ function success(provider: ProviderDescriptor["id"], status: "SUCCEEDED" | "EMPT
     finishedAt: "2026-10-05T12:00:00.001Z",
     latencyMs: 1,
     usage: { requestCount: 1, recordCount: status === "EMPTY" ? 0 : 1 },
-    cost: { configuredAmount: 0, actualAmount: 0, currency: null },
+    cost: { configuredAmount: 0, reservedAmount: 0, actualAmount: 0, currency: null },
     provenance: [],
     limitations: [],
     value: [],
@@ -82,7 +84,7 @@ function forbidden(provider: ProviderDescriptor["id"]): ProviderResult<string[]>
     finishedAt: "2026-10-05T12:00:00.001Z",
     latencyMs: 1,
     usage: { requestCount: 1, recordCount: 0 },
-    cost: { configuredAmount: 0, actualAmount: 0, currency: null },
+    cost: { configuredAmount: 0, reservedAmount: 0, actualAmount: 0, currency: null },
     provenance: [],
     limitations: [],
     value: null,
@@ -233,6 +235,108 @@ describe("provider registry policy", () => {
     expect(calls).toBe(0);
   });
 
+  it("requires an explicit authorized jurisdiction for regional profiles before selecting any provider", async () => {
+    const regionalProfile = MarketProfileSchema.parse({
+      ...marketProfile,
+      id: "CIS_RU",
+      workflow: "DISCOVERY_ONLY",
+      jurisdictions: [{ countryCode: "RU", subdivisionCode: null }],
+      regions: ["RU"],
+      languages: ["ru"],
+      capabilities: ["SOURCE_SEARCH"],
+    });
+    const usOnly = providerDescriptor("reddit", "SOURCE_SEARCH", {
+      marketProfiles: ["CIS_RU"],
+      languages: ["ru"],
+      regions: ["RU"],
+      jurisdictions: ["US"],
+    });
+    let calls = 0;
+    const result = await executeProviderWithFallback(
+      selectionRequest([usOnly], {
+        profile: regionalProfile,
+        language: "ru",
+        region: "RU",
+        jurisdiction: null,
+      }),
+      async () => { calls++; return success("reddit"); },
+    );
+
+    expectFailure(result);
+    expect(result.error.code).toBe("POLICY_DENIED");
+    expect(calls).toBe(0);
+  });
+
+  it("rejects a request jurisdiction outside its regional profile and providers that do not support the selected jurisdiction", async () => {
+    const regionalProfile = MarketProfileSchema.parse({
+      ...marketProfile,
+      id: "CIS_RU",
+      workflow: "DISCOVERY_ONLY",
+      jurisdictions: [{ countryCode: "RU", subdivisionCode: null }],
+      regions: ["RU"],
+      languages: ["ru"],
+      capabilities: ["SOURCE_SEARCH"],
+    });
+    const usOnly = providerDescriptor("reddit", "SOURCE_SEARCH", {
+      marketProfiles: ["CIS_RU"],
+      languages: ["ru"],
+      regions: ["RU"],
+      jurisdictions: ["US"],
+    });
+    let calls = 0;
+
+    const unauthorizedRequest = await executeProviderWithFallback(selectionRequest([usOnly], {
+      profile: regionalProfile,
+      language: "ru",
+      region: "RU",
+      jurisdiction: "US",
+    }), async () => { calls++; return success("reddit"); });
+    expectFailure(unauthorizedRequest);
+    expect(unauthorizedRequest.error.code).toBe("POLICY_DENIED");
+
+    const unsupportedDescriptor = await executeProviderWithFallback(selectionRequest([usOnly], {
+      profile: regionalProfile,
+      language: "ru",
+      region: "RU",
+      jurisdiction: "RU",
+    }), async () => { calls++; return success("reddit"); });
+    expectFailure(unsupportedDescriptor);
+    expect(unsupportedDescriptor.error.code).toBe("CAPABILITY_UNAVAILABLE");
+    expect(calls).toBe(0);
+  });
+
+  it("does not fall back to a second provider after a timeout", async () => {
+    const descriptors = [
+      providerDescriptor("reddit", "SOURCE_SEARCH", { priority: 1 }),
+      providerDescriptor("hackernews", "SOURCE_SEARCH", { priority: 2 }),
+    ];
+    const calls: string[] = [];
+    const { dependencies, started, finished } = makeDependencies(async (url, init) => {
+      calls.push(url);
+      return waitForAbort(init?.signal as AbortSignal);
+    }, { timeoutMs: 5 });
+    const adapters = new Map([
+      ["reddit", createRedditAdapter({ clientId: "fixture-client", clientSecret: "fixture-secret", descriptor: descriptors[0], dependencies })],
+      ["hackernews", createHackerNewsAdapter({ descriptor: descriptors[1], dependencies })],
+    ]);
+    const result = await executeProviderWithFallback(
+      selectionRequest(descriptors, { allowFallback: true, budget: { currency: "USD", remainingCost: 0, remainingProviderCalls: 2 } }),
+      async (descriptor, context) => {
+        const adapter = adapters.get(descriptor.id);
+        if (!adapter) throw new Error("Selected provider adapter is missing");
+        return adapter.search({ keywords: ["fictional operations"] }, context);
+      },
+    );
+
+    expectFailure(result);
+    expect(result.error.code).toBe("TIMEOUT");
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toContain("www.reddit.com/api/v1/access_token");
+    expect(started.map(event => event.provider)).toEqual(["reddit"]);
+    expect(finished.map(event => ({ provider: event.providerRunId, status: event.status }))).toEqual([{ provider: "fixture-run-1", status: "TIMEOUT" }]);
+    expect(result.attempts).toHaveLength(1);
+  });
+
   it("returns a stable budget error when provider-call budget is exhausted", async () => {
     let calls = 0;
     const free = providerDescriptor("hackernews", "SOURCE_SEARCH");
@@ -245,3 +349,6 @@ describe("provider registry policy", () => {
     expect(calls).toBe(0);
   });
 });
+
+beforeEach(() => vi.stubGlobal("fetch", vi.fn(() => { throw new Error("global network access is forbidden in provider tests"); })));
+afterEach(() => vi.unstubAllGlobals());

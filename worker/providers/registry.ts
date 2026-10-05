@@ -2,6 +2,7 @@ import { z } from "zod";
 import { DiscoveryCapabilitySchema } from "../../lib/domain/schemas/common";
 import { MarketProfileSchema } from "../../lib/domain/schemas/market-profile";
 import type { CapabilityError } from "../../types/job";
+import type { MarketProfile } from "../../types/market-profile";
 import {
   ProviderCancelledError,
   ProviderSelectionError,
@@ -17,7 +18,7 @@ import {
 import { ProviderResultSchema } from "./results";
 
 const ProviderDescriptorSchema = z.object({
-  id: z.enum(["reddit", "hackernews", "exa", "serper"]),
+  id: z.enum(["reddit", "hackernews", "exa", "serper", "openai"]),
   version: z.string().min(1),
   capability: z.enum(["SOURCE_SEARCH", "COMPANY_RESOLUTION"]),
   priority: z.number().int(),
@@ -34,7 +35,7 @@ const ProviderDescriptorSchema = z.object({
 }).strict();
 
 function errorFor(request: ProviderSelectionRequest, code: CapabilityError["code"], message: string): CapabilityError {
-  if (code === "TIMEOUT" || code === "RATE_LIMITED" || code === "DEPENDENCY_UNAVAILABLE") {
+  if (code === "RATE_LIMITED" || code === "DEPENDENCY_UNAVAILABLE" || code === "TIMEOUT") {
     return {
       schemaVersion: PROVIDER_SCHEMA_VERSION,
       code,
@@ -73,6 +74,44 @@ function regionMatches(supported: string[], requested: string): boolean {
   return supported.includes("*") || supported.some(region => region.toLowerCase() === requested.toLowerCase());
 }
 
+function parseJurisdiction(value: string): { countryCode: string; subdivisionCode: string | null } | null {
+  const normalized = value.trim().toUpperCase();
+  if (!/^[A-Z]{2}(?:-[A-Z0-9][A-Z0-9-]{0,30})?$/.test(normalized)) return null;
+  const separator = normalized.indexOf("-");
+  return {
+    countryCode: normalized.slice(0, 2),
+    subdivisionCode: separator === -1 ? null : normalized.slice(separator + 1),
+  };
+}
+
+function normalizedSubdivision(countryCode: string, subdivisionCode: string | null): string | null {
+  if (!subdivisionCode) return null;
+  const normalized = subdivisionCode.trim().toUpperCase();
+  const prefix = `${countryCode.toUpperCase()}-`;
+  return normalized.startsWith(prefix) ? normalized.slice(prefix.length) : normalized;
+}
+
+function profileAllowsJurisdiction(profile: MarketProfile, requested: string): boolean {
+  const parsed = parseJurisdiction(requested);
+  if (!parsed) return false;
+  return profile.jurisdictions.some(authorized => {
+    if (authorized.countryCode !== parsed.countryCode) return false;
+    const authorizedSubdivision = normalizedSubdivision(authorized.countryCode, authorized.subdivisionCode);
+    return authorizedSubdivision === null || authorizedSubdivision === parsed.subdivisionCode;
+  });
+}
+
+function descriptorSupportsJurisdiction(supported: string[], requested: string): boolean {
+  if (supported.includes("*")) return true;
+  const request = parseJurisdiction(requested);
+  if (!request) return false;
+  return supported.some(value => {
+    const descriptor = parseJurisdiction(value);
+    if (!descriptor || descriptor.countryCode !== request.countryCode) return false;
+    return descriptor.subdivisionCode === null || descriptor.subdivisionCode === request.subdivisionCode;
+  });
+}
+
 function validateSelectionRequest(request: ProviderSelectionRequest): void {
   const profile = MarketProfileSchema.safeParse(request.profile);
   if (!profile.success) fail(request, "INVALID_INPUT", "Authorized MarketProfile is invalid");
@@ -94,8 +133,18 @@ function validateSelectionRequest(request: ProviderSelectionRequest): void {
   if (!languageMatches(profile.data.languages, request.language)) {
     fail(request, "POLICY_DENIED", "Language is outside the authorized MarketProfile");
   }
-  if (request.jurisdiction && profile.data.jurisdictions.length > 0
-    && !profile.data.jurisdictions.some(item => item.countryCode === request.jurisdiction)) {
+  if (request.jurisdiction !== null && !parseJurisdiction(request.jurisdiction)) {
+    fail(request, "INVALID_INPUT", "Request jurisdiction is invalid");
+  }
+  if (profile.data.id !== "EN_DISCOVERY_ONLY") {
+    if (request.jurisdiction === null) {
+      fail(request, "POLICY_DENIED", "Regional MarketProfiles require an explicit request jurisdiction");
+    }
+    if (!profileAllowsJurisdiction(profile.data, request.jurisdiction)) {
+      fail(request, "POLICY_DENIED", "Jurisdiction is outside the authorized MarketProfile");
+    }
+  } else if (request.jurisdiction !== null && profile.data.jurisdictions.length > 0
+    && !profileAllowsJurisdiction(profile.data, request.jurisdiction)) {
     fail(request, "POLICY_DENIED", "Jurisdiction is outside the authorized MarketProfile");
   }
   for (const descriptor of request.descriptors) {
@@ -118,7 +167,7 @@ export function selectProvider(request: ProviderSelectionRequest): ProviderSelec
     .filter(descriptor => descriptor.marketProfiles.includes(request.profile.id))
     .filter(descriptor => languageMatches(descriptor.languages, request.language))
     .filter(descriptor => regionMatches(descriptor.regions, request.region))
-    .filter(descriptor => !request.jurisdiction || regionMatches(descriptor.jurisdictions, request.jurisdiction))
+    .filter(descriptor => !request.jurisdiction || descriptorSupportsJurisdiction(descriptor.jurisdictions, request.jurisdiction))
     .filter(() => request.profile.regions.length === 0 || regionMatches(request.profile.regions, request.region))
     .filter(descriptor => descriptor.legalStatus === "ALLOWED" && descriptor.available)
     .filter(descriptor => !excluded.has(descriptor.id))
@@ -161,7 +210,7 @@ function outcomeIsSuccessful<T>(outcome: ProviderResult<T>): boolean {
 
 export async function executeProviderWithFallback<T>(
   request: ProviderSelectionRequest,
-  invoke: (descriptor: ProviderDescriptor) => Promise<ProviderResult<T>>,
+  invoke: (descriptor: ProviderDescriptor, context: import("./contracts").ProviderCallContext) => Promise<ProviderResult<T>>,
 ): Promise<ProviderExecutionResult<T>> {
   const attempts: ProviderExecutionResult<T>["attempts"] = [];
   const excluded: ProviderId[] = [...(request.excludedProviders ?? [])];
@@ -175,7 +224,7 @@ export async function executeProviderWithFallback<T>(
       selection = selectProvider({ ...request, budget: remainingBudget, excludedProviders: excluded });
     } catch (error) {
       if (!(error instanceof ProviderSelectionError)) throw error;
-      if (lastOutcome && request.allowFallback && lastOutcome.capabilityError?.retryable
+      if (lastOutcome && request.allowFallback && isFallbackAllowed(lastOutcome.capabilityError)
         && error.capabilityError.code === "CAPABILITY_UNAVAILABLE") {
         return { ok: false, error: lastOutcome.capabilityError, lastOutcome, attempts, remainingBudget };
       }
@@ -183,12 +232,48 @@ export async function executeProviderWithFallback<T>(
     }
 
     remainingBudget = subtractBudget(remainingBudget, selection);
-    const outcome = await invoke(selection.descriptor);
+    const nestedReservations: ProviderSelection[] = [];
+    const invocationContext: import("./contracts").ProviderCallContext = {
+      profile: request.profile,
+      traceId: request.traceId ?? "provider-registry",
+      signal: request.signal ?? new AbortController().signal,
+      reserveProvider(descriptor) {
+        if (request.signal?.aborted) throw new ProviderCancelledError();
+        const nested = selectProvider({
+          ...request,
+          capability: descriptor.capability,
+          descriptors: [descriptor],
+          budget: remainingBudget,
+          allowFallback: false,
+          excludedProviders: [],
+        });
+        nestedReservations.push(nested);
+        remainingBudget = subtractBudget(remainingBudget, nested);
+        return nested;
+      },
+    };
+    const outcome = await invoke(selection.descriptor, invocationContext);
     ProviderResultSchema.parse(outcome);
     if (outcome.provider !== selection.descriptor.id || outcome.providerVersion !== selection.descriptor.version) {
       return {
         ok: false,
         error: errorFor(request, "INTERNAL_ERROR", "Provider result does not match the selected descriptor"),
+        lastOutcome: null,
+        attempts,
+        remainingBudget,
+      };
+    }
+    const relatedRuns = outcome.relatedRuns ?? [];
+    if (relatedRuns.length !== nestedReservations.length || relatedRuns.some(run => {
+      const reservation = nestedReservations.find(candidate =>
+        candidate.descriptor.id === run.provider && candidate.descriptor.version === run.providerVersion);
+      return !reservation
+        || run.cost.configuredAmount !== reservation.descriptor.configuredCost.amount
+        || run.cost.reservedAmount !== reservation.reservedCost;
+    })) {
+      return {
+        ok: false,
+        error: errorFor(request, "INTERNAL_ERROR", "Related provider run does not match its registry reservation"),
         lastOutcome: null,
         attempts,
         remainingBudget,
@@ -200,10 +285,18 @@ export async function executeProviderWithFallback<T>(
       status: outcome.status,
       configuredCost: outcome.cost.configuredAmount,
     });
+    for (const run of relatedRuns) {
+      attempts.push({
+        providerId: run.provider,
+        providerRunId: run.providerRunId,
+        status: run.status,
+        configuredCost: run.cost.configuredAmount,
+      });
+    }
     lastOutcome = outcome;
     if (outcomeIsSuccessful(outcome)) return { ok: true, outcome, attempts, remainingBudget };
     const outcomeError = outcome.capabilityError;
-    if (!request.allowFallback || !outcomeError?.retryable) {
+    if (!request.allowFallback || !isFallbackAllowed(outcomeError)) {
       return {
         ok: false,
         error: outcomeError ?? errorFor(request, "INTERNAL_ERROR", "Provider failure did not include a capability error"),
@@ -225,4 +318,8 @@ export async function executeProviderWithFallback<T>(
       };
     }
   }
+}
+
+function isFallbackAllowed(error: CapabilityError | null | undefined): error is CapabilityError {
+  return Boolean(error?.retryable && (error.code === "DEPENDENCY_UNAVAILABLE" || error.code === "RATE_LIMITED"));
 }

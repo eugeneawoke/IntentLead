@@ -1,9 +1,12 @@
 import { z } from "zod";
+import type { CapabilityError } from "../../types/job";
 import {
   ProviderCancelledError,
+  ProviderSelectionError,
+  PROVIDER_SCHEMA_VERSION,
   type CompanyCandidate,
   type CompanyEvidence,
-  type CompanyInference,
+  type CompanyInferenceProvider,
   type CompanyResolutionProvider,
   type ProviderDescriptor,
   type ProviderId,
@@ -11,28 +14,26 @@ import {
   type ProviderResult,
   type ProviderRuntimeDependencies,
 } from "./contracts";
-import { ProviderHttpError, ProviderMalformedResponseError, requestJson, withProviderDeadline } from "./http";
-import { normalizeCompanyRootDomain, normalizeHttpUrl, normalizePlainText, normalizePublicSignalText, sanitizeCompanySignal, stableProviderSourceId } from "./normalization";
+import { COMPANY_INFERENCE_SYSTEM_INSTRUCTION } from "./inference";
+import { ProviderHttpError, ProviderMalformedResponseError, requestJson } from "./http";
+import {
+  normalizeCompanyRootDomain,
+  normalizeHttpUrl,
+  normalizePlainText,
+  normalizePublicSignalText,
+  sanitizeCompanySignal,
+  stableProviderSourceId,
+} from "./normalization";
 import { runRecordedProvider, type ProviderOperationResult } from "./results";
 
 const EXA_ENDPOINT = "https://api.exa.ai/search";
 const SERPER_ENDPOINT = "https://google.serper.dev/search";
-const COMPANY_SYSTEM_INSTRUCTION = `Resolve only an organization associated with the supplied public business signal and provider evidence. Do not identify or enrich a person. Return JSON with one top-level field: candidates, an array of at most five objects with companyName, companyDomain (root domain or null), confidence (0 to 1), and evidenceSourceIds (one or more ids from the supplied evidence). Do not add email, person, role, address, technology, or other unsupported factual fields. When evidence is ambiguous, return separate low-confidence candidates or an empty array.`;
-
 const ExaResponseSchema = z.object({
   results: z.array(z.object({ title: z.string().min(1), url: z.string().min(1), text: z.string().nullable().optional() }).passthrough()),
 }).passthrough();
 const SerperResponseSchema = z.object({
   organic: z.array(z.object({ title: z.string().min(1), link: z.string().min(1), snippet: z.string().nullable().optional() }).passthrough()),
 }).passthrough();
-const InferenceOutputSchema = z.object({
-  candidates: z.array(z.object({
-    companyName: z.string().min(1).max(200),
-    companyDomain: z.string().max(2_048).nullable(),
-    confidence: z.number().finite().min(0).max(1),
-    evidenceSourceIds: z.array(z.string().min(1)).min(1).max(10),
-  }).strict()).max(5),
-}).strict();
 const NormalizedCandidateSchema = z.object({
   companyName: z.string().min(1).max(200),
   companyDomain: z.string().max(253).nullable(),
@@ -46,22 +47,11 @@ const NormalizedCandidateSchema = z.object({
     title: z.string().min(1),
     excerpt: z.string().min(1),
     capturedAt: z.string().datetime({ offset: true }),
-    schemaVersion: z.literal(1),
+    schemaVersion: z.literal(PROVIDER_SCHEMA_VERSION),
   }).strict()).min(1),
 }).strict();
 
 type SearchEvidence = Omit<CompanyEvidence, "providerRunId">;
-
-function parseInferenceOutput(raw: unknown): z.infer<typeof InferenceOutputSchema> {
-  let candidate = raw;
-  if (typeof raw === "string") {
-    try { candidate = JSON.parse(raw) as unknown; }
-    catch { throw new ProviderMalformedResponseError(); }
-  }
-  const parsed = InferenceOutputSchema.safeParse(candidate);
-  if (!parsed.success) throw new ProviderMalformedResponseError();
-  return parsed.data;
-}
 
 function evidenceSupportsDomain(items: SearchEvidence[], domain: string): boolean {
   return items.some(item => normalizeCompanyRootDomain(item.sourceUrl) === domain);
@@ -78,12 +68,14 @@ function normalizeCandidates(
   providerId: ProviderId,
   providerRunId: string,
 ): CompanyCandidate[] {
-  const parsed = parseInferenceOutput(raw);
+  if (!raw || typeof raw !== "object" || !Array.isArray((raw as { candidates?: unknown }).candidates)) {
+    throw new ProviderMalformedResponseError();
+  }
   const byId = new Map(searchEvidence.map(item => [item.providerSourceId, item]));
   const candidates: CompanyCandidate[] = [];
   const seen = new Set<string>();
 
-  for (const item of parsed.candidates) {
+  for (const item of (raw as { candidates: Array<{ companyName: string; companyDomain: string | null; confidence: number; evidenceSourceIds: string[] }> }).candidates) {
     const companyName = normalizePlainText(item.companyName, 200);
     const companyDomain = item.companyDomain === null ? null : normalizeCompanyRootDomain(item.companyDomain);
     const evidenceItems = [...new Set(item.evidenceSourceIds)].map(id => byId.get(id));
@@ -117,19 +109,31 @@ function normalizeCandidates(
   return candidates;
 }
 
+function evidenceProvenance(evidence: SearchEvidence[], provider: ProviderId, providerRunId: string): ProviderProvenance[] {
+  return evidence.map(item => ({
+    schemaVersion: PROVIDER_SCHEMA_VERSION,
+    providerId: provider,
+    providerSourceId: item.providerSourceId,
+    providerRunId,
+    capturedAt: item.capturedAt,
+    sourceUrl: item.sourceUrl,
+  }));
+}
+
 function createSearchProvider(config: {
   provider: "exa" | "serper";
   apiKey: string;
   descriptor: ProviderDescriptor;
   dependencies: ProviderRuntimeDependencies;
-  inference: CompanyInference;
+  inferenceProvider: CompanyInferenceProvider;
 }): CompanyResolutionProvider {
-  const { provider, apiKey, descriptor, dependencies, inference } = config;
+  const { provider, apiKey, descriptor, dependencies, inferenceProvider } = config;
   return {
     descriptor,
     async resolve(input, context): Promise<ProviderResult<CompanyCandidate[]>> {
       const safeSignal = sanitizeCompanySignal(input.signalContent, 500);
-      return runRecordedProvider({
+      let inferenceRun: ProviderResult<import("./contracts").CompanyInferenceOutput> | null = null;
+      const searchResult = await runRecordedProvider({
         descriptor,
         context,
         dependencies,
@@ -158,18 +162,9 @@ function createSearchProvider(config: {
                 body: JSON.stringify({ q: query, num: 3 }),
               }, operation.signal);
           const capturedAt = dependencies.now().toISOString();
-          let searchEvidence: (SearchEvidence | null)[];
-          if (provider === "exa") {
-            const parsed = ExaResponseSchema.safeParse(raw);
-            if (!parsed.success) throw new ProviderMalformedResponseError();
-            searchEvidence = parsed.data.results.slice(0, 3).map(result =>
-              normalizeSearchEvidence(provider, result.url, result.title, result.text ?? "", capturedAt, dependencies));
-          } else {
-            const parsed = SerperResponseSchema.safeParse(raw);
-            if (!parsed.success) throw new ProviderMalformedResponseError();
-            searchEvidence = parsed.data.organic.slice(0, 3).map(result =>
-              normalizeSearchEvidence(provider, result.link, result.title, result.snippet ?? "", capturedAt, dependencies));
-          }
+          const searchEvidence = provider === "exa"
+            ? parseExaEvidence(raw, capturedAt, dependencies)
+            : parseSerperEvidence(raw, capturedAt, dependencies);
           const evidence = searchEvidence.filter((item): item is SearchEvidence => item !== null);
           if (!evidence.length) {
             return {
@@ -180,36 +175,95 @@ function createSearchProvider(config: {
           }
           if (operation.signal.aborted) throw new ProviderCancelledError();
 
-          const userContent = JSON.stringify({ signal: safeSignal, evidence });
-          operation.recordRequest();
-          const inferenceOutput = await withProviderDeadline(dependencies, operation.signal, signal => inference.infer({
+          const promptEvidence = evidence.map(({ providerId, providerSourceId, title, excerpt, capturedAt: date, schemaVersion }) => ({
+            providerId, providerSourceId, title, excerpt, capturedAt: date, schemaVersion,
+          }));
+          const input = {
             messages: [
-              { role: "system", content: COMPANY_SYSTEM_INSTRUCTION },
-              { role: "user", content: userContent },
-            ],
-            signal,
-          }));
-          const candidates = normalizeCandidates(inferenceOutput, evidence, provider, operation.providerRunId);
-          const valueProvenance: ProviderProvenance[] = evidence.map(item => ({
-            schemaVersion: 1,
-            providerId: provider,
-            providerSourceId: item.providerSourceId,
-            providerRunId: operation.providerRunId,
-            capturedAt: item.capturedAt,
-            sourceUrl: item.sourceUrl,
-          }));
+              { role: "system" as const, content: COMPANY_INFERENCE_SYSTEM_INSTRUCTION },
+              { role: "user" as const, content: JSON.stringify({ signal: safeSignal, evidence: promptEvidence }) },
+            ] as const,
+          };
+          try {
+            inferenceRun = await inferenceProvider.infer(input, context);
+          } catch (error) {
+            if (!(error instanceof ProviderSelectionError)) throw error;
+            return {
+              value: [],
+              status: "PARTIAL",
+              failureKind: error.capabilityError.code === "BUDGET_EXCEEDED" ? "BUDGET_EXCEEDED" : "UNAVAILABLE",
+              capabilityError: error.capabilityError,
+              usage: { requestCount: 1, recordCount: evidence.length },
+              provenance: evidenceProvenance(evidence, provider, operation.providerRunId),
+              limitations: ["Search evidence was collected, but model inference was not admitted by registry policy or budget."],
+              actualCost: descriptor.configuredCost.amount === 0 ? 0 : null,
+            };
+          }
+          const candidates: CompanyCandidate[] = [];
+          let capabilityError: CapabilityError | undefined;
+          if (inferenceRun.status === "SUCCEEDED" || inferenceRun.status === "EMPTY") {
+            try {
+              candidates.push(...normalizeCandidates(inferenceRun.value, evidence, provider, operation.providerRunId));
+            } catch {
+              capabilityError = {
+                schemaVersion: PROVIDER_SCHEMA_VERSION,
+                code: "INTERNAL_ERROR",
+                retryable: false,
+                message: "Model output did not match the evidence-bound company candidate contract",
+                capability: "COMPANY_RESOLUTION",
+                traceId: context.traceId,
+                retryAfterMs: null,
+              };
+            }
+          } else {
+            capabilityError = inferenceRun.capabilityError ?? {
+              schemaVersion: PROVIDER_SCHEMA_VERSION,
+              code: "CAPABILITY_UNAVAILABLE",
+              retryable: false,
+              message: "Company inference did not produce an authorized outcome",
+              capability: "COMPANY_RESOLUTION",
+              traceId: context.traceId,
+              retryAfterMs: null,
+            };
+          }
+          const valueProvenance = evidenceProvenance(evidence, provider, operation.providerRunId);
+          if (capabilityError) {
+            return {
+              value: candidates,
+              status: "PARTIAL",
+              failureKind: inferenceRun.failureKind ?? "MALFORMED_RESPONSE",
+              capabilityError,
+              usage: { requestCount: 1, recordCount: evidence.length },
+              provenance: valueProvenance,
+              limitations: ["Search evidence was collected, but company inference was unavailable or rejected."],
+              actualCost: descriptor.configuredCost.amount === 0 ? 0 : null,
+            };
+          }
           return {
             value: candidates,
             status: candidates.length ? "SUCCEEDED" : "EMPTY",
-            usage: { requestCount: 2, recordCount: candidates.length },
+            usage: { requestCount: 1, recordCount: evidence.length },
             provenance: valueProvenance,
             limitations: ["Company candidates remain hypotheses backed only by listed public search evidence; no person or contact lookup was performed."],
             actualCost: descriptor.configuredCost.amount === 0 ? 0 : null,
           };
         },
       });
+      return inferenceRun ? { ...searchResult, relatedRuns: [inferenceRun] } : searchResult;
     },
   };
+}
+
+function parseExaEvidence(raw: unknown, capturedAt: string, dependencies: ProviderRuntimeDependencies): (SearchEvidence | null)[] {
+  const parsed = ExaResponseSchema.safeParse(raw);
+  if (!parsed.success) throw new ProviderMalformedResponseError();
+  return parsed.data.results.slice(0, 3).map(result => normalizeSearchEvidence("exa", result.url, result.title, result.text ?? "", capturedAt, dependencies));
+}
+
+function parseSerperEvidence(raw: unknown, capturedAt: string, dependencies: ProviderRuntimeDependencies): (SearchEvidence | null)[] {
+  const parsed = SerperResponseSchema.safeParse(raw);
+  if (!parsed.success) throw new ProviderMalformedResponseError();
+  return parsed.data.organic.slice(0, 3).map(result => normalizeSearchEvidence("serper", result.link, result.title, result.snippet ?? "", capturedAt, dependencies));
 }
 
 function normalizeSearchEvidence(
@@ -231,7 +285,7 @@ function normalizeSearchEvidence(
     title,
     excerpt,
     capturedAt,
-    schemaVersion: 1,
+    schemaVersion: PROVIDER_SCHEMA_VERSION,
   };
 }
 
@@ -239,7 +293,7 @@ export function createExaCompanyResolutionProvider(config: {
   apiKey: string;
   descriptor: ProviderDescriptor;
   dependencies: ProviderRuntimeDependencies;
-  inference: CompanyInference;
+  inferenceProvider: CompanyInferenceProvider;
 }): CompanyResolutionProvider {
   return createSearchProvider({ ...config, provider: "exa" });
 }
@@ -248,7 +302,7 @@ export function createSerperCompanyResolutionProvider(config: {
   apiKey: string;
   descriptor: ProviderDescriptor;
   dependencies: ProviderRuntimeDependencies;
-  inference: CompanyInference;
+  inferenceProvider: CompanyInferenceProvider;
 }): CompanyResolutionProvider {
   return createSearchProvider({ ...config, provider: "serper" });
 }

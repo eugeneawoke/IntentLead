@@ -7,11 +7,12 @@ import {
   createExaCompanyResolutionProvider,
   createSerperCompanyResolutionProvider,
 } from "../../worker/providers/company-resolution";
+import { createCompanyInferenceAdapter } from "../../worker/providers/inference";
 import { createHackerNewsAdapter } from "../../worker/providers/hackernews";
 import { createRedditAdapter } from "../../worker/providers/reddit";
 import type {
   CompanyCandidate,
-  CompanyInference,
+  CompanyInferenceInput,
   CompanyResolutionProvider,
   DiscoveredSignal,
   ProviderCallContext,
@@ -35,6 +36,7 @@ const context = (signal: AbortSignal = new AbortController().signal): ProviderCa
   profile,
   traceId: "fixture-trace",
   signal,
+  reserveProvider(descriptor) { return { descriptor, reservedCost: descriptor.configuredCost.amount ?? 0 }; },
 });
 
 type ProviderKey = "reddit" | "hackernews" | "exa" | "serper";
@@ -44,7 +46,7 @@ type FixtureAdapters = { source?: SignalSourceAdapter; company?: CompanyResoluti
 function buildAdapter(
   key: ProviderKey,
   http: Parameters<typeof makeDependencies>[0],
-  options: { inferenceOutput?: unknown; inference?: CompanyInference; timeoutMs?: number } = {},
+  options: { inferenceOutput?: unknown; timeoutMs?: number } = {},
 ): { adapter: FixtureAdapters; calls: string[]; started: unknown[]; finished: unknown[] } {
   const calls: string[] = [];
   const wrappedHttp = async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -54,21 +56,6 @@ function buildAdapter(
   const { dependencies, started, finished } = makeDependencies(wrappedHttp, { timeoutMs: options.timeoutMs ?? 100 });
   const capability = key === "reddit" || key === "hackernews" ? "SOURCE_SEARCH" : "COMPANY_RESOLUTION";
   const descriptor = providerDescriptor(key, capability);
-  const inference: CompanyInference = options.inference ?? {
-      async infer(input) {
-      if (options.inferenceOutput !== undefined) return options.inferenceOutput;
-      const request = JSON.parse(input.messages[1].content) as { evidence: Array<{ providerSourceId: string }> };
-      return {
-        candidates: [{
-          companyName: "Acme Example",
-          companyDomain: "https://www.acme.test/company/page",
-          confidence: 0.91,
-          evidenceSourceIds: [request.evidence[0].providerSourceId],
-        }],
-      };
-    },
-  };
-
   if (key === "reddit") {
     return {
       adapter: { source: createRedditAdapter({ clientId: "fixture-client", clientSecret: "fixture-secret", descriptor, dependencies }) },
@@ -80,7 +67,25 @@ function buildAdapter(
   if (key === "hackernews") {
     return { adapter: { source: createHackerNewsAdapter({ descriptor, dependencies }) }, calls, started, finished };
   }
-  const config = { apiKey: "fixture-key", descriptor, dependencies, inference };
+  const inferenceProvider = createCompanyInferenceAdapter({
+    descriptor: providerDescriptor("openai", "COMPANY_RESOLUTION"),
+    dependencies,
+    async complete(input: CompanyInferenceInput) {
+      if (options.inferenceOutput !== undefined) return { content: options.inferenceOutput, inputTokens: null, outputTokens: null };
+      const request = JSON.parse(input.messages[1].content) as { evidence: Array<{ providerSourceId: string }> };
+      return {
+        content: { candidates: [{
+          companyName: "Acme Example",
+          companyDomain: "https://www.acme.example.com/company/page",
+          confidence: 0.91,
+          evidenceSourceIds: [request.evidence[0].providerSourceId],
+        }] },
+        inputTokens: null,
+        outputTokens: null,
+      };
+    },
+  });
+  const config = { apiKey: "fixture-key", descriptor, dependencies, inferenceProvider };
   return {
     adapter: { company: key === "exa" ? createExaCompanyResolutionProvider(config) : createSerperCompanyResolutionProvider(config) },
     calls,
@@ -121,6 +126,7 @@ describe("source adapters", () => {
     });
     expect(result.value?.[0].content).toContain("customer intake");
     expect(result.value?.[0].content).toContain("[email redacted]");
+    expect(result.value?.[0].content).not.toMatch(/415|@synthetic_reddit_user|https:\/\//i);
     expect(result.value?.[0].content).not.toMatch(/<|must_not_escape|&amp;/);
     expect(result.value?.[0]).not.toHaveProperty("authorHandle");
     expect(JSON.stringify(result)).not.toContain("fixture.person@example.test");
@@ -149,6 +155,7 @@ describe("source adapters", () => {
     });
     expect(result.value?.[0].content).toContain("wants options");
     expect(result.value?.[0].content).toContain("[email redacted]");
+    expect(result.value?.[0].content).not.toMatch(/415|@synthetic_hn_user|https:\/\//i);
     expect(result.value?.[0].content).not.toMatch(/<|&amp;/);
     expect(result.value?.[0]).not.toHaveProperty("authorHandle");
     expect(JSON.stringify(result)).not.toContain("fixture.person@example.test");
@@ -250,6 +257,23 @@ describe("provider boundary outcomes", () => {
     await expect(runAdapter(key, built.adapter, abortedSignal())).rejects.toMatchObject({ kind: "CANCELLED" });
     expect(requests).toBe(0);
     expect(built.started).toHaveLength(0);
+  });
+
+  it.each(["reddit", "hackernews"] as const)("redacts contact-like PII from %s search queries", async key => {
+    const piiKeyword = "Acme customer intake +1 (415) 555-0199 jane@example.test @jane_ops https://acme.test/contact";
+    const built = buildAdapter(key, async input => {
+      if (key === "reddit" && String(input).includes("access_token")) return fakeResponse({ access_token: "fixture-bearer" });
+      return fakeResponse(key === "reddit" ? { data: { children: [] } } : { hits: [] });
+    });
+    const adapter = built.adapter.source!;
+
+    const result = await adapter.search({ keywords: [piiKeyword] }, context());
+    const queryUrl = new URL(built.calls.find(call => call.includes(key === "reddit" ? "/search.json" : "/search?"))!);
+    const query = queryUrl.searchParams.get(key === "reddit" ? "q" : "query") ?? "";
+
+    expect(result.status).toBe("EMPTY");
+    expect(query).toContain("Acme customer intake");
+    expect(query).not.toMatch(/415|jane@example\.test|@jane_ops|https:\/\/acme\.test/i);
   });
 
   it.each(keys)("records terminal provider-run failures without payloads for %s", async (key) => {

@@ -25,7 +25,7 @@ import {
 } from "./http";
 import { sha256 } from "./normalization";
 
-const ProviderIdSchema = z.enum(["reddit", "hackernews", "exa", "serper"]);
+const ProviderIdSchema = z.enum(["reddit", "hackernews", "exa", "serper", "openai"]);
 const FailureKindSchema = z.enum([
   "MALFORMED_RESPONSE", "UNAUTHORIZED", "RATE_LIMITED", "TIMEOUT", "UNAVAILABLE", "CANCELLED", "BUDGET_EXCEEDED",
 ]);
@@ -37,9 +37,15 @@ const EnvelopeShape = {
   startedAt: z.string().datetime({ offset: true }),
   finishedAt: z.string().datetime({ offset: true }),
   latencyMs: z.number().int().nonnegative(),
-  usage: z.object({ requestCount: z.number().int().nonnegative(), recordCount: z.number().int().nonnegative() }).strict(),
+  usage: z.object({
+    requestCount: z.number().int().nonnegative(),
+    recordCount: z.number().int().nonnegative(),
+    inputTokens: z.number().int().nonnegative().nullable().optional(),
+    outputTokens: z.number().int().nonnegative().nullable().optional(),
+  }).strict(),
   cost: z.object({
     configuredAmount: z.number().finite().nonnegative().nullable(),
+    reservedAmount: z.number().finite().nonnegative().nullable(),
     actualAmount: z.number().finite().nonnegative().nullable(),
     currency: z.string().regex(/^[A-Z]{3}$/).nullable(),
   }).strict(),
@@ -54,10 +60,16 @@ const EnvelopeShape = {
   limitations: z.array(z.string()),
 };
 
-export const ProviderResultSchema = z.discriminatedUnion("status", [
+const ProviderRunEnvelopeSchema = z.discriminatedUnion("status", [
   z.object({ ...EnvelopeShape, status: z.enum(["SUCCEEDED", "EMPTY"]), value: z.unknown(), failureKind: z.null(), capabilityError: z.null() }).strict(),
   z.object({ ...EnvelopeShape, status: z.literal("PARTIAL"), value: z.unknown(), failureKind: FailureKindSchema, capabilityError: CapabilityErrorSchema }).strict(),
   z.object({ ...EnvelopeShape, status: z.enum(["FAILED", "RATE_LIMITED", "TIMEOUT"]), value: z.null(), failureKind: FailureKindSchema.exclude(["BUDGET_EXCEEDED"]), capabilityError: CapabilityErrorSchema }).strict(),
+]);
+const RelatedRunsShape = { relatedRuns: z.array(ProviderRunEnvelopeSchema).optional() };
+export const ProviderResultSchema = z.discriminatedUnion("status", [
+  z.object({ ...EnvelopeShape, ...RelatedRunsShape, status: z.enum(["SUCCEEDED", "EMPTY"]), value: z.unknown(), failureKind: z.null(), capabilityError: z.null() }).strict(),
+  z.object({ ...EnvelopeShape, ...RelatedRunsShape, status: z.literal("PARTIAL"), value: z.unknown(), failureKind: FailureKindSchema, capabilityError: CapabilityErrorSchema }).strict(),
+  z.object({ ...EnvelopeShape, ...RelatedRunsShape, status: z.enum(["FAILED", "RATE_LIMITED", "TIMEOUT"]), value: z.null(), failureKind: FailureKindSchema.exclude(["BUDGET_EXCEEDED"]), capabilityError: CapabilityErrorSchema }).strict(),
 ]);
 
 export interface ProviderOperationContext {
@@ -197,9 +209,12 @@ export async function runRecordedProvider<T>(input: {
   const usage: ProviderUsage = {
     requestCount,
     recordCount: operationResult?.usage.recordCount ?? 0,
+    ...(operationResult?.usage.inputTokens !== undefined ? { inputTokens: operationResult.usage.inputTokens } : {}),
+    ...(operationResult?.usage.outputTokens !== undefined ? { outputTokens: operationResult.usage.outputTokens } : {}),
   };
   const cost = {
     configuredAmount: descriptor.configuredCost.amount,
+    reservedAmount: descriptor.configuredCost.amount,
     actualAmount: operationResult?.actualCost ?? (descriptor.configuredCost.amount === 0 ? 0 : null),
     currency: descriptor.configuredCost.currency,
   };

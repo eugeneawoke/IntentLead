@@ -10,7 +10,7 @@ import {
   type SignalSearchInput,
 } from "./contracts";
 import { requestJson, ProviderMalformedResponseError } from "./http";
-import { normalizeHttpUrl, normalizePlainText, normalizePublicSignalText } from "./normalization";
+import { normalizeHttpUrl, normalizePublicSignalText, sanitizeCompanySignal } from "./normalization";
 import { mapProviderFailure, runRecordedProvider, type ProviderOperationResult } from "./results";
 
 const SEARCH_ENDPOINT = "https://hn.algolia.com/api/v1/search";
@@ -45,7 +45,7 @@ export function createHackerNewsAdapter(config: {
     descriptor,
     async search(input: SignalSearchInput, context: ProviderCallContext): Promise<ProviderResult<DiscoveredSignal[]>> {
       const keywords = input.keywords
-        .map(keyword => normalizePlainText(keyword, 100))
+        .map(keyword => sanitizeCompanySignal(keyword, 100))
         .filter(Boolean)
         .slice(0, dependencies.maxKeywords);
       return runRecordedProvider({

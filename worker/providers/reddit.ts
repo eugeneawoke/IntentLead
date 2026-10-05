@@ -10,7 +10,7 @@ import {
   type SignalSearchInput,
 } from "./contracts";
 import { requestJson, ProviderHttpError, ProviderMalformedResponseError } from "./http";
-import { normalizeHttpUrl, normalizePlainText, normalizePublicSignalText } from "./normalization";
+import { normalizeHttpUrl, normalizePublicSignalText, sanitizeCompanySignal } from "./normalization";
 import { mapProviderFailure, runRecordedProvider, type ProviderOperationResult } from "./results";
 
 const TOKEN_ENDPOINT = "https://www.reddit.com/api/v1/access_token";
@@ -61,7 +61,7 @@ export function createRedditAdapter(config: {
     descriptor,
     async search(input: SignalSearchInput, context: ProviderCallContext): Promise<ProviderResult<DiscoveredSignal[]>> {
       const keywords = input.keywords
-        .map(keyword => normalizePlainText(keyword, 100))
+        .map(keyword => sanitizeCompanySignal(keyword, 100))
         .filter(Boolean)
         .slice(0, dependencies.maxKeywords);
       return runRecordedProvider({

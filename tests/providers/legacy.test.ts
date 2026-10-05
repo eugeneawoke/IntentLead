@@ -28,7 +28,7 @@ function success<T>(provider: ProviderResult<T>["provider"], value: T): Provider
     finishedAt: "2026-10-05T12:00:00.001Z",
     latencyMs: 1,
     usage: { requestCount: 1, recordCount: 1 },
-    cost: { configuredAmount: 0, actualAmount: 0, currency: null },
+    cost: { configuredAmount: 0, reservedAmount: 0, actualAmount: 0, currency: null },
     provenance: [],
     limitations: [],
     value,
@@ -67,11 +67,43 @@ describe("legacy provider wrappers", () => {
     expect(globalFetch).not.toHaveBeenCalled();
   });
 
+  it("does not construct providers or inference when secrets exist but trusted context is missing", async () => {
+    vi.stubEnv("REDDIT_CLIENT_ID", "fixture-client-id");
+    vi.stubEnv("REDDIT_CLIENT_SECRET", "fixture-client-secret");
+    vi.stubEnv("EXA_API_KEY", "fixture-exa-key");
+    vi.stubEnv("SERPER_API_KEY", "fixture-serper-key");
+    vi.stubEnv("OPENAI_API_KEY", "fixture-openai-key");
+    vi.stubEnv("INTENTLEAD_REDDIT_LEGAL_STATUS", "ALLOWED");
+    vi.stubEnv("INTENTLEAD_HN_LEGAL_STATUS", "ALLOWED");
+    vi.stubEnv("INTENTLEAD_EXA_LEGAL_STATUS", "ALLOWED");
+    vi.stubEnv("INTENTLEAD_SERPER_LEGAL_STATUS", "ALLOWED");
+    vi.stubEnv("INTENTLEAD_OPENAI_LEGAL_STATUS", "ALLOWED");
+    vi.stubEnv("INTENTLEAD_EXA_COST_PER_CALL", "0.02");
+    vi.stubEnv("INTENTLEAD_SERPER_COST_PER_CALL", "0.02");
+    vi.stubEnv("INTENTLEAD_OPENAI_COST_PER_INFERENCE", "0.05");
+    vi.stubEnv("INTENTLEAD_PROVIDER_COST_CURRENCY", "USD");
+    const globalFetch = vi.fn(() => { throw new Error("provider tests must not use global fetch"); });
+    vi.stubGlobal("fetch", globalFetch);
+    const createProviders = vi.fn(() => { throw new Error("provider construction must wait for trusted context"); });
+    const bridge = createLegacyProviderBridge({
+      async resolveContext() { return null; },
+      createProviders,
+      warn() {},
+    });
+    const campaign = { id: "campaign-with-secrets", keywords: ["synthetic search"] } as Campaign;
+
+    await expect(bridge.fetchSignals(campaign)).resolves.toEqual([]);
+    await expect(bridge.identifyCompany("synthetic_handle", "synthetic company signal")).resolves.toEqual({ companyName: null, companyDomain: null });
+    expect(createProviders).not.toHaveBeenCalled();
+    expect(globalFetch).not.toHaveBeenCalled();
+  });
+
   it("maps registry-selected injected adapters to the existing legacy return shapes", async () => {
     const context: ProviderCallContext = {
       profile,
       traceId: "legacy-fixture-trace",
       signal: new AbortController().signal,
+      reserveProvider(descriptor) { return { descriptor, reservedCost: descriptor.configuredCost.amount ?? 0 }; },
     };
     const signal: DiscoveredSignal = {
       source: "hackernews",
@@ -90,7 +122,7 @@ describe("legacy provider wrappers", () => {
       async resolve() {
         return success("exa", [{
           companyName: "Acme Example",
-          companyDomain: "acme.test",
+          companyDomain: "example.com",
           confidence: 0.9,
           resolutionStatus: "RESOLVED",
           evidence: [],
@@ -127,7 +159,7 @@ describe("legacy provider wrappers", () => {
     }]);
     await expect(bridge.identifyCompany("ignored_author", signal.content)).resolves.toEqual({
       companyName: "Acme Example",
-      companyDomain: "acme.test",
+      companyDomain: "example.com",
     });
   });
 });

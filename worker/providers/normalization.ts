@@ -1,13 +1,14 @@
 import { createHash } from "node:crypto";
 import { domainToASCII } from "node:url";
 import { isIP } from "node:net";
+import { parse as parseDomain } from "tldts";
 import type { ProviderId } from "./contracts";
 
 const TRACKING_QUERY_KEYS = new Set(["fbclid", "gclid", "mc_cid", "mc_eid"]);
-const COMPOUND_PUBLIC_SUFFIXES = new Set([
-  "ac.uk", "co.in", "co.jp", "co.nz", "co.uk", "co.za", "com.au", "com.br", "com.cn",
-  "com.hk", "com.mx", "com.sg", "com.tr", "com.tw", "gov.uk", "net.au", "org.au", "org.uk",
-]);
+const EMAIL_RE = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
+const URL_RE = /\b(?:https?:\/\/|www\.)[^\s<>()]+/gi;
+const HANDLE_RE = /(^|[\s([{])@[\w.-]{2,}/g;
+const PHONE_RE = /(?<![\p{L}\p{N}])(?:\+|00)?\d[\d().\s-]{5,}\d(?![\p{L}\p{N}])/gu;
 
 function decodeEntity(match: string, entity: string): string {
   if (entity.startsWith("#x")) {
@@ -37,9 +38,15 @@ export function normalizePlainText(value: string, maxLength: number): string {
 }
 
 export function normalizePublicSignalText(value: string, maxLength: number): string {
-  return normalizePlainText(value, maxLength)
-    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "[email redacted]")
-    .replace(/(^|[\s([{])@[\w.-]{2,}/g, "$1[author redacted]");
+  return redactContactLikePii(normalizePlainText(value, maxLength));
+}
+
+export function redactContactLikePii(value: string): string {
+  return value
+    .replace(EMAIL_RE, "[email redacted]")
+    .replace(URL_RE, "[URL redacted]")
+    .replace(HANDLE_RE, "$1[author redacted]")
+    .replace(PHONE_RE, redactPhoneMatch);
 }
 
 export function normalizeHttpUrl(value: string, baseUrl?: string): string | null {
@@ -67,12 +74,11 @@ export function normalizeCompanyRootDomain(value: string): string | null {
     if ((parsed.protocol !== "http:" && parsed.protocol !== "https:") || parsed.username || parsed.password) return null;
     const asciiHost = domainToASCII(parsed.hostname.toLowerCase().replace(/\.$/, ""));
     if (!asciiHost || isIP(asciiHost) || asciiHost.length > 253) return null;
-    const labels = asciiHost.replace(/^www\./, "").split(".");
+    const labels = asciiHost.split(".");
     if (labels.length < 2 || labels.some(label => !/^[a-z\d](?:[a-z\d-]{0,61}[a-z\d])?$/i.test(label))) return null;
-    const suffix = labels.slice(-2).join(".");
-    const rootLabels = COMPOUND_PUBLIC_SUFFIXES.has(suffix) ? 3 : 2;
-    if (labels.length < rootLabels) return null;
-    return labels.slice(-rootLabels).join(".");
+    const parsedDomain = parseDomain(asciiHost, { allowIcannDomains: true, allowPrivateDomains: true });
+    if (!parsedDomain.domain || (!parsedDomain.isIcann && !parsedDomain.isPrivate) || parsedDomain.isIp) return null;
+    return parsedDomain.domain;
   } catch {
     return null;
   }
@@ -80,12 +86,20 @@ export function normalizeCompanyRootDomain(value: string): string | null {
 
 export function sanitizeCompanySignal(value: string, maxLength = 500): string {
   return normalizePlainText(value, maxLength)
-    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, " ")
-    .replace(/https?:\/\/\S+/gi, " ")
+    .replace(EMAIL_RE, " ")
+    .replace(URL_RE, " ")
     .replace(/@[\w.-]{2,}/g, " ")
+    .replace(PHONE_RE, redactPhoneMatch)
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, maxLength);
+}
+
+function redactPhoneMatch(match: string): string {
+  const trimmed = match.trim();
+  if (/^\d{4}[-/.]\d{1,2}[-/.]\d{1,2}$/.test(trimmed) || /^\d{4}[–-]\d{4}$/.test(trimmed)) return match;
+  const digits = trimmed.replace(/\D/g, "").length;
+  return digits >= 7 && digits <= 15 ? "[phone redacted]" : match;
 }
 
 export function sha256(value: string): string {

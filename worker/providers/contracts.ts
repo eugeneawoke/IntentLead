@@ -3,7 +3,7 @@ import type { Capability, MarketProfile } from "../../types/market-profile";
 
 export const PROVIDER_SCHEMA_VERSION = 1 as const;
 
-export type ProviderId = "reddit" | "hackernews" | "exa" | "serper";
+export type ProviderId = "reddit" | "hackernews" | "exa" | "serper" | "openai";
 export type ProviderCapability = Extract<Capability, "SOURCE_SEARCH" | "COMPANY_RESOLUTION">;
 export type ProviderLegalStatus = "ALLOWED" | "RESTRICTED" | "PROHIBITED" | "UNASSESSED";
 export type ProviderHealth = "HEALTHY" | "DEGRADED" | "UNHEALTHY" | "CIRCUIT_OPEN" | "AUTH_FAILED";
@@ -70,10 +70,13 @@ export interface ProviderProvenance {
 export interface ProviderUsage {
   requestCount: number;
   recordCount: number;
+  inputTokens?: number | null;
+  outputTokens?: number | null;
 }
 
 export interface ProviderCost {
   configuredAmount: number | null;
+  reservedAmount: number | null;
   actualAmount: number | null;
   currency: string | null;
 }
@@ -92,7 +95,7 @@ interface ProviderEnvelopeBase {
   limitations: string[];
 }
 
-export type ProviderResult<T> =
+export type ProviderRunEnvelope<T> =
   | (ProviderEnvelopeBase & {
       status: "SUCCEEDED" | "EMPTY";
       value: T;
@@ -111,6 +114,11 @@ export type ProviderResult<T> =
       failureKind: Exclude<ProviderFailureKind, "BUDGET_EXCEEDED">;
       capabilityError: CapabilityError;
     });
+
+export type ProviderResult<T> = ProviderRunEnvelope<T> & {
+  /** Independent model/provider runs, each retaining its own identity, usage and cost. */
+  relatedRuns?: ProviderRunEnvelope<unknown>[];
+};
 
 export interface ProviderAttempt {
   providerId: ProviderId;
@@ -191,6 +199,7 @@ export interface ProviderCallContext {
   profile: MarketProfile;
   traceId: string;
   signal: AbortSignal;
+  reserveProvider(descriptor: ProviderDescriptor): ProviderSelection;
 }
 
 export interface SignalSearchInput {
@@ -239,11 +248,28 @@ export interface CompanyInferenceInput {
     { role: "system"; content: string },
     { role: "user"; content: string },
   ];
-  signal: AbortSignal;
 }
 
-export interface CompanyInference {
-  infer(input: CompanyInferenceInput): Promise<unknown>;
+export interface CompanyInferenceCandidate {
+  companyName: string;
+  companyDomain: string | null;
+  confidence: number;
+  evidenceSourceIds: string[];
+}
+
+export interface CompanyInferenceOutput {
+  candidates: CompanyInferenceCandidate[];
+}
+
+export interface CompanyInferenceCompletion {
+  content: unknown;
+  inputTokens: number | null;
+  outputTokens: number | null;
+}
+
+export interface CompanyInferenceProvider {
+  readonly descriptor: ProviderDescriptor;
+  infer(input: CompanyInferenceInput, context: ProviderCallContext): Promise<ProviderResult<CompanyInferenceOutput>>;
 }
 
 export interface CompanyResolutionProvider {

@@ -8,13 +8,13 @@ import {
   type ProviderDescriptor,
   type ProviderHealth,
   type ProviderId,
-  type ProviderCallContext,
   type SignalSourceAdapter,
 } from "./contracts";
 import { executeProviderWithFallback } from "./registry";
 import { createRedditAdapter } from "./reddit";
 import { createHackerNewsAdapter } from "./hackernews";
 import { createExaCompanyResolutionProvider, createSerperCompanyResolutionProvider } from "./company-resolution";
+import { createLazyOpenAICompanyInferenceProvider } from "./inference";
 import { createProviderRuntimeDependencies } from "./runtime";
 
 export interface AuthorizedLegacyProviderContext {
@@ -63,10 +63,10 @@ export function createLegacyProviderBridge(options: LegacyProviderBridgeOptions)
         allowFallback: true,
         traceId: context.traceId,
         signal: context.signal,
-      }, descriptor => {
+      }, (descriptor, providerContext) => {
         const adapter = providers.sources.get(descriptor.id);
         if (!adapter) throw new Error("Selected source adapter is not registered");
-        return adapter.search({ keywords: campaign.keywords }, callContext(context));
+        return adapter.search({ keywords: campaign.keywords }, providerContext);
       });
       if (!result.ok || result.outcome.status === "FAILED" || result.outcome.status === "RATE_LIMITED"
         || result.outcome.status === "TIMEOUT") {
@@ -108,10 +108,10 @@ export function createLegacyProviderBridge(options: LegacyProviderBridgeOptions)
         allowFallback: true,
         traceId: context.traceId,
         signal: context.signal,
-      }, descriptor => {
+      }, (descriptor, providerContext) => {
         const provider = providers.companies.get(descriptor.id);
         if (!provider) throw new Error("Selected company provider is not registered");
-        return provider.resolve({ signalContent }, callContext(context));
+        return provider.resolve({ signalContent }, providerContext);
       });
       if (!result.ok || result.outcome.status === "FAILED" || result.outcome.status === "RATE_LIMITED"
         || result.outcome.status === "TIMEOUT") {
@@ -126,10 +126,6 @@ export function createLegacyProviderBridge(options: LegacyProviderBridgeOptions)
         : { companyName: null, companyDomain: null };
     },
   };
-}
-
-function callContext(context: AuthorizedLegacyProviderContext): ProviderCallContext {
-  return { profile: context.profile, traceId: context.traceId, signal: context.signal };
 }
 
 function readLegalStatus(key: string): ProviderDescriptor["legalStatus"] {
@@ -170,20 +166,6 @@ function envDescriptor(input: {
   };
 }
 
-async function inferCompany(input: Parameters<import("./contracts").CompanyInference["infer"]>[0]): Promise<unknown> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error("Company inference is not configured");
-  const { default: OpenAI } = await import("openai");
-  const client = new OpenAI({ apiKey });
-  const response = await client.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: input.messages.map(message => ({ role: message.role, content: message.content })),
-    response_format: { type: "json_object" },
-    max_tokens: 300,
-  }, { signal: input.signal });
-  return response.choices[0]?.message?.content ?? "";
-}
-
 function createEnvironmentProviders(): LegacyProviders {
   const dependencies = createProviderRuntimeDependencies();
   const reddit = envDescriptor({
@@ -197,28 +179,37 @@ function createEnvironmentProviders(): LegacyProviders {
     available: true, legalKey: "INTENTLEAD_HN_LEGAL_STATUS",
     cost: { amount: 0, currency: null },
   });
-  const inferenceReady = Boolean(process.env.OPENAI_API_KEY);
   const exa = envDescriptor({
     id: "exa", capability: "COMPANY_RESOLUTION", priority: 10,
-    available: inferenceReady && Boolean(process.env.EXA_API_KEY),
+    available: Boolean(process.env.EXA_API_KEY),
     legalKey: "INTENTLEAD_EXA_LEGAL_STATUS",
-    cost: readConfiguredCost("INTENTLEAD_EXA_COST_PER_RESOLUTION"),
+    cost: readConfiguredCost("INTENTLEAD_EXA_COST_PER_CALL"),
   });
   const serper = envDescriptor({
     id: "serper", capability: "COMPANY_RESOLUTION", priority: 20,
-    available: inferenceReady && Boolean(process.env.SERPER_API_KEY),
+    available: Boolean(process.env.SERPER_API_KEY),
     legalKey: "INTENTLEAD_SERPER_LEGAL_STATUS",
-    cost: readConfiguredCost("INTENTLEAD_SERPER_COST_PER_RESOLUTION"),
+    cost: readConfiguredCost("INTENTLEAD_SERPER_COST_PER_CALL"),
   });
-  const inference = { infer: inferCompany };
+  const openai = envDescriptor({
+    id: "openai", capability: "COMPANY_RESOLUTION", priority: 10,
+    available: Boolean(process.env.OPENAI_API_KEY),
+    legalKey: "INTENTLEAD_OPENAI_LEGAL_STATUS",
+    cost: readConfiguredCost("INTENTLEAD_OPENAI_COST_PER_INFERENCE"),
+  });
+  const inferenceProvider = createLazyOpenAICompanyInferenceProvider({
+    descriptor: openai,
+    dependencies,
+    apiKey: process.env.OPENAI_API_KEY ?? "",
+  });
   return {
     sources: new Map([
       ["reddit", createRedditAdapter({ clientId: process.env.REDDIT_CLIENT_ID ?? "", clientSecret: process.env.REDDIT_CLIENT_SECRET ?? "", descriptor: reddit, dependencies })],
       ["hackernews", createHackerNewsAdapter({ descriptor: hackernews, dependencies })],
     ]),
     companies: new Map([
-      ["exa", createExaCompanyResolutionProvider({ apiKey: process.env.EXA_API_KEY ?? "", descriptor: exa, dependencies, inference })],
-      ["serper", createSerperCompanyResolutionProvider({ apiKey: process.env.SERPER_API_KEY ?? "", descriptor: serper, dependencies, inference })],
+      ["exa", createExaCompanyResolutionProvider({ apiKey: process.env.EXA_API_KEY ?? "", descriptor: exa, dependencies, inferenceProvider })],
+      ["serper", createSerperCompanyResolutionProvider({ apiKey: process.env.SERPER_API_KEY ?? "", descriptor: serper, dependencies, inferenceProvider })],
     ]),
   };
 }
