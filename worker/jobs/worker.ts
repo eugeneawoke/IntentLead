@@ -1,14 +1,14 @@
-import { CapabilityErrorSchema } from "../../lib/domain/schemas/job";
-import { DiscoveryCapabilitySchema } from "../../lib/domain/schemas/common";
-import type { Capability, MarketProfile } from "../../types/market-profile";
+import type { Capability } from "../../types/market-profile";
 import type { CapabilityError } from "../../types/job";
 import type { JobRepository, LeasedJob, LeaseIdentity } from "./repository";
+import { assertCapabilityAllowed, PolicyError, structuredError, toCapabilityError } from "./worker-policy";
 
 export interface ExternalOperationExecution {
   runExternalOperation<TProvider, TResult>(
     capability: Capability,
     selectProvider: () => TProvider,
     operation: (provider: TProvider, signal: AbortSignal) => Promise<TResult>,
+    stepKeyOverride?: string,
   ): Promise<TResult>;
   checkpoint(checkpoint: Record<string, unknown>): Promise<void>;
   signal: AbortSignal;
@@ -43,33 +43,6 @@ export interface JobWorkerOptions {
 
 class JobCancelledError extends Error {}
 class LeaseLostError extends Error {}
-
-function structuredError(job: LeasedJob, capability: Capability, code: CapabilityError["code"], message: string): CapabilityError {
-  return code === "TIMEOUT" || code === "RATE_LIMITED" || code === "DEPENDENCY_UNAVAILABLE"
-    ? { schemaVersion: 1, message, capability, traceId: job.traceId, code, retryable: true, retryAfterMs: null }
-    : { schemaVersion: 1, message, capability, traceId: job.traceId, code, retryable: false, retryAfterMs: null };
-}
-
-function assertCapabilityAllowed(profile: MarketProfile, capability: Capability, job: LeasedJob): void {
-  const enabled = (profile.capabilities as readonly Capability[]).includes(capability)
-    && !(profile.disabledCapabilities as readonly Capability[]).includes(capability);
-  const discoveryDenied = profile.id === "EN_DISCOVERY_ONLY"
-    && (!DiscoveryCapabilitySchema.safeParse(capability).success || profile.workflow !== "DISCOVERY_ONLY");
-  if (!enabled || discoveryDenied) {
-    throw new PolicyError(structuredError(job, capability, "POLICY_DENIED", "Capability is disabled by the authorized MarketProfile"));
-  }
-}
-
-class PolicyError extends Error {
-  constructor(readonly capabilityError: CapabilityError) { super(capabilityError.message); }
-}
-
-function toCapabilityError(error: unknown, job: LeasedJob): CapabilityError {
-  if (error instanceof PolicyError) return error.capabilityError;
-  const parsed = CapabilityErrorSchema.safeParse(error);
-  if (parsed.success) return parsed.data;
-  return structuredError(job, job.capability, "INTERNAL_ERROR", "Discovery job failed");
-}
 
 function defaultHandler(job: LeasedJob): Promise<JobHandlerResult> {
   return Promise.reject(structuredError(
@@ -189,14 +162,19 @@ export function createJobWorker(options: JobWorkerOptions) {
           }
           if (!await repository.checkpoint(lease, checkpoint)) throw new LeaseLostError();
         },
-        async runExternalOperation(capability, selectProvider, operation) {
+        async runExternalOperation(capability, selectProvider, operation, stepKeyOverride) {
           if (controller.signal.aborted) throw controller.signal.reason;
           if (await repository.isCancelled(job.id)) {
             controller.abort(new JobCancelledError("Job cancellation was requested"));
             throw controller.signal.reason;
           }
           assertCapabilityAllowed(profile, capability, job);
-          const stepKey = capability.toLowerCase();
+          const defaultStepKey = capability.toLowerCase();
+          const stepKey = stepKeyOverride ?? defaultStepKey;
+          if (stepKey.length > 160 || !/^[a-z0-9_]+$/.test(stepKey)
+            || (stepKey !== defaultStepKey && !stepKey.startsWith(`${defaultStepKey}_`))) {
+            throw new Error("Invalid durable external-operation step key");
+          }
           const recorded = await repository.recordStepAttempt({
             ...lease, stepKey, attempt: job.attempt, state: "STARTED", checkpoint: {},
           });

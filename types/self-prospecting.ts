@@ -55,7 +55,7 @@ export interface GroundedAssessmentInput {
 export interface SelfProspectingAssessmentEngine {
   configuredCost: { amount: number; currency: string };
   assess(input: GroundedAssessmentInput, context: {
-    job: LeasedJob; signal: AbortSignal; traceId: string;
+    jobId: string; signal: AbortSignal; traceId: string;
   }): Promise<{ output: unknown; run: ProviderRunEnvelope<unknown> }>;
 }
 

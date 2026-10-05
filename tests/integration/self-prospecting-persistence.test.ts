@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { beforeAll, describe, expect, it } from "vitest";
 import { asRole, bootstrapTask5Database, insertUsers, sql } from "./task4-db";
+import { candidateExternalStepKey } from "../../worker/workflows/self-prospecting-helpers";
 
 const owner = randomUUID();
 const workspaceId = randomUUID();
@@ -30,25 +31,25 @@ function run(runId: string, provider: string, capability: string, source?: { pro
   };
 }
 
-function sourceAndEvidence(input: { provider: string; runId: string; text: string; url: string }) {
+function sourceAndEvidence(input: { provider: string; runId: string; text: string; url: string; externalId?: string; facts?: Record<string, unknown> }) {
   const sourceId = id();
   const evidenceId = id();
-  const externalId = id();
+  const externalId = input.externalId ?? id();
   const provenance = { sourceType: input.provider === "hackernews" ? "SOCIAL" : "WEB", sourceId, providerRunId: input.runId, rawArtifactId: null };
   return {
     sourceId, evidenceId,
     source: { id: sourceId, provider: input.provider, externalId, sourceUrl: input.url, content: input.text,
-      normalizedFacts: {}, provenance, contentHash: hash(sourceId), capturedAt: now, publishedAt: null },
+      normalizedFacts: input.facts ?? {}, provenance, contentHash: hash(sourceId), capturedAt: now, publishedAt: null },
     evidence: { id: evidenceId, sourceItemId: sourceId, type: "text", sourceUrl: input.url, capturedAt: now,
-      excerpt: input.text, structuredFacts: {}, verificationMethod: "normalized_public_source_capture",
+      excerpt: input.text, structuredFacts: input.facts ?? {}, verificationMethod: "normalized_public_source_capture",
       confidence: 0.8, contentHash: hash(evidenceId), provenance },
   };
 }
 
-function candidateSlice(candidateKey: string, assessed: boolean) {
+function candidateSlice(candidateKey: string, assessed: boolean, sourceExternalId?: string) {
   const sourceRunId = id();
-  const sourceText = "We need a better way to manage repeated manual vendor checks.";
-  const primary = sourceAndEvidence({ provider: "hackernews", runId: sourceRunId, text: sourceText, url: "https://news.ycombinator.com/item?id=task7" });
+  const sourceText = "Alex Doe, VP Growth: We need a better way to manage repeated manual vendor checks.";
+  const primary = sourceAndEvidence({ provider: "hackernews", runId: sourceRunId, text: sourceText, url: "https://news.ycombinator.com/item?id=task7", externalId: sourceExternalId });
   const sourceItems = [primary.source];
   const evidenceItems = [primary.evidence];
   const runs = [run(sourceRunId, "hackernews", "SOURCE_SEARCH", { providerSourceId: primary.source.externalId, sourceUrl: primary.source.sourceUrl })];
@@ -61,7 +62,7 @@ function candidateSlice(candidateKey: string, assessed: boolean) {
   let assessmentId: string | null = null;
   if (assessed) {
     const companyRunId = id();
-    const companyObservation = sourceAndEvidence({ provider: "exa", runId: companyRunId, text: "Acme Example operations. Acme Example describes vendor operations.", url: "https://acme.example.com/about" });
+    const companyObservation = sourceAndEvidence({ provider: "exa", runId: companyRunId, text: "Acme Example operations. Acme Example describes vendor operations.", url: "https://acme.example.com/about", facts: { companyName: "Acme Example", companyDomain: "example.com" } });
     sourceItems.push(companyObservation.source);
     evidenceItems.push(companyObservation.evidence);
     opportunityEvidenceIds = [primary.evidenceId, companyObservation.evidenceId];
@@ -95,9 +96,14 @@ function candidateSlice(candidateKey: string, assessed: boolean) {
 
 async function installTask7Migration(): Promise<void> {
   await bootstrapTask5Database();
-  if (await sql("SELECT to_regclass('public.intentlead_job_candidate_results') IS NOT NULL") === "t") return;
-  const migration = await readFile(new URL("../../supabase/migrations/202610050003_task7_self_prospecting.sql", import.meta.url), "utf8");
-  await sql(migration, "intentlead-task7-migration");
+  if (await sql("SELECT to_regclass('public.intentlead_job_candidate_results') IS NULL") === "t") {
+    const initial = await readFile(new URL("../../supabase/migrations/202610050003_task7_self_prospecting.sql", import.meta.url), "utf8");
+    await sql(initial, "intentlead-task7-migration");
+  }
+  for (const name of ["202610050004_task7_persistence_hardening.sql", "202610050005_task7_candidate_deletion_redaction.sql"]) {
+    const upgrade = await readFile(new URL(`../../supabase/migrations/${name}`, import.meta.url), "utf8");
+    await sql(upgrade, "intentlead-task7-review-fixes");
+  }
 }
 
 async function prepareJob(): Promise<{ jobId: string; token: string }> {
@@ -113,9 +119,23 @@ async function prepareJob(): Promise<{ jobId: string; token: string }> {
     INSERT INTO public.intentlead_discovery_briefs(id,workspace_id,offer_profile_id,icp_definition_id,market_profile_id,objective,criteria)
       VALUES ('${briefId}','${workspaceId}','${offerId}','${icpId}','${marketId}','Find evidence-backed opportunities','{}');
   `);
-  await sql(asRole("service_role", `SELECT public.intentlead_enqueue_discovery_job('${briefId}','${owner}','task7-${briefId}','{}')`));
+  const queuedJobId = await sql(asRole("service_role", `SELECT public.intentlead_enqueue_discovery_job('${briefId}','${owner}','task7-${briefId}','{}')`));
+  await sql(`UPDATE public.intentlead_jobs SET created_at='1970-01-01T00:00:00Z', available_at='1970-01-01T00:00:00Z' WHERE id='${queuedJobId}'`);
   const leased = JSON.parse(await sql(asRole("service_role", `SELECT row_to_json(j)::text FROM public.intentlead_lease_next_job('${workerId}',60) j LIMIT 1`))) as { id: string; lease_token: string };
+  if (leased.id !== queuedJobId) throw new Error("Task 7 integration failed to lease its own queued job");
   return { jobId: leased.id, token: leased.lease_token };
+}
+
+async function prepareAdditionalJob(label: string): Promise<{ jobId: string; token: string; workerId: string }> {
+  const extraBriefId = id();
+  const extraWorkerId = `${workerId}-${label}`;
+  await sql(`INSERT INTO public.intentlead_discovery_briefs(id,workspace_id,offer_profile_id,icp_definition_id,market_profile_id,objective,criteria)
+    VALUES ('${extraBriefId}','${workspaceId}','${offerId}','${icpId}','${marketId}','Find more opportunities','{}')`);
+  const queuedJobId = await sql(asRole("service_role", `SELECT public.intentlead_enqueue_discovery_job('${extraBriefId}','${owner}','task7-${label}-${extraBriefId}','{}')`));
+  await sql(`UPDATE public.intentlead_jobs SET created_at='1970-01-01T00:00:00Z', available_at='1970-01-01T00:00:00Z' WHERE id='${queuedJobId}'`);
+  const leased = JSON.parse(await sql(asRole("service_role", `SELECT row_to_json(j)::text FROM public.intentlead_lease_next_job('${extraWorkerId}',60) j LIMIT 1`))) as { id: string; lease_token: string };
+  if (leased.id !== queuedJobId) throw new Error(`Task 7 integration failed to lease its own ${label} job`);
+  return { jobId: leased.id, token: leased.lease_token, workerId: extraWorkerId };
 }
 
 beforeAll(async () => {
@@ -148,8 +168,58 @@ describe("Task 7 lease-bound PostgreSQL persistence", () => {
     const crossCandidate = candidateSlice("cross-candidate", false);
     (crossCandidate.opportunity as { evidenceIds: string[] }).evidenceIds = [(review.evidenceItems[0] as { id: string }).id];
     await expect(sql(asRole("service_role", `SELECT ${rpc(crossCandidate)}`))).rejects.toThrow();
+    const forgedCompany = candidateSlice("arbitrary-company", true);
+    forgedCompany.company = { ...(forgedCompany.company as Record<string, unknown>), canonicalName: "Attacker Incorporated", domain: "attacker.example" };
+    await expect(sql(asRole("service_role", `SELECT ${rpc(forgedCompany)}`))).rejects.toThrow(/company.*evidence|company.*provenance/i);
     expect(await sql(`SELECT count(*) FROM public.intentlead_opportunities WHERE workspace_id='${workspaceId}'`)).toBe("2");
     expect(await sql(`SELECT count(*) FROM public.intentlead_job_candidate_results WHERE workspace_id='${workspaceId}'`)).toBe("2");
     expect(incompleteId).not.toBe(reviewId);
+
+    const signals = ["hackernews:signal-one", "hackernews:signal-two"];
+    const candidateSteps = signals.flatMap(candidateKey =>
+      (["COMPANY_RESOLUTION", "OPPORTUNITY_ASSESSMENT"] as const).map(capability => ({
+        candidateKey, capability, stepKey: candidateExternalStepKey(capability, candidateKey),
+      })));
+    expect(new Set(candidateSteps.map(step => step.stepKey)).size).toBe(4);
+    for (const { capability, candidateKey, stepKey } of candidateSteps) {
+      expect(candidateExternalStepKey(capability, candidateKey)).toBe(stepKey);
+      const stepId = await sql(asRole("service_role", `SELECT public.intentlead_record_job_step_attempt(
+        '${jobId}','${workerId}','${token}'::uuid,'${stepKey}',1,'STARTED','{}'::uuid[],NULL,NULL,'{}'::jsonb,'{}'::jsonb)`));
+      expect(stepId).not.toBe("");
+      expect(await sql(asRole("service_role", `SELECT public.intentlead_record_job_step_attempt(
+        '${jobId}','${workerId}','${token}'::uuid,'${stepKey}',1,'COMPLETED','{}'::uuid[],NULL,NULL,'{}'::jsonb,'{}'::jsonb)`))).toContain(stepId);
+    }
+    expect(await sql(`SELECT count(DISTINCT step_key) FROM public.intentlead_job_step_attempts WHERE job_id='${jobId}'`)).toBe("4");
+    expect(await sql(`SELECT count(*) FROM public.intentlead_job_step_attempts WHERE job_id='${jobId}' AND state='COMPLETED'`)).toBe("4");
+
+    const sameExternalId = `repeated-${id()}`;
+    const laterA = await prepareAdditionalJob("later-a");
+    const laterB = await prepareAdditionalJob("later-b");
+    const a = candidateSlice("later-a-candidate", true, sameExternalId);
+    const b = candidateSlice("later-b-candidate", true, sameExternalId);
+    const persistFor = (lease: typeof laterA, slice: Record<string, unknown>) => sql(asRole("service_role", `SELECT public.intentlead_persist_self_prospecting_candidate(
+      '${lease.jobId}','${lease.workerId}','${lease.token}'::uuid,'${String(slice.candidateKey)}',${quote(JSON.stringify(slice))}::jsonb)`));
+    await Promise.all([persistFor(laterA, a), persistFor(laterB, b)]);
+    expect(await sql(`SELECT count(*) FROM public.intentlead_source_items WHERE workspace_id='${workspaceId}' AND provider='hackernews' AND external_id='${sameExternalId}'`)).toBe("2");
+    expect(await sql(`SELECT count(*) FROM public.intentlead_companies WHERE workspace_id='${workspaceId}' AND lower(domain)='example.com'`)).toBe("1");
+    for (const lease of [laterA, laterB]) {
+      expect(await sql(asRole("service_role", `SELECT public.intentlead_complete_job(
+        '${lease.jobId}','${lease.workerId}','${lease.token}'::uuid,'COMPLETED','{"fixtureOnly":true}'::jsonb,NULL)`))).toBe("t");
+    }
+
+    await sql(asRole("service_role", `SELECT public.intentlead_delete_discovery_brief('${briefId}','${owner}','task7-owner-deletion')`));
+    expect(await sql(`SELECT count(*) FROM public.intentlead_job_candidate_results
+      WHERE workspace_id='${workspaceId}' AND job_id='${jobId}' AND redacted_at IS NOT NULL AND grounded_claims='[]'::jsonb
+        AND candidate_key LIKE 'deleted:%'`)).toBe("2");
+    expect(await sql(`SELECT count(*) FROM public.intentlead_job_candidate_results
+      WHERE workspace_id='${workspaceId}' AND job_id='${jobId}' AND grounded_claims::text ILIKE '%Alex Doe%'`)).toBe("0");
+    expect(await sql(`SELECT count(*) FROM public.intentlead_source_items s JOIN public.intentlead_provider_runs r
+      ON r.workspace_id=s.workspace_id AND r.id=s.provider_run_id
+      WHERE r.job_id='${jobId}' AND (s.content IS NOT NULL OR s.normalized_facts<>'{}'::jsonb OR s.tombstoned_at IS NULL)`)).toBe("0");
+    expect(await sql(`SELECT count(*) FROM public.intentlead_evidence_items e JOIN public.intentlead_provider_runs r
+      ON r.workspace_id=e.workspace_id AND r.id=e.provider_run_id
+      WHERE r.job_id='${jobId}' AND (e.excerpt IS NOT NULL OR e.structured_facts<>'{}'::jsonb OR e.tombstoned_at IS NULL)`)).toBe("0");
+    expect(await sql(`SELECT problem_statement='[deleted]' AND tombstoned_at IS NOT NULL
+      FROM public.intentlead_opportunity_assessments WHERE workspace_id='${workspaceId}' AND opportunity_id='${reviewId}'`)).toBe("t");
   });
 });

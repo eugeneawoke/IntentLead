@@ -5,12 +5,9 @@ import { authorizeSelfProspectingCapability, evaluateOpportunityPolicy } from ".
 import type { JobHandler, JobHandlerResult } from "../jobs/worker";
 import type { CapabilityError } from "../../types/job";
 import type { SelfProspectingDependencies, SelfProspectingPersistInput } from "../../types/self-prospecting";
-import type { EvidenceItem } from "../../types/evidence";
-import type { SourceItem } from "../../types/source-item";
-import { normalizeCompanyRootDomain } from "../providers/normalization";
 import {
-  afterCall, allowedCompany, assertNotAborted, canCall, capabilityError, deduplicateSignals,
-  incompleteInput, makeObservation, providerId, providerRows, sourceCandidateKey, uniqueRuns,
+  afterCall, assertNotAborted, buildCompanyEvidence, canCall, capabilityError, deduplicateSignals,
+  candidateExternalStepKey, incompleteInput, makeObservation, providerId, providerRows, sourceCandidateKey, uniqueRuns,
 } from "./self-prospecting-helpers";
 
 export const OPPORTUNITY_ASSESSMENT_SYSTEM_CONTRACT = [
@@ -112,8 +109,14 @@ export function createSelfProspectingHandler(dependencies: SelfProspectingDepend
         continue;
       }
 
+      const currentTime = dependencies.now().getTime();
+      if (signal.publishedAt && Date.parse(signal.publishedAt) > currentTime) {
+        reasons.push("SIGNAL_FUTURE_DATED");
+        await execution.checkpoint({ workflow: "SELF_PROSPECTING_V1", step: "SIGNAL_REJECTED", candidateKey, reason: "SIGNAL_FUTURE_DATED" });
+        continue;
+      }
       const signalMaxAge = policy.maxSignalAgeDays[classified.family] ?? 30;
-      const ageDays = signal.publishedAt ? (dependencies.now().getTime() - Date.parse(signal.publishedAt)) / 86_400_000 : Infinity;
+      const ageDays = signal.publishedAt ? (currentTime - Date.parse(signal.publishedAt)) / 86_400_000 : Infinity;
       if (!Number.isFinite(ageDays) || ageDays > signalMaxAge) {
         const candidate = incompleteInput({
           job, signal, classified, sources: [sourceEvidence.source], evidence: [sourceEvidence.evidence],
@@ -135,6 +138,7 @@ export function createSelfProspectingHandler(dependencies: SelfProspectingDepend
         (registry, signalAbort) => registry.resolveCompany({
           job, profile, brief, signal: signalAbort, budget: remainingBudget, signalContent: sourceEvidence.evidence.excerpt ?? "",
         }),
+        candidateExternalStepKey("COMPANY_RESOLUTION", candidateKey),
       );
       assertNotAborted(execution.signal);
       if (!companyResult.execution.ok) {
@@ -144,46 +148,47 @@ export function createSelfProspectingHandler(dependencies: SelfProspectingDepend
         }
         throw companyResult.execution.error;
       }
-      if (!Array.isArray(companyResult.execution.outcome.value)) throw new Error("company registry returned no candidate list");
       remainingBudget = companyResult.execution.remainingBudget;
       const companyRuns = uniqueRuns(providerRows([
         ...companyResult.providerRuns, companyResult.execution.outcome, ...(companyResult.execution.outcome.relatedRuns ?? []),
       ], "COMPANY_RESOLUTION"));
+      if (companyResult.execution.outcome.status === "PARTIAL"
+        && companyResult.execution.outcome.capabilityError?.code === "BUDGET_EXCEEDED") {
+        budgetError = companyResult.execution.outcome.capabilityError;
+        const candidate = incompleteInput({
+          job, signal, classified, sources: [sourceEvidence.source], evidence: [sourceEvidence.evidence],
+          policyReasons: ["INSUFFICIENT_EVIDENCE"], idFactory: dependencies.idFactory, now: dependencies.now(),
+        });
+        await execution.checkpoint({ workflow: "SELF_PROSPECTING_V1", step: "PERSISTENCE", candidateKey });
+        const id = await dependencies.persistence.persistCandidate(job, {
+          ...candidate, providerRuns: uniqueRuns([...sourceRuns, ...companyRuns]),
+        });
+        recordCandidate(id, candidate.opportunity.state);
+        await execution.checkpoint({ workflow: "SELF_PROSPECTING_V1", step: "PERSISTED", opportunityId: id });
+        break;
+      }
+      if (companyResult.execution.outcome.status === "PARTIAL") {
+        const candidate = incompleteInput({
+          job, signal, classified, sources: [sourceEvidence.source], evidence: [sourceEvidence.evidence],
+          policyReasons: ["COMPANY_UNCERTAIN"], idFactory: dependencies.idFactory, now: dependencies.now(),
+        });
+        await execution.checkpoint({ workflow: "SELF_PROSPECTING_V1", step: "PERSISTENCE", candidateKey });
+        const id = await dependencies.persistence.persistCandidate(job, {
+          ...candidate, providerRuns: uniqueRuns([...sourceRuns, ...companyRuns]),
+        });
+        recordCandidate(id, candidate.opportunity.state);
+        await execution.checkpoint({ workflow: "SELF_PROSPECTING_V1", step: "PERSISTED", opportunityId: id });
+        continue;
+      }
+      if (!Array.isArray(companyResult.execution.outcome.value)) throw new Error("company registry returned no candidate list");
       await execution.checkpoint({ workflow: "SELF_PROSPECTING_V1", step: "COMPANY_RESOLUTION", candidateKey });
 
       const match = companyResult.execution.outcome.value.length === 1 ? companyResult.execution.outcome.value[0] : null;
-      const candidateEvidence: EvidenceItem[] = [sourceEvidence.evidence];
-      const candidateSources: SourceItem[] = [sourceEvidence.source];
-      let resolvedCompany: SelfProspectingPersistInput["company"] = null;
-      const companyIsSupported = match && allowedCompany(match, policy);
-      if (companyIsSupported) {
-        const companyRunIds = new Set(companyRuns.map(run => run.id));
-        for (const item of match.evidence) {
-          if (!companyRunIds.has(item.providerRunId)) continue;
-          const itemProvider = providerId(item.providerId);
-          const itemKey = `${candidateKey}:${item.providerSourceId}`;
-          const observation = makeObservation({
-            id: dependencies.idFactory.create("company-source", itemKey),
-            evidenceId: dependencies.idFactory.create("company-evidence", itemKey),
-            workspaceId: job.workspaceId, provider: itemProvider, providerRunId: item.providerRunId,
-            externalId: item.providerSourceId, sourceUrl: item.sourceUrl,
-            content: `${item.title}. ${item.excerpt}`,
-            capturedAt: item.capturedAt, publishedAt: null,
-            structuredFacts: { companyName: match.companyName, ...(match.companyDomain ? { companyDomain: match.companyDomain } : {}) },
-            confidence: match.confidence, sourceType: "WEB",
-          });
-          candidateSources.push(observation.source);
-          candidateEvidence.push(observation.evidence);
-        }
-        if (candidateEvidence.length > policy.minimumEvidenceItems) {
-          const companyId = dependencies.idFactory.create("company", candidateKey);
-          resolvedCompany = {
-            schemaVersion: 1, id: companyId, workspaceId: job.workspaceId,
-            canonicalName: match.companyName, domain: normalizeCompanyRootDomain(match.companyDomain!),
-            jurisdiction: null, confidence: match.confidence,
-          };
-        }
-      }
+      const { candidateEvidence, candidateSources, resolvedCompany, supportedMatch: companyIsSupported } = buildCompanyEvidence({
+        candidateKey, workspaceId: job.workspaceId, match, companyRuns,
+        baseEvidence: [sourceEvidence.evidence], baseSources: [sourceEvidence.source],
+        idFactory: dependencies.idFactory, policy,
+      });
       await execution.checkpoint({ workflow: "SELF_PROSPECTING_V1", step: "COMPANY_EVIDENCE_CONSTRUCTED", candidateKey });
       assertNotAborted(execution.signal);
       if (!resolvedCompany) {
@@ -215,7 +220,8 @@ export function createSelfProspectingHandler(dependencies: SelfProspectingDepend
       };
       const assessment = await execution.runExternalOperation(
         "OPPORTUNITY_ASSESSMENT", () => dependencies.assessmentEngine,
-        (engine, signalAbort) => engine.assess(modelInput, { job, signal: signalAbort, traceId: job.traceId }),
+        (engine, signalAbort) => engine.assess(modelInput, { jobId: job.id, signal: signalAbort, traceId: job.traceId }),
+        candidateExternalStepKey("OPPORTUNITY_ASSESSMENT", candidateKey),
       );
       assertNotAborted(execution.signal);
       await execution.checkpoint({ workflow: "SELF_PROSPECTING_V1", step: "OPPORTUNITY_ASSESSMENT", candidateKey });

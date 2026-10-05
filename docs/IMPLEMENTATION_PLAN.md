@@ -349,11 +349,11 @@ Model assessment outputs return only schema fields and evidence ids. Reject unkn
 
 Project only non-contact Opportunity data needed for review. Do not populate a contact-bearing legacy Lead, emit `PACKAGE_VERIFIED` or call the credit RPC under `EN_DISCOVERY_ONLY`. Test that model `QUALIFY` and human `ACCEPT` do not bypass this gate. The legacy Lead projection and verified-package charge are separately authorized later work.
 
-- [x] **Step 5: Verify and commit**
+- [ ] **Step 5: Verify and commit**
 
 Run workflow/eval/provider/DB tests, full verify, AI/security review and detect-changes; commit `feat: deliver evidence-backed self-prospecting opportunities`.
 
-**Local implementation status, 2026-10-05:** Task 7 adds the explicit, lease-bound `EN_DISCOVERY_ONLY` workflow, normalized source/evidence handling, deterministic signal/freshness/company/assessment policy, strict grounded-assessment validation, and an additive candidate persistence RPC ending at `HUMAN_REVIEW`, `MODEL_REJECTED`, or `INSUFFICIENT_EVIDENCE`. The handler is exported but not wired into live worker startup. No contact, lead projection, draft, outreach, outcome, verified-package, credit, or cost-event behavior is created. No live/paid provider/model calls or production operations were run. Verification and commit evidence: `.superpowers/sdd/IMPLEMENTATION_PLAN/task-7-report.md`; a fresh independent AI/security review remains pending for the parent.
+**Local implementation status, 2026-10-05:** Task 7 adds the explicit, lease-bound `EN_DISCOVERY_ONLY` workflow, normalized source/evidence handling, deterministic signal/freshness/company/assessment policy, strict grounded-assessment validation, and an additive candidate persistence RPC ending at `HUMAN_REVIEW`, `MODEL_REJECTED`, or `INSUFFICIENT_EVIDENCE`. The handler is exported but not wired into live worker startup. No contact, lead projection, draft, outreach, outcome, verified-package, credit, or cost-event behavior is created. Public excerpts and grounded claims may contain incidental personal names/roles: contact-like redaction is not generic name/role de-identification, and no full de-identification claim is made. Owner deletion scrubs source/evidence/assessment text and the Task 7 claim ledger, but does not establish provider/model retention or backup erasure. Review-fix implementation and local verification are complete; Step 5 remains unchecked until the independent AI/security re-review is clean. No live/paid provider/model calls or production operations were run. Verification evidence: `.superpowers/sdd/IMPLEMENTATION_PLAN/task-7-report.md`.
 
 ### Task 8: Add human Opportunity review UI
 

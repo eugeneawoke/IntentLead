@@ -104,6 +104,10 @@ export function sourceCandidateKey(signal: DiscoveredSignal): string {
   return `${signal.source}:${signal.externalId}`.slice(0, 160);
 }
 
+export function candidateExternalStepKey(capability: "COMPANY_RESOLUTION" | "OPPORTUNITY_ASSESSMENT", candidateKey: string): string {
+  return `${capability.toLowerCase()}_${hash(candidateKey)}`;
+}
+
 export function deduplicateSignals(signals: DiscoveredSignal[]): DiscoveredSignal[] {
   const seen = new Set<string>();
   return signals.filter(signal => {
@@ -124,6 +128,47 @@ export function allowedCompany(candidate: CompanyCandidate, policy: SelfProspect
     const nameVisible = `${evidence.title} ${evidence.excerpt}`.toLocaleLowerCase("en-US").includes(candidate.companyName.toLocaleLowerCase("en-US"));
     return urlDomain === domain && nameVisible;
   });
+}
+
+export function buildCompanyEvidence(input: {
+  candidateKey: string; workspaceId: string; match: CompanyCandidate | null;
+  companyRuns: SelfProspectingPersistInput["providerRuns"]; baseEvidence: EvidenceItem[]; baseSources: SourceItem[];
+  idFactory: SelfProspectingDependencies["idFactory"]; policy: SelfProspectingDependencies["policy"];
+}): { candidateEvidence: EvidenceItem[]; candidateSources: SourceItem[]; resolvedCompany: SelfProspectingPersistInput["company"]; supportedMatch: boolean } {
+  const candidateEvidence = [...input.baseEvidence];
+  const candidateSources = [...input.baseSources];
+  const supportedMatch = Boolean(input.match && allowedCompany(input.match, input.policy));
+  let resolvedCompany: SelfProspectingPersistInput["company"] = null;
+  if (input.match && supportedMatch) {
+    const companyRunIds = new Set(input.companyRuns.map(run => run.id));
+    for (const item of input.match.evidence) {
+      if (!companyRunIds.has(item.providerRunId)) continue;
+      const provider = providerId(item.providerId);
+      const itemKey = `${input.candidateKey}:${item.providerSourceId}`;
+      const observation = makeObservation({
+        id: input.idFactory.create("company-source", itemKey),
+        evidenceId: input.idFactory.create("company-evidence", itemKey),
+        workspaceId: input.workspaceId, provider, providerRunId: item.providerRunId,
+        externalId: item.providerSourceId, sourceUrl: item.sourceUrl, content: `${item.title}. ${item.excerpt}`,
+        capturedAt: item.capturedAt, publishedAt: null,
+        structuredFacts: {
+          companyName: input.match.companyName,
+          ...(input.match.companyDomain ? { companyDomain: normalizeCompanyRootDomain(input.match.companyDomain) } : {}),
+        },
+        confidence: input.match.confidence, sourceType: "WEB",
+      });
+      candidateSources.push(observation.source);
+      candidateEvidence.push(observation.evidence);
+    }
+    if (candidateEvidence.length > input.policy.minimumEvidenceItems) {
+      resolvedCompany = {
+        schemaVersion: 1, id: input.idFactory.create("company", input.candidateKey), workspaceId: input.workspaceId,
+        canonicalName: input.match.companyName, domain: normalizeCompanyRootDomain(input.match.companyDomain!),
+        jurisdiction: null, confidence: input.match.confidence,
+      };
+    }
+  }
+  return { candidateEvidence, candidateSources, resolvedCompany, supportedMatch };
 }
 
 export function incompleteInput(input: {
