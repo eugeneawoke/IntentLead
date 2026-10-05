@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import { beforeAll, describe, expect, it } from "vitest";
 import { asRole, bootstrapTask5Database, insertUsers, sql } from "./task4-db";
 
@@ -129,6 +130,10 @@ async function addLegacyGraph(campaignId: string, prefix: string) {
 
 beforeAll(async () => {
   await bootstrapTask5Database();
+  const providerRunScrub = await readFile(new URL(
+    "../../supabase/migrations/202610050006_task7_provider_run_deletion_scrub.sql", import.meta.url,
+  ), "utf8");
+  await sql(providerRunScrub, "intentlead-task7-deletion-scrub");
   await insertUsers(owner, outsider);
 }, 30_000);
 

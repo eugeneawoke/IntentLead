@@ -100,7 +100,7 @@ async function installTask7Migration(): Promise<void> {
     const initial = await readFile(new URL("../../supabase/migrations/202610050003_task7_self_prospecting.sql", import.meta.url), "utf8");
     await sql(initial, "intentlead-task7-migration");
   }
-  for (const name of ["202610050004_task7_persistence_hardening.sql", "202610050005_task7_candidate_deletion_redaction.sql"]) {
+  for (const name of ["202610050004_task7_persistence_hardening.sql", "202610050005_task7_candidate_deletion_redaction.sql", "202610050006_task7_provider_run_deletion_scrub.sql"]) {
     const upgrade = await readFile(new URL(`../../supabase/migrations/${name}`, import.meta.url), "utf8");
     await sql(upgrade, "intentlead-task7-review-fixes");
   }
@@ -207,6 +207,19 @@ describe("Task 7 lease-bound PostgreSQL persistence", () => {
         '${lease.jobId}','${lease.workerId}','${lease.token}'::uuid,'COMPLETED','{"fixtureOnly":true}'::jsonb,NULL)`))).toBe("t");
     }
 
+    const sharedBriefId = id();
+    const sharedOpportunityId = id();
+    const sharedEvidenceId = (review.evidenceItems[0] as { id: string }).id;
+    const sharedRunId = (review.providerRuns[0] as { id: string }).id;
+    await sql(`
+      INSERT INTO public.intentlead_discovery_briefs(id,workspace_id,offer_profile_id,icp_definition_id,market_profile_id,objective,criteria)
+      VALUES ('${sharedBriefId}','${workspaceId}','${offerId}','${icpId}','${marketId}','Retain shared source evidence','{}');
+      INSERT INTO public.intentlead_opportunities(id,workspace_id,discovery_brief_id,state,signal)
+      VALUES ('${sharedOpportunityId}','${workspaceId}','${sharedBriefId}','INSUFFICIENT_EVIDENCE',${quote(JSON.stringify((review.opportunity as { signal: unknown }).signal))}::jsonb);
+      INSERT INTO public.intentlead_opportunity_evidence(workspace_id,opportunity_id,evidence_id)
+      VALUES ('${workspaceId}','${sharedOpportunityId}','${sharedEvidenceId}');
+    `);
+
     await sql(asRole("service_role", `SELECT public.intentlead_delete_discovery_brief('${briefId}','${owner}','task7-owner-deletion')`));
     expect(await sql(`SELECT count(*) FROM public.intentlead_job_candidate_results
       WHERE workspace_id='${workspaceId}' AND job_id='${jobId}' AND redacted_at IS NOT NULL AND grounded_claims='[]'::jsonb
@@ -215,11 +228,24 @@ describe("Task 7 lease-bound PostgreSQL persistence", () => {
       WHERE workspace_id='${workspaceId}' AND job_id='${jobId}' AND grounded_claims::text ILIKE '%Alex Doe%'`)).toBe("0");
     expect(await sql(`SELECT count(*) FROM public.intentlead_source_items s JOIN public.intentlead_provider_runs r
       ON r.workspace_id=s.workspace_id AND r.id=s.provider_run_id
-      WHERE r.job_id='${jobId}' AND (s.content IS NOT NULL OR s.normalized_facts<>'{}'::jsonb OR s.tombstoned_at IS NULL)`)).toBe("0");
+      WHERE r.job_id='${jobId}' AND r.id<>'${sharedRunId}'
+        AND (s.content IS NOT NULL OR s.normalized_facts<>'{}'::jsonb OR s.tombstoned_at IS NULL)`)).toBe("0");
     expect(await sql(`SELECT count(*) FROM public.intentlead_evidence_items e JOIN public.intentlead_provider_runs r
       ON r.workspace_id=e.workspace_id AND r.id=e.provider_run_id
-      WHERE r.job_id='${jobId}' AND (e.excerpt IS NOT NULL OR e.structured_facts<>'{}'::jsonb OR e.tombstoned_at IS NULL)`)).toBe("0");
+      WHERE r.job_id='${jobId}' AND r.id<>'${sharedRunId}'
+        AND (e.excerpt IS NOT NULL OR e.structured_facts<>'{}'::jsonb OR e.tombstoned_at IS NULL)`)).toBe("0");
     expect(await sql(`SELECT problem_statement='[deleted]' AND tombstoned_at IS NOT NULL
       FROM public.intentlead_opportunity_assessments WHERE workspace_id='${workspaceId}' AND opportunity_id='${reviewId}'`)).toBe("t");
+    expect(await sql(`SELECT count(*) FROM public.intentlead_provider_runs
+      WHERE job_id='${jobId}' AND capability='SOURCE_SEARCH' AND provider='redacted' AND response_metadata='{}'::jsonb`)).toBe("1");
+    expect(await sql(`SELECT count(*) FROM public.intentlead_provider_runs
+      WHERE job_id='${jobId}' AND capability='COMPANY_RESOLUTION' AND provider='redacted' AND response_metadata='{}'::jsonb`)).toBe("1");
+    expect(await sql(`SELECT count(*) FROM public.intentlead_provider_runs pr
+      JOIN public.intentlead_source_items s ON s.workspace_id=pr.workspace_id AND s.provider_run_id=pr.id
+      JOIN public.intentlead_evidence_items e ON e.workspace_id=s.workspace_id AND e.source_item_id=s.id
+      JOIN public.intentlead_opportunity_evidence oe ON oe.workspace_id=e.workspace_id AND oe.evidence_id=e.id
+      JOIN public.intentlead_opportunities o ON o.workspace_id=oe.workspace_id AND o.id=oe.opportunity_id
+      WHERE pr.id='${sharedRunId}' AND oe.tombstoned_at IS NULL AND o.tombstoned_at IS NULL
+        AND pr.provider='hackernews' AND pr.response_metadata ? 'limitations'`)).toBe("1");
   });
 });

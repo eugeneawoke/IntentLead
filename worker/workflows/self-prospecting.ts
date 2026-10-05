@@ -97,6 +97,12 @@ export function createSelfProspectingHandler(dependencies: SelfProspectingDepend
         await execution.checkpoint({ workflow: "SELF_PROSPECTING_V1", step: "SIGNAL_REJECTED", candidateKey });
         continue;
       }
+      const currentTime = dependencies.now().getTime();
+      if (signal.publishedAt && Date.parse(signal.publishedAt) > currentTime) {
+        reasons.push("SIGNAL_FUTURE_DATED");
+        await execution.checkpoint({ workflow: "SELF_PROSPECTING_V1", step: "SIGNAL_REJECTED", candidateKey, reason: "SIGNAL_FUTURE_DATED" });
+        continue;
+      }
       if (!brief.signalFamilies.includes(classified.family)) {
         const candidate = incompleteInput({
           job, signal, classified, sources: [sourceEvidence.source], evidence: [sourceEvidence.evidence],
@@ -109,12 +115,6 @@ export function createSelfProspectingHandler(dependencies: SelfProspectingDepend
         continue;
       }
 
-      const currentTime = dependencies.now().getTime();
-      if (signal.publishedAt && Date.parse(signal.publishedAt) > currentTime) {
-        reasons.push("SIGNAL_FUTURE_DATED");
-        await execution.checkpoint({ workflow: "SELF_PROSPECTING_V1", step: "SIGNAL_REJECTED", candidateKey, reason: "SIGNAL_FUTURE_DATED" });
-        continue;
-      }
       const signalMaxAge = policy.maxSignalAgeDays[classified.family] ?? 30;
       const ageDays = signal.publishedAt ? (currentTime - Date.parse(signal.publishedAt)) / 86_400_000 : Infinity;
       if (!Number.isFinite(ageDays) || ageDays > signalMaxAge) {

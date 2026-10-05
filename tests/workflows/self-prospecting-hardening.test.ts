@@ -24,7 +24,7 @@ const job = {
   lease: { owner: "fixture-worker", token: "00000000-0000-4000-8000-000000000712", expiresAt: "2026-10-05T12:01:00.000Z" },
 };
 
-function makeHarness(options: { publishedAt?: string; partialCompanyBudget?: boolean } = {}) {
+function makeHarness(options: { publishedAt?: string; partialCompanyBudget?: boolean; unsupportedFamily?: boolean } = {}) {
   const calls = { company: 0, assessment: 0, persist: 0 };
   const persisted: Array<Record<string, unknown>> = [];
   let assessmentContext: Record<string, unknown> | null = null;
@@ -55,7 +55,8 @@ function makeHarness(options: { publishedAt?: string; partialCompanyBudget?: boo
     execution: { ok: true as const, outcome: run, attempts: [], remainingBudget: remaining }, providerRuns: [run],
   });
   const dependencies = {
-    loadContext: async () => ({ profile: fixtureProfile, brief: fixtureBrief }),
+    loadContext: async () => ({ profile: fixtureProfile,
+      brief: options.unsupportedFamily ? { ...fixtureBrief, signalFamilies: ["TRIGGER_EVENT"] } : fixtureBrief }),
     registry: {
       async search() { return asExecution(search); },
       async resolveCompany() {
@@ -111,6 +112,13 @@ describe("Task 7 review hardening", () => {
 
   it("rejects future-dated source signals before company lookup, assessment, or persistence", async () => {
     const harness = makeHarness({ publishedAt: "2026-10-06T00:00:00.000Z" });
+    const result = await harness.handler(job, harness.execution);
+    expect(result.result).toMatchObject({ outcome: "INSUFFICIENT_EVIDENCE", reasons: ["SIGNAL_FUTURE_DATED"] });
+    expect(harness.calls).toEqual({ company: 0, assessment: 0, persist: 0 });
+  });
+
+  it("rejects future-dated unsupported-family signals before insufficient-evidence persistence", async () => {
+    const harness = makeHarness({ publishedAt: "2026-10-06T00:00:00.000Z", unsupportedFamily: true });
     const result = await harness.handler(job, harness.execution);
     expect(result.result).toMatchObject({ outcome: "INSUFFICIENT_EVIDENCE", reasons: ["SIGNAL_FUTURE_DATED"] });
     expect(harness.calls).toEqual({ company: 0, assessment: 0, persist: 0 });
