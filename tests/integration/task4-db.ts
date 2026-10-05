@@ -146,6 +146,7 @@ export async function bootstrapTask5Database(): Promise<void> {
   await bootstrapTask4Database();
   const task5Migration = await migration("202610050000_task5_data_lifecycle.sql");
   const task5TerminalMigration = await migration("202610050001_task5_terminal_state_sync.sql");
+  const task5TerminalAclMigration = await migration("202610050002_task5_terminal_sync_acl.sql");
   await sql(`
     BEGIN;
     SELECT pg_advisory_xact_lock(7210050000);
@@ -163,6 +164,11 @@ export async function bootstrapTask5Database(): Promise<void> {
       END IF;
     END
     $intentlead_task5_terminal_upgrade$;
+    DO $intentlead_task5_sync_acl$
+    BEGIN
+      EXECUTE ${quotedMigration(task5TerminalAclMigration)};
+    END
+    $intentlead_task5_sync_acl$;
     COMMIT;
   `, "intentlead-task5-bootstrap");
 }

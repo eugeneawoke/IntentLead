@@ -125,6 +125,34 @@ beforeAll(async () => {
 }, 30_000);
 
 describe("Task 5 real PostgreSQL job recovery", () => {
+  it("keeps terminal-state synchronization private from service_role", async () => {
+    expect(await sql(`SELECT has_function_privilege(
+      'service_role', 'public.intentlead_sync_job_terminal_state(uuid,uuid,text)', 'EXECUTE'
+    )`)).toBe("f");
+  });
+
+  it("does not let service_role directly mutate linked terminal state", async () => {
+    const briefId = randomUUID();
+    const campaignId = randomUUID();
+    await sql(`
+      INSERT INTO public.campaigns (id,workspace_id,entry_mode,what_selling,icp,pain,status)
+      VALUES ('${campaignId}','${workspaceId}','cold','offer','icp','pain','running');
+      INSERT INTO public.intentlead_discovery_briefs
+        (id,workspace_id,offer_profile_id,icp_definition_id,market_profile_id,legacy_campaign_id,objective,criteria,state)
+      VALUES ('${briefId}','${workspaceId}','${offerId}','${icpId}','${marketId}','${campaignId}',
+        'Find opportunities','{}','QUEUED');
+    `);
+    expect(await sql(`SELECT state FROM public.intentlead_discovery_briefs WHERE id='${briefId}'`)).toBe("QUEUED");
+    expect(await sql(`SELECT status FROM public.campaigns WHERE id='${campaignId}'`)).toBe("running");
+
+    await expect(sql(asRole("service_role", `SELECT public.intentlead_sync_job_terminal_state(
+      '${workspaceId}', '${briefId}', 'COMPLETED'
+    )`))).rejects.toThrow(/permission denied/i);
+
+    expect(await sql(`SELECT state FROM public.intentlead_discovery_briefs WHERE id='${briefId}'`)).toBe("QUEUED");
+    expect(await sql(`SELECT status FROM public.campaigns WHERE id='${campaignId}'`)).toBe("running");
+  });
+
   it("recovers a crashed worker lease and enforces exact heartbeat/checkpoint/completion tokens", async () => {
     const { briefId, campaignId } = await makeBrief(`recovery-${randomUUID()}`);
     const jobId = await sql(`SELECT id FROM public.intentlead_jobs WHERE discovery_brief_id='${briefId}'`);
