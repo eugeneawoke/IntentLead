@@ -231,3 +231,5 @@ async function processLead(
   log("info", { leadId }, "Lead verified");
   return true;
 }
+
+export { createSelfProspectingHandler } from "../workflows/self-prospecting";

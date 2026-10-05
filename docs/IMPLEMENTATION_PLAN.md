@@ -333,25 +333,27 @@ Completed across `c267a42`, `56326d4`, `5a12f5f`, and `cfbbaaa`. Final gates pas
 - Consumes durable jobs, provider registry and domain schema.
 - Produces an evidence-backed Opportunity eligible for human review. It does not produce a contact-bearing Lead projection or verified-package charge under `EN_DISCOVERY_ONLY`.
 
-- [ ] **Step 1: Write workflow tests**
+- [x] **Step 1: Write workflow tests**
 
 Cover clear intent, weak signal, wrong company, stale signal, insufficient evidence, permitted company-provider fallback, duplicate rerun and budget exhaustion. Add negative tests proving `EN_DISCOVERY_ONLY` never calls contact/people search, email find/verify, message/draft generation or the credit RPC, and never reaches outreach-ready or sent/reply states, even after model `QUALIFY` or human `ACCEPT`.
 
-- [ ] **Step 2: Implement deterministic workflow skeleton**
+- [x] **Step 2: Implement deterministic workflow skeleton**
 
 Persist source item/evidence, resolve company, evaluate Opportunity policy and checkpoint each step. Resolve the authorized MarketProfile before dispatch; for `EN_DISCOVERY_ONLY`, end at human-review eligibility and return a policy-denied result for downstream contact/draft/outreach capabilities before selecting a provider. A buyer-role hypothesis may be recorded without identifying or contacting a person.
 
-- [ ] **Step 3: Implement bounded reasoning schemas**
+- [x] **Step 3: Implement bounded reasoning schemas**
 
 Model assessment outputs return only schema fields and evidence ids. Reject unknown evidence references and unsupported factual claims in the Opportunity assessment. Outreach-draft schemas and tests belong to the later authorized workflow.
 
-- [ ] **Step 4: Enforce the pilot projection and credit boundary**
+- [x] **Step 4: Enforce the pilot projection and credit boundary**
 
 Project only non-contact Opportunity data needed for review. Do not populate a contact-bearing legacy Lead, emit `PACKAGE_VERIFIED` or call the credit RPC under `EN_DISCOVERY_ONLY`. Test that model `QUALIFY` and human `ACCEPT` do not bypass this gate. The legacy Lead projection and verified-package charge are separately authorized later work.
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 Run workflow/eval/provider/DB tests, full verify, AI/security review and detect-changes; commit `feat: deliver evidence-backed self-prospecting opportunities`.
+
+**Local implementation status, 2026-10-05:** Task 7 adds the explicit, lease-bound `EN_DISCOVERY_ONLY` workflow, normalized source/evidence handling, deterministic signal/freshness/company/assessment policy, strict grounded-assessment validation, and an additive candidate persistence RPC ending at `HUMAN_REVIEW`, `MODEL_REJECTED`, or `INSUFFICIENT_EVIDENCE`. The handler is exported but not wired into live worker startup. No contact, lead projection, draft, outreach, outcome, verified-package, credit, or cost-event behavior is created. No live/paid provider/model calls or production operations were run. Verification and commit evidence: `.superpowers/sdd/IMPLEMENTATION_PLAN/task-7-report.md`; a fresh independent AI/security review remains pending for the parent.
 
 ### Task 8: Add human Opportunity review UI
 
