@@ -1,0 +1,32 @@
+{
+  "data": {
+    "children": [
+      {
+        "kind": "t3",
+        "data": {
+          "id": "fixture-reddit-001",
+          "url": "https://acme.test/operations?utm_source=fixture#section",
+          "permalink": "/r/fixture/comments/fixture-reddit-001/operations/",
+          "author": "synthetic_reddit_user",
+          "title": "Fictional operations challenge",
+          "selftext": "Our fictional studio needs help with a public workflow &amp; <b>customer intake</b>. Contact fixture.person@example.test.<script>must_not_escape()</script>",
+          "subreddit": "fixture",
+          "created_utc": 1791199200
+        }
+      },
+      {
+        "kind": "t3",
+        "data": {
+          "id": "fixture-reddit-001",
+          "url": "https://acme.test/operations?utm_source=fixture#section",
+          "permalink": "/r/fixture/comments/fixture-reddit-001/operations/",
+          "author": "synthetic_reddit_user",
+          "title": "Fictional operations challenge",
+          "selftext": "Our fictional studio needs help with a public workflow &amp; <b>customer intake</b>. Contact fixture.person@example.test.<script>must_not_escape()</script>",
+          "subreddit": "fixture",
+          "created_utc": 1791199200
+        }
+      }
+    ]
+  }
+}

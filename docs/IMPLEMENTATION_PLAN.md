@@ -283,6 +283,8 @@ Task 5 recovery/deletion passed 8/8 and 2/2; Task 4 and Task 2 regressions passe
 
 ### Task 6: Wrap current providers and persist provenance/cost
 
+**Local implementation status, 2026-10-05: implemented; fresh provider/security review pending.** Provider-independent Reddit, Hacker News, Exa and Serper adapters now return versioned, validated status/provenance/cost envelopes; registry selection is deterministic, MarketProfile/legal/health/cost aware, single-provider by default, and only falls back sequentially after retryable failure within budget. Adapters use injected HTTP, clock, timer, sleep, run IDs, recorder and company inference; source usernames are discarded, public excerpt emails are redacted, company inference is company-only/evidence-bound, and OpenAI is dynamically imported only if a configured provider is actually selected. No live key/provider/model call or remote/production action was used. Legacy signatures and empty/null return shapes remain; because legacy campaign/company signatures do not carry the server-resolved MarketProfile, their default bridge returns those shapes with a redacted structured warning until a trusted caller supplies authorized context—no synthetic profile or policy grant is inferred. The default recorder emits safe structured STARTED/terminal events; durable persistence must be injected by Task 7 through the lease-bound discovery persistence RPC, not generic table writes. `npm run verify` passed (381/381 unit tests, both typechecks, lint with 24 pre-existing warnings and no provider-file warnings, Next.js production build); build output did not report whether Google Fonts were served from cache or fetched. GitNexus change detection and commit are recorded in the Task 6 report.
+
 **Files:**
 - Create: `worker/providers/contracts.ts`
 - Create: `worker/providers/registry.ts`
@@ -296,23 +298,23 @@ Task 5 recovery/deletion passed 8/8 and 2/2; Task 4 and Task 2 regressions passe
 **Interfaces:**
 - Produces `SignalSourceAdapter`, `CompanyResolutionProvider`, health/status and cost/provenance result envelopes. Contact/email provider adapters belong to a separately authorized jurisdiction-gated workflow.
 
-- [ ] **Step 1: Create sanitized fixtures and failing contract tests**
+- [x] **Step 1: Create sanitized fixtures and failing contract tests**
 
 For each permitted discovery/company adapter cover success, empty, malformed, unauthorized, timeout, rate limit and uncertain entity resolution.
 
-- [ ] **Step 2: Implement registry**
+- [x] **Step 2: Implement registry**
 
 Resolve capability by MarketProfile, health, policy and cost. Do not call all providers automatically.
 
-- [ ] **Step 3: Wrap legacy functions**
+- [x] **Step 3: Wrap legacy functions**
 
 Keep observable discovery and company-resolution behavior for Reddit/HN and Exa/Serper while returning normalized envelopes and recording provider runs. Do not invoke legacy contact/email enrichment in `EN_DISCOVERY_ONLY`.
 
-- [ ] **Step 4: Add timeout and budget enforcement**
+- [x] **Step 4: Add timeout and budget enforcement**
 
 Abort permitted discovery/company-resolution requests at configured deadlines; map errors and stop at the cost budget. Reject contact/email capability selection under `EN_DISCOVERY_ONLY` before any provider call.
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 Run provider tests without live keys, full verify, fresh provider/security review and detect-changes; commit `refactor: isolate providers behind capability contracts`.
 

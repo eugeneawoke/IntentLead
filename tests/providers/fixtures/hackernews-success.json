@@ -1,0 +1,22 @@
+{
+  "hits": [
+    {
+      "objectID": "fixture-hn-001",
+      "url": "https://acme.test/notes#top",
+      "author": "synthetic_hn_user",
+      "comment_text": "A fictional team is still processing public requests by hand &amp; <i>wants options</i>. Fixture contact fixture.person@example.test.",
+      "title": null,
+      "story_title": "Fictional workflow discussion",
+      "created_at": "2026-10-05T10:00:00.000Z"
+    },
+    {
+      "objectID": "fixture-hn-001",
+      "url": "https://acme.test/notes#top",
+      "author": "synthetic_hn_user",
+      "comment_text": "A fictional team is still processing public requests by hand &amp; <i>wants options</i>. Fixture contact fixture.person@example.test.",
+      "title": null,
+      "story_title": "Fictional workflow discussion",
+      "created_at": "2026-10-05T10:00:00.000Z"
+    }
+  ]
+}
