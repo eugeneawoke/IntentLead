@@ -1,10 +1,20 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import type {
   ProviderDescriptor,
   ProviderRunRecorder,
   ProviderRuntimeDependencies,
+  ProviderSelectionRequest,
+  ProviderResult,
 } from "../../worker/providers/contracts";
+import { executeProviderWithFallback } from "../../worker/providers/registry";
+import { ProviderSelectionError } from "../../worker/providers/contracts";
 
 export const TEST_NOW = new Date("2026-10-05T12:00:00.000Z");
+
+export function providerFixture(name: string): unknown {
+  return JSON.parse(readFileSync(join(__dirname, "fixtures", name), "utf8")) as unknown;
+}
 
 export function providerDescriptor(
   id: ProviderDescriptor["id"],
@@ -25,6 +35,35 @@ export function providerDescriptor(
     configuredCost: { amount: 0, currency: null },
     ...overrides,
   };
+}
+
+export function providerRequest(
+  profile: ProviderSelectionRequest["profile"],
+  descriptors: ProviderDescriptor[],
+  overrides: Partial<ProviderSelectionRequest> = {},
+): ProviderSelectionRequest {
+  return {
+    profile,
+    capability: descriptors[0]?.capability ?? "SOURCE_SEARCH",
+    language: "en",
+    region: "US",
+    jurisdiction: null,
+    health: {},
+    budget: { currency: "USD", remainingCost: 10, remainingProviderCalls: Math.max(1, descriptors.length) },
+    allowFallback: false,
+    descriptors,
+    ...overrides,
+  };
+}
+
+export async function runWithProviderReservation<T>(
+  request: ProviderSelectionRequest,
+  invoke: Parameters<typeof executeProviderWithFallback<T>>[1],
+): Promise<ProviderResult<T>> {
+  const result = await executeProviderWithFallback(request, invoke);
+  if (result.ok) return result.outcome;
+  if (result.lastOutcome) return result.lastOutcome;
+  throw new ProviderSelectionError(result.error);
 }
 
 export function makeRecorder() {

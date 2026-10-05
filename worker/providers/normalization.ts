@@ -26,6 +26,10 @@ function decodeEntity(match: string, entity: string): string {
 }
 
 export function normalizePlainText(value: string, maxLength: number): string {
+  return normalizePlainTextUnbounded(value).slice(0, maxLength);
+}
+
+function normalizePlainTextUnbounded(value: string): string {
   return value
     .replace(/<\s*(script|style)\b[^>]*>[\s\S]*?<\/\s*\1\s*>/gi, " ")
     .replace(/<!--([\s\S]*?)-->/g, " ")
@@ -33,12 +37,11 @@ export function normalizePlainText(value: string, maxLength: number): string {
     .replace(/&(#x[\da-f]+|#\d+|[a-z]+);/gi, decodeEntity)
     .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, " ")
     .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, maxLength);
+    .trim();
 }
 
 export function normalizePublicSignalText(value: string, maxLength: number): string {
-  return redactContactLikePii(normalizePlainText(value, maxLength));
+  return redactContactLikePii(normalizePlainTextUnbounded(value)).slice(0, maxLength);
 }
 
 export function redactContactLikePii(value: string): string {
@@ -85,7 +88,7 @@ export function normalizeCompanyRootDomain(value: string): string | null {
 }
 
 export function sanitizeCompanySignal(value: string, maxLength = 500): string {
-  return normalizePlainText(value, maxLength)
+  return normalizePlainTextUnbounded(value)
     .replace(EMAIL_RE, " ")
     .replace(URL_RE, " ")
     .replace(/@[\w.-]{2,}/g, " ")

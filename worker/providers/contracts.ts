@@ -1,7 +1,17 @@
 import type { CapabilityError } from "../../types/job";
 import type { Capability, MarketProfile } from "../../types/market-profile";
+import type { ProviderRunRecorder } from "./recorder-contracts";
+export type { ProviderRunFinish, ProviderRunRecorder, ProviderRunStart } from "./recorder-contracts";
 
 export const PROVIDER_SCHEMA_VERSION = 1 as const;
+
+declare const providerReservationBrand: unique symbol;
+/** Registry-issued, single-use permit; no public constructor exists. */
+export type ProviderReservation = { readonly [providerReservationBrand]: true };
+export interface ProviderReservationGrant {
+  reservation: ProviderReservation;
+  requestFingerprint: string;
+}
 
 export type ProviderId = "reddit" | "hackernews" | "exa" | "serper" | "openai";
 export type ProviderCapability = Extract<Capability, "SOURCE_SEARCH" | "COMPANY_RESOLUTION">;
@@ -47,6 +57,8 @@ export interface ProviderSelectionRequest {
   health: Partial<Record<ProviderId, ProviderHealth>>;
   budget: ProviderBudget;
   descriptors: ProviderDescriptor[];
+  /** Providers explicitly authorized for nested runs such as company inference. */
+  nestedDescriptors?: ProviderDescriptor[];
   allowFallback: boolean;
   traceId?: string;
   signal?: AbortSignal;
@@ -142,40 +154,6 @@ export type ProviderExecutionResult<T> =
       remainingBudget: ProviderBudget;
     };
 
-export interface ProviderRunStart {
-  providerRunId: string;
-  capability: ProviderCapability;
-  provider: ProviderId;
-  providerVersion: string;
-  startedAt: string;
-  requestMetadata: {
-    marketProfileId: MarketProfile["id"];
-    traceId: string;
-    inputCount: number;
-    inputHash: string | null;
-  };
-}
-
-export interface ProviderRunFinish {
-  providerRunId: string;
-  status: Exclude<ProviderRunStatus, "STARTED">;
-  finishedAt: string;
-  latencyMs: number;
-  usage: ProviderUsage;
-  cost: ProviderCost;
-  responseMetadata: {
-    recordCount: number;
-    failureKind: ProviderFailureKind | null;
-    errorCode: CapabilityError["code"] | null;
-  };
-}
-
-/** A narrow audit seam; implementations may call the lease-bound Task 4 RPC, never generic table writes. */
-export interface ProviderRunRecorder {
-  start(input: ProviderRunStart): Promise<void>;
-  finish(input: ProviderRunFinish): Promise<void>;
-}
-
 export type ProviderHttpClient = (input: string, init?: RequestInit) => Promise<Response>;
 
 export interface ProviderRuntimeDependencies {
@@ -199,7 +177,13 @@ export interface ProviderCallContext {
   profile: MarketProfile;
   traceId: string;
   signal: AbortSignal;
-  reserveProvider(descriptor: ProviderDescriptor): ProviderSelection;
+  capability: ProviderCapability;
+  language: string;
+  region: string;
+  jurisdiction: string | null;
+  reservation: ProviderReservation;
+  requestFingerprint: string;
+  reserveProvider(descriptor: ProviderDescriptor): ProviderReservationGrant;
 }
 
 export interface SignalSearchInput {

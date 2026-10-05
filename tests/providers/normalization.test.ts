@@ -34,4 +34,23 @@ describe("provider normalization", () => {
       expect(text).not.toMatch(/415|7946|Jane@example\.test|@jane_ops|https:\/\//i);
     }
   });
+
+  it.each([
+    ["contact email", "person@example.test", "pers", 5],
+    ["contact phone", "+1 (415) 555-0199", "415", 6],
+    ["contact handle", "@jane_ops", "jane", 5],
+    ["contact URL", "https://example.test/contact", "https://", 8],
+  ])("redacts %s before clipping across the output boundary", (_label, token, leakedFragment, tail) => {
+    const prefix = "Acme needs ";
+    const maxLength = prefix.length + tail;
+    const input = `${prefix}${token} for customer intake`;
+    const publicText = normalizePublicSignalText(input, maxLength);
+    const companyText = sanitizeCompanySignal(input, maxLength);
+
+    expect(publicText).toContain("Acme needs");
+    expect(publicText.toLowerCase()).not.toContain(leakedFragment.toLowerCase());
+    expect(companyText).toContain("Acme needs");
+    expect(companyText.toLowerCase()).not.toContain(leakedFragment.toLowerCase());
+    expect(publicText).not.toMatch(/@|https?:\/\/|\+1\s*\(/i);
+  });
 });

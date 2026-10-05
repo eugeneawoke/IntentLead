@@ -16,7 +16,10 @@ const inferenceDescriptor = providerDescriptor("openai" as ProviderDescriptor["i
   configuredCost: { amount: 0.05, currency: "USD" },
 });
 
-function request(budget: ProviderSelectionRequest["budget"]): ProviderSelectionRequest {
+function request(
+  budget: ProviderSelectionRequest["budget"],
+  nestedDescriptors: ProviderSelectionRequest["nestedDescriptors"] = [inferenceDescriptor],
+): ProviderSelectionRequest {
   return {
     profile,
     capability: "COMPANY_RESOLUTION",
@@ -26,6 +29,7 @@ function request(budget: ProviderSelectionRequest["budget"]): ProviderSelectionR
     health: {},
     budget,
     descriptors: [searchDescriptor],
+    nestedDescriptors,
     allowFallback: true,
     traceId: "cost-provenance-fixture",
     signal: new AbortController().signal,
@@ -75,14 +79,15 @@ describe("separate company search and inference cost/provenance", () => {
   it("does not select paid inference when its configured cost is unknown", async () => {
     const { dependencies, started } = makeDependencies(async () => fakeResponse(fixture("exa-success.json")));
     let inferenceCalls = 0;
+    const unknownInferenceDescriptor = providerDescriptor("openai", "COMPANY_RESOLUTION", { configuredCost: { amount: null, currency: null } });
     const inference = createCompanyInferenceAdapter({
-      descriptor: providerDescriptor("openai", "COMPANY_RESOLUTION", { configuredCost: { amount: null, currency: null } }),
+      descriptor: unknownInferenceDescriptor,
       dependencies,
       async complete() { inferenceCalls++; return { content: { candidates: [] }, inputTokens: null, outputTokens: null }; },
     });
     const resolver = createExaCompanyResolutionProvider({ apiKey: "fixture-key", descriptor: searchDescriptor, dependencies, inferenceProvider: inference });
     const execution = await executeProviderWithFallback(
-      request({ currency: "USD", remainingCost: 0.1, remainingProviderCalls: 2 }),
+      request({ currency: "USD", remainingCost: 0.1, remainingProviderCalls: 2 }, [unknownInferenceDescriptor]),
       async (_descriptor, context) => resolver.resolve({ signalContent: "Acme Example public operations issue" }, context),
     );
 

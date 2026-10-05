@@ -5,27 +5,22 @@ import { MarketProfileSchema } from "../../lib/domain/schemas/market-profile";
 import { marketProfile } from "../domain/contract-fixtures";
 import { createExaCompanyResolutionProvider, createSerperCompanyResolutionProvider } from "../../worker/providers/company-resolution";
 import { COMPANY_INFERENCE_SYSTEM_INSTRUCTION, createCompanyInferenceAdapter } from "../../worker/providers/inference";
-import type { CompanyInferenceInput, ProviderCallContext } from "../../worker/providers/contracts";
-import { fakeResponse, makeDependencies, providerDescriptor } from "./helpers";
+import type { CompanyInferenceInput } from "../../worker/providers/contracts";
+import { fakeResponse, makeDependencies, providerDescriptor, providerRequest, runWithProviderReservation } from "./helpers";
 
 const fixture = (name: string) => JSON.parse(readFileSync(join(__dirname, "fixtures", name), "utf8")) as unknown;
 const profile = MarketProfileSchema.parse({
   ...marketProfile,
   capabilities: ["SOURCE_SEARCH", "COMPANY_RESOLUTION", "HUMAN_REVIEW"],
 });
-const context: ProviderCallContext = {
-  profile,
-  traceId: "company-fixture",
-  signal: new AbortController().signal,
-  reserveProvider(descriptor) { return { descriptor, reservedCost: descriptor.configuredCost.amount ?? 0 }; },
-};
+const inferenceDescriptor = providerDescriptor("openai", "COMPANY_RESOLUTION");
 
 type InferFixture = (input: CompanyInferenceInput) => Promise<unknown>;
 
 function buildProvider(key: "exa" | "serper", body: unknown, infer: InferFixture) {
   const { dependencies } = makeDependencies(async () => fakeResponse(body));
   const inferenceProvider = createCompanyInferenceAdapter({
-    descriptor: providerDescriptor("openai", "COMPANY_RESOLUTION", { configuredCost: { amount: 0, currency: null } }),
+    descriptor: inferenceDescriptor,
     dependencies,
     async complete(input) { return { content: await infer(input), inputTokens: null, outputTokens: null }; },
   });
@@ -36,6 +31,14 @@ function buildProvider(key: "exa" | "serper", body: unknown, infer: InferFixture
 function evidenceIds(input: CompanyInferenceInput): string[] {
   return (JSON.parse(input.messages[1].content) as { evidence: Array<{ providerSourceId: string }> })
     .evidence.map(item => item.providerSourceId);
+}
+
+function resolveRegistered(provider: ReturnType<typeof buildProvider>, signalContent: string) {
+  return runWithProviderReservation(providerRequest(profile, [provider.descriptor], {
+    traceId: "company-fixture",
+    nestedDescriptors: [inferenceDescriptor],
+    budget: { currency: "USD", remainingCost: 1, remainingProviderCalls: 2 },
+  }), (_selected, context) => provider.resolve({ signalContent }, context));
 }
 
 beforeEach(() => vi.stubGlobal("fetch", vi.fn(() => { throw new Error("global network access is forbidden in provider tests"); })));
@@ -54,7 +57,7 @@ describe("company resolution", () => {
         evidenceSourceIds: [evidenceIds(input)[0]],
       }] };
     });
-    const result = await provider.resolve({ signalContent: "Fictional Acme Example public workflow issue" }, context);
+    const result = await resolveRegistered(provider, "Fictional Acme Example public workflow issue");
 
     expect(result.status).toBe("SUCCEEDED");
     expect(result.value?.[0]).toMatchObject({
@@ -77,7 +80,7 @@ describe("company resolution", () => {
         { companyName: "Acme Example Studio", companyDomain: "www.acme.example.com", confidence: 0.62, evidenceSourceIds: [ids[1]] },
       ] };
     });
-    const result = await provider.resolve({ signalContent: "Fictional public signal" }, context);
+    const result = await resolveRegistered(provider, "Fictional public signal");
     expect(result.status).toBe("SUCCEEDED");
     expect(result.value).toHaveLength(2);
     expect(result.value?.every(candidate => candidate.resolutionStatus === "AMBIGUOUS")).toBe(true);
@@ -85,7 +88,7 @@ describe("company resolution", () => {
 
   it("rejects malformed inference output", async () => {
     const provider = buildProvider("exa", fixture("exa-success.json"), async () => ({ candidates: "drift" }));
-    const result = await provider.resolve({ signalContent: "Fictional public signal" }, context);
+    const result = await resolveRegistered(provider, "Fictional public signal");
     expect(result.status).toBe("PARTIAL");
     expect(result.failureKind).toBe("MALFORMED_RESPONSE");
     expect(result.value).toEqual([]);
@@ -101,7 +104,7 @@ describe("company resolution", () => {
         evidenceSourceIds: [evidenceIds(input)[0]],
       }] };
     });
-    const result = await provider.resolve({ signalContent: "Fictional public signal" }, context);
+    const result = await resolveRegistered(provider, "Fictional public signal");
     expect(result.status).toBe("SUCCEEDED");
     expect(result.value?.[0]).toMatchObject({ companyName: "Acme Example", companyDomain: null, resolutionStatus: "UNCERTAIN" });
   });
@@ -113,7 +116,7 @@ describe("company resolution", () => {
     ];
     for (const output of cases) {
       const provider = buildProvider("exa", fixture("exa-success.json"), async input => output(evidenceIds(input)[0]));
-      const result = await provider.resolve({ signalContent: "Fictional public signal" }, context);
+      const result = await resolveRegistered(provider, "Fictional public signal");
       expect(result.status).toBe("PARTIAL");
       expect(result.failureKind).toBe("MALFORMED_RESPONSE");
       expect(result.value).toEqual([]);

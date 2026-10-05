@@ -2,27 +2,31 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MarketProfileSchema } from "../../lib/domain/schemas/market-profile";
 import { marketProfile } from "../domain/contract-fixtures";
 import { COMPANY_INFERENCE_SYSTEM_INSTRUCTION, createCompanyInferenceAdapter } from "../../worker/providers/inference";
-import type { CompanyInferenceCompletion, CompanyInferenceInput, ProviderCallContext, ProviderDescriptor } from "../../worker/providers/contracts";
 import { ProviderHttpError } from "../../worker/providers/http";
-import { fakeResponse, makeDependencies, providerDescriptor } from "./helpers";
+import { executeProviderWithFallback } from "../../worker/providers/registry";
+import type { CompanyInferenceCompletion, CompanyInferenceInput, CompanyInferenceOutput, ProviderResult } from "../../worker/providers/contracts";
+import { fakeResponse, makeDependencies, providerDescriptor, providerRequest } from "./helpers";
 
 const profile = MarketProfileSchema.parse({
   ...marketProfile,
   capabilities: ["SOURCE_SEARCH", "COMPANY_RESOLUTION", "HUMAN_REVIEW"],
 });
-const openaiDescriptor = providerDescriptor("openai" as ProviderDescriptor["id"], "COMPANY_RESOLUTION", {
+const openaiDescriptor = providerDescriptor("openai", "COMPANY_RESOLUTION", {
   configuredCost: { amount: 0.05, currency: "USD" },
 });
-const context = (signal: AbortSignal = new AbortController().signal): ProviderCallContext => ({
-  profile,
-  traceId: "inference-fixture",
-  signal,
-  reserveProvider(descriptor) { return { descriptor, reservedCost: descriptor.configuredCost.amount ?? 0 }; },
-});
+const parentDescriptor = providerDescriptor("exa", "COMPANY_RESOLUTION");
+const evidence = {
+  providerId: "exa",
+  providerSourceId: "exa:0123456789abcdef01234567",
+  title: "Acme Example company evidence",
+  excerpt: "Acme Example researches customer intake tools",
+  capturedAt: "2026-10-05T12:00:00.000Z",
+  schemaVersion: 1,
+};
 const inferenceInput: CompanyInferenceInput = {
   messages: [
     { role: "system", content: COMPANY_INFERENCE_SYSTEM_INSTRUCTION },
-    { role: "user", content: "Sanitized fictional company signal" },
+    { role: "user", content: JSON.stringify({ signal: "Sanitized fictional company signal", evidence: [evidence] }) },
   ],
 };
 const completion = (content: unknown = { candidates: [] }): CompanyInferenceCompletion => ({
@@ -30,6 +34,47 @@ const completion = (content: unknown = { candidates: [] }): CompanyInferenceComp
   inputTokens: 17,
   outputTokens: 8,
 });
+
+function parentResult(relatedRun: ProviderResult<CompanyInferenceOutput>): ProviderResult<CompanyInferenceOutput> {
+  return {
+    schemaVersion: 1,
+    providerRunId: "fixture-parent-run",
+    relatedRuns: [relatedRun],
+    provider: "exa",
+    providerVersion: parentDescriptor.version,
+    status: "EMPTY",
+    startedAt: "2026-10-05T12:00:00.000Z",
+    finishedAt: "2026-10-05T12:00:00.001Z",
+    latencyMs: 1,
+    usage: { requestCount: 0, recordCount: 0 },
+    cost: { configuredAmount: 0, reservedAmount: 0, actualAmount: 0, currency: null },
+    provenance: [],
+    limitations: [],
+    value: { candidates: [] },
+    failureKind: null,
+    capabilityError: null,
+  };
+}
+
+async function runRegisteredInference(
+  provider: ReturnType<typeof createCompanyInferenceAdapter>,
+  input: CompanyInferenceInput,
+  signal: AbortSignal = new AbortController().signal,
+) {
+  let inferenceResult: Awaited<ReturnType<typeof provider.infer>> | undefined;
+  const execution = await executeProviderWithFallback(providerRequest(profile, [parentDescriptor], {
+    traceId: "inference-fixture",
+    signal,
+    nestedDescriptors: [openaiDescriptor],
+    budget: { currency: "USD", remainingCost: 1, remainingProviderCalls: 2 },
+  }), async (_descriptor, context) => {
+    inferenceResult = await provider.infer(input, context);
+    return parentResult(inferenceResult!);
+  });
+  if (!execution.ok) throw new Error("Test registry did not run its fake parent capability");
+  if (!inferenceResult) throw new Error("Registry callback did not invoke inference");
+  return inferenceResult;
+}
 
 beforeEach(() => vi.stubGlobal("fetch", vi.fn(() => { throw new Error("global network access is forbidden in provider tests"); })));
 afterEach(() => vi.unstubAllGlobals());
@@ -49,7 +94,7 @@ describe("typed company-inference provider boundary", () => {
       },
     });
 
-    const result = await provider.infer(inferenceInput, context());
+    const result = await runRegisteredInference(provider, inferenceInput);
 
     expect(result.status).toBe("EMPTY");
     expect(result.provider).toBe("openai");
@@ -61,7 +106,7 @@ describe("typed company-inference provider boundary", () => {
     expect(finished.map(event => event.providerRunId)).toEqual([result.providerRunId]);
   });
 
-  it("redacts contact-like PII again at the model boundary, even for a direct typed invocation", async () => {
+  it("redacts contact-like PII again at the model boundary", async () => {
     const { dependencies } = makeDependencies(async () => fakeResponse({}));
     let sentText = "";
     const provider = createCompanyInferenceAdapter({
@@ -75,13 +120,44 @@ describe("typed company-inference provider boundary", () => {
     const directInput: CompanyInferenceInput = {
       messages: [
         { role: "system", content: COMPANY_INFERENCE_SYSTEM_INSTRUCTION },
-        { role: "user", content: "Acme needs customer intake help. Call +1 (415) 555-0199, email jane@example.test, @jane_ops or https://acme.example.com/team." },
+        { role: "user", content: JSON.stringify({
+          signal: "Acme needs customer intake help. Call +1 (415) 555-0199, email jane@example.test, @jane_ops or https://acme.example.com/team.",
+          evidence: [{ ...evidence, excerpt: "Acme needs customer intake help; phone 020 7946 0958." }],
+        }) },
       ],
     };
 
-    await provider.infer(directInput, context());
+    await runRegisteredInference(provider, directInput);
     expect(sentText).toContain("Acme needs customer intake help");
-    expect(sentText).not.toMatch(/415|jane@example\.test|@jane_ops|https:\/\/acme\.example\.com/i);
+    expect(sentText).not.toMatch(/415|7946|jane@example\.test|@jane_ops|https:\/\/acme\.example\.com/i);
+  });
+
+  it.each([
+    ["providerSourceId email", { providerSourceId: "exa:janedoe@example.test" }],
+    ["providerSourceId phone", { providerSourceId: "exa:+1 (415) 555-0199" }],
+    ["externalId phone", { providerSourceId: evidence.providerSourceId, externalId: "+1 (415) 555-0199" }],
+  ])("rejects unsafe structural IDs (%s) before model or recorder", async (_label, unsafeFields) => {
+    const { dependencies, started, finished } = makeDependencies(async () => fakeResponse({}));
+    let modelCalls = 0;
+    const provider = createCompanyInferenceAdapter({
+      descriptor: openaiDescriptor,
+      dependencies,
+      async complete() { modelCalls++; return completion(); },
+    });
+    const malformedInput = {
+      messages: [
+        { role: "system", content: COMPANY_INFERENCE_SYSTEM_INSTRUCTION },
+        { role: "user", content: JSON.stringify({
+          signal: "Acme Example is researching customer intake tools",
+          evidence: [{ ...evidence, ...unsafeFields }],
+        }) },
+      ],
+    } as unknown as CompanyInferenceInput;
+
+    await expect(runRegisteredInference(provider, malformedInput)).rejects.toMatchObject({ name: "ProviderMalformedResponseError" });
+    expect(modelCalls).toBe(0);
+    expect(started).toHaveLength(0);
+    expect(finished).toHaveLength(0);
   });
 
   it.each([
@@ -90,13 +166,9 @@ describe("typed company-inference provider boundary", () => {
     [new ProviderHttpError("UNAVAILABLE", 503), "FAILED", "UNAVAILABLE", "DEPENDENCY_UNAVAILABLE"],
   ] as const)("maps injected provider failure %s to a typed inference outcome", async (error, status, kind, code) => {
     const { dependencies, finished } = makeDependencies(async () => fakeResponse({}));
-    const provider = createCompanyInferenceAdapter({
-      descriptor: openaiDescriptor,
-      dependencies,
-      async complete() { throw error; },
-    });
+    const provider = createCompanyInferenceAdapter({ descriptor: openaiDescriptor, dependencies, async complete() { throw error; } });
 
-    const result = await provider.infer(inferenceInput, context());
+    const result = await runRegisteredInference(provider, inferenceInput);
     expect(result.status).toBe(status);
     expect(result.failureKind).toBe(kind);
     expect(result.capabilityError?.code).toBe(code);
@@ -117,7 +189,7 @@ describe("typed company-inference provider boundary", () => {
       },
     });
 
-    const result = await provider.infer(inferenceInput, context());
+    const result = await runRegisteredInference(provider, inferenceInput);
     expect(result.status).toBe("TIMEOUT");
     expect(result.capabilityError?.code).toBe("TIMEOUT");
     expect(requestSignal?.aborted).toBe(true);
@@ -132,7 +204,7 @@ describe("typed company-inference provider boundary", () => {
       async complete() { return completion({ candidates: [{ companyName: "unsupported extra", email: "person@example.test" }] }); },
     });
 
-    const result = await provider.infer(inferenceInput, context());
+    const result = await runRegisteredInference(provider, inferenceInput);
     expect(result.status).toBe("FAILED");
     expect(result.failureKind).toBe("MALFORMED_RESPONSE");
     expect(result.value).toBeNull();
@@ -153,7 +225,7 @@ describe("typed company-inference provider boundary", () => {
         });
       },
     });
-    const running = provider.infer(inferenceInput, context(controller.signal));
+    const running = runRegisteredInference(provider, inferenceInput, controller.signal);
     await new Promise(resolve => setTimeout(resolve, 0));
     controller.abort(new Error("fixture cancellation"));
 

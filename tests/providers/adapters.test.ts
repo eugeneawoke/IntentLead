@@ -1,5 +1,3 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MarketProfileSchema } from "../../lib/domain/schemas/market-profile";
 import { marketProfile } from "../domain/contract-fixtures";
@@ -15,7 +13,7 @@ import type {
   CompanyInferenceInput,
   CompanyResolutionProvider,
   DiscoveredSignal,
-  ProviderCallContext,
+  ProviderDescriptor,
   ProviderResult,
   SignalSourceAdapter,
 } from "../../worker/providers/contracts";
@@ -23,25 +21,20 @@ import {
   abortedSignal,
   fakeResponse,
   makeDependencies,
+  providerFixture,
   providerDescriptor,
+  providerRequest,
+  runWithProviderReservation,
   waitForAbort,
 } from "./helpers";
 
-const fixture = (name: string) => JSON.parse(readFileSync(join(__dirname, "fixtures", name), "utf8")) as unknown;
 const profile = MarketProfileSchema.parse({
   ...marketProfile,
   capabilities: ["SOURCE_SEARCH", "COMPANY_RESOLUTION", "HUMAN_REVIEW"],
 });
-const context = (signal: AbortSignal = new AbortController().signal): ProviderCallContext => ({
-  profile,
-  traceId: "fixture-trace",
-  signal,
-  reserveProvider(descriptor) { return { descriptor, reservedCost: descriptor.configuredCost.amount ?? 0 }; },
-});
-
 type ProviderKey = "reddit" | "hackernews" | "exa" | "serper";
 type ProviderValue<K extends ProviderKey> = K extends "reddit" | "hackernews" ? DiscoveredSignal[] : CompanyCandidate[];
-type FixtureAdapters = { source?: SignalSourceAdapter; company?: CompanyResolutionProvider };
+type FixtureAdapters = { source?: SignalSourceAdapter; company?: CompanyResolutionProvider; nestedDescriptors?: ProviderDescriptor[] };
 
 function buildAdapter(
   key: ProviderKey,
@@ -67,8 +60,9 @@ function buildAdapter(
   if (key === "hackernews") {
     return { adapter: { source: createHackerNewsAdapter({ descriptor, dependencies }) }, calls, started, finished };
   }
+  const inferenceDescriptor = providerDescriptor("openai", "COMPANY_RESOLUTION");
   const inferenceProvider = createCompanyInferenceAdapter({
-    descriptor: providerDescriptor("openai", "COMPANY_RESOLUTION"),
+    descriptor: inferenceDescriptor,
     dependencies,
     async complete(input: CompanyInferenceInput) {
       if (options.inferenceOutput !== undefined) return { content: options.inferenceOutput, inputTokens: null, outputTokens: null };
@@ -87,7 +81,10 @@ function buildAdapter(
   });
   const config = { apiKey: "fixture-key", descriptor, dependencies, inferenceProvider };
   return {
-    adapter: { company: key === "exa" ? createExaCompanyResolutionProvider(config) : createSerperCompanyResolutionProvider(config) },
+    adapter: {
+      company: key === "exa" ? createExaCompanyResolutionProvider(config) : createSerperCompanyResolutionProvider(config),
+      nestedDescriptors: [inferenceDescriptor],
+    },
     calls,
     started,
     finished,
@@ -99,10 +96,20 @@ async function runAdapter<K extends ProviderKey>(
   adapter: FixtureAdapters,
   signal = new AbortController().signal,
 ): Promise<ProviderResult<ProviderValue<K>>> {
-  const callContext = context(signal);
-  const result = adapter.source
-    ? await adapter.source.search({ keywords: ["fictional operations"] }, callContext)
-    : await adapter.company!.resolve({ signalContent: "Fictional Acme Example public workflow issue" }, callContext);
+  const descriptor = adapter.source?.descriptor ?? adapter.company!.descriptor;
+  const request = providerRequest(profile, [descriptor], {
+    traceId: "fixture-trace",
+    signal,
+    nestedDescriptors: adapter.nestedDescriptors ?? [],
+    budget: { currency: "USD", remainingCost: 1, remainingProviderCalls: adapter.nestedDescriptors?.length ? 2 : 1 },
+  });
+  if (adapter.source) {
+    const result = await runWithProviderReservation<DiscoveredSignal[]>(request, async (_selected, callContext) =>
+      adapter.source!.search({ keywords: ["fictional operations"] }, callContext));
+    return result as ProviderResult<ProviderValue<K>>;
+  }
+  const result = await runWithProviderReservation<CompanyCandidate[]>(request, async (_selected, callContext) =>
+    adapter.company!.resolve({ signalContent: "Fictional Acme Example public workflow issue" }, callContext));
   return result as ProviderResult<ProviderValue<K>>;
 }
 
@@ -113,7 +120,7 @@ describe("source adapters", () => {
   it("normalizes Reddit content and deduplicates by stable source identity", async () => {
     const built = buildAdapter("reddit", async (input) => String(input).includes("access_token")
       ? fakeResponse({ access_token: "fixture-bearer" })
-      : fakeResponse(fixture("reddit-success.json")));
+      : fakeResponse(providerFixture("reddit-success.json")));
     const result = await runAdapter("reddit", built.adapter);
 
     expect(result.status).toBe("SUCCEEDED");
@@ -142,7 +149,7 @@ describe("source adapters", () => {
   });
 
   it("normalizes HN timestamps, URLs and HTML while deduplicating", async () => {
-    const built = buildAdapter("hackernews", async () => fakeResponse(fixture("hackernews-success.json")));
+    const built = buildAdapter("hackernews", async () => fakeResponse(providerFixture("hackernews-success.json")));
     const result = await runAdapter("hackernews", built.adapter);
 
     expect(result.status).toBe("SUCCEEDED");
@@ -267,7 +274,10 @@ describe("provider boundary outcomes", () => {
     });
     const adapter = built.adapter.source!;
 
-    const result = await adapter.search({ keywords: [piiKeyword] }, context());
+    const result = await runWithProviderReservation(providerRequest(profile, [adapter.descriptor], {
+      traceId: "fixture-trace",
+      budget: { currency: "USD", remainingCost: 1, remainingProviderCalls: 1 },
+    }), (_selected, callContext) => adapter.search({ keywords: [piiKeyword] }, callContext));
     const queryUrl = new URL(built.calls.find(call => call.includes(key === "reddit" ? "/search.json" : "/search?"))!);
     const query = queryUrl.searchParams.get(key === "reddit" ? "q" : "query") ?? "";
 

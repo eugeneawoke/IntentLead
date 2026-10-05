@@ -31,30 +31,46 @@ export const CompanyInferenceOutputSchema = z.object({
 
 export type CompanyInferenceCall = (input: CompanyInferenceInput, signal: AbortSignal) => Promise<CompanyInferenceCompletion>;
 
-const STRUCTURAL_TEXT_FIELDS = new Set([
-  "providerSourceId", "providerRunId", "sourceId", "externalId", "providerId", "capturedAt", "publishedAt", "schemaVersion",
-]);
+const ProviderSourceIdSchema = z.string().regex(/^(?:exa|serper):[a-f0-9]{24}$/);
+const InferenceEvidenceSchema = z.object({
+  providerId: z.enum(["exa", "serper"]),
+  providerSourceId: ProviderSourceIdSchema,
+  title: z.string().min(1).max(200),
+  excerpt: z.string().min(1).max(1_000),
+  capturedAt: z.string().datetime({ offset: true }),
+  schemaVersion: z.literal(PROVIDER_SCHEMA_VERSION),
+}).strict();
+const InferenceUserPayloadSchema = z.object({
+  signal: z.string().min(1).max(500),
+  evidence: z.array(InferenceEvidenceSchema).min(1).max(3),
+}).strict();
+const CompanyInferenceInputSchema = z.object({
+  messages: z.tuple([
+    z.object({ role: z.literal("system"), content: z.literal(COMPANY_INFERENCE_SYSTEM_INSTRUCTION) }).strict(),
+    z.object({ role: z.literal("user"), content: z.string().min(1).max(12_000) }).strict(),
+  ]),
+}).strict();
 
-function sanitizeInferenceValue(value: unknown, key?: string): unknown {
-  if (typeof value === "string") return key && STRUCTURAL_TEXT_FIELDS.has(key) ? value : redactContactLikePii(value);
-  if (Array.isArray(value)) return value.map(item => sanitizeInferenceValue(item));
-  if (value && typeof value === "object") {
-    return Object.fromEntries(Object.entries(value).map(([childKey, child]) => [childKey, sanitizeInferenceValue(child, childKey)]));
-  }
-  return value;
-}
-
-function sanitizeInferenceInput(input: CompanyInferenceInput): CompanyInferenceInput {
-  let userContent: string;
-  try {
-    userContent = JSON.stringify(sanitizeInferenceValue(JSON.parse(input.messages[1].content)));
-  } catch {
-    userContent = redactContactLikePii(input.messages[1].content);
-  }
+function sanitizeInferenceInput(input: unknown): CompanyInferenceInput {
+  const parsedInput = CompanyInferenceInputSchema.safeParse(input);
+  if (!parsedInput.success) throw new ProviderMalformedResponseError();
+  let rawPayload: unknown;
+  try { rawPayload = JSON.parse(parsedInput.data.messages[1].content) as unknown; }
+  catch { throw new ProviderMalformedResponseError(); }
+  const parsedPayload = InferenceUserPayloadSchema.safeParse(rawPayload);
+  if (!parsedPayload.success) throw new ProviderMalformedResponseError();
+  const safePayload = {
+    signal: redactContactLikePii(parsedPayload.data.signal),
+    evidence: parsedPayload.data.evidence.map(item => ({
+      ...item,
+      title: redactContactLikePii(item.title),
+      excerpt: redactContactLikePii(item.excerpt),
+    })),
+  };
   return {
     messages: [
       { role: "system", content: COMPANY_INFERENCE_SYSTEM_INSTRUCTION },
-      { role: "user", content: userContent },
+      { role: "user", content: JSON.stringify(safePayload) },
     ],
   };
 }
@@ -116,25 +132,20 @@ export function createCompanyInferenceAdapter(config: {
     async infer(input, context): Promise<ProviderResult<CompanyInferenceOutput>> {
       if (context.signal.aborted) throw new ProviderCancelledError();
       assertCompanyInferenceProfile(context);
-      if (input.messages[0].role !== "system"
-        || input.messages[0].content !== COMPANY_INFERENCE_SYSTEM_INSTRUCTION
-        || input.messages[1].role !== "user") {
-        throw new ProviderSelectionError(authorizationError(context));
-      }
       const safeInput = sanitizeInferenceInput(input);
       if (typeof context.reserveProvider !== "function") {
         throw new ProviderSelectionError(authorizationError(context));
       }
-      const reservation = context.reserveProvider(descriptor);
-      if (reservation.descriptor.id !== descriptor.id
-        || reservation.descriptor.version !== descriptor.version
-        || reservation.reservedCost !== descriptor.configuredCost.amount) {
-        throw new ProviderSelectionError(authorizationError(context));
-      }
+      const reservationGrant = context.reserveProvider(descriptor);
+      const inferenceContext = {
+        ...context,
+        reservation: reservationGrant.reservation,
+        requestFingerprint: reservationGrant.requestFingerprint,
+      };
 
       return runRecordedProvider({
         descriptor,
-        context,
+        context: inferenceContext,
         dependencies,
         inputCount: 1,
         inputFingerprint: safeInput.messages[1].content,

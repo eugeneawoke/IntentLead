@@ -31,6 +31,7 @@ export interface AuthorizedLegacyProviderContext {
 interface LegacyProviders {
   sources: Map<ProviderId, SignalSourceAdapter>;
   companies: Map<ProviderId, CompanyResolutionProvider>;
+  nestedDescriptors?: ProviderDescriptor[];
 }
 
 interface LegacyProviderBridgeOptions {
@@ -105,6 +106,7 @@ export function createLegacyProviderBridge(options: LegacyProviderBridgeOptions)
         health: context.health,
         budget: context.budget,
         descriptors,
+        nestedDescriptors: providers.nestedDescriptors ?? [],
         allowFallback: true,
         traceId: context.traceId,
         signal: context.signal,
@@ -211,6 +213,7 @@ function createEnvironmentProviders(): LegacyProviders {
       ["exa", createExaCompanyResolutionProvider({ apiKey: process.env.EXA_API_KEY ?? "", descriptor: exa, dependencies, inferenceProvider })],
       ["serper", createSerperCompanyResolutionProvider({ apiKey: process.env.SERPER_API_KEY ?? "", descriptor: serper, dependencies, inferenceProvider })],
     ]),
+    nestedDescriptors: [openai],
   };
 }
 

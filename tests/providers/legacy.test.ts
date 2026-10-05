@@ -6,7 +6,6 @@ import { createLegacyProviderBridge } from "../../worker/providers/legacy";
 import type {
   CompanyResolutionProvider,
   DiscoveredSignal,
-  ProviderCallContext,
   ProviderResult,
   SignalSourceAdapter,
 } from "../../worker/providers/contracts";
@@ -99,12 +98,7 @@ describe("legacy provider wrappers", () => {
   });
 
   it("maps registry-selected injected adapters to the existing legacy return shapes", async () => {
-    const context: ProviderCallContext = {
-      profile,
-      traceId: "legacy-fixture-trace",
-      signal: new AbortController().signal,
-      reserveProvider(descriptor) { return { descriptor, reservedCost: descriptor.configuredCost.amount ?? 0 }; },
-    };
+    const signalController = new AbortController();
     const signal: DiscoveredSignal = {
       source: "hackernews",
       externalId: "fixture-hn-legacy",
@@ -136,7 +130,7 @@ describe("legacy provider wrappers", () => {
         region: "US",
         jurisdiction: null,
         traceId: "legacy-fixture-trace",
-        signal: context.signal,
+        signal: signalController.signal,
         budget: { currency: "USD", remainingCost: 0, remainingProviderCalls: 2 },
         health: {},
       }; },
