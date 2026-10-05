@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createApplicationContext, type ApplicationSupabaseClient } from "@/lib/application/context";
 
 type QueryResult = {
-  data: Record<string, unknown> | null;
+  data: unknown;
   error: { code?: string; message?: string } | null;
 };
 
@@ -30,6 +30,7 @@ const profileRow = {
 
 function fakeClient(results: QueryResult[]) {
   const queriedTables: string[] = [];
+  const rpcCalls: string[] = [];
   const client: ApplicationSupabaseClient = {
     from(table: string) {
       queriedTables.push(table);
@@ -41,17 +42,29 @@ function fakeClient(results: QueryResult[]) {
       };
       return { select: vi.fn(() => query) };
     },
+    rpc(functionName) {
+      rpcCalls.push(functionName);
+      return Promise.resolve(results.shift() ?? { data: null, error: null });
+    },
   };
-  return { client, queriedTables };
+  return { client, queriedTables, rpcCalls };
+}
+
+function setupRow(overrides: Record<string, unknown> = {}) {
+  return {
+    ...profileRow,
+    discovery_brief_id: "brief-1",
+    workspace_id: "workspace-from-db",
+    ...overrides,
+  };
 }
 
 describe("createApplicationContext", () => {
   it("derives owner, workspace, brief and permissions from stored relations", async () => {
-    const { client, queriedTables } = fakeClient([
+    const { client, queriedTables, rpcCalls } = fakeClient([
       { data: { id: "campaign-1", workspace_id: "workspace-from-db" }, error: null },
       { data: { id: "workspace-from-db", owner_id: "owner-1" }, error: null },
-      { data: { id: "brief-1", workspace_id: "workspace-from-db", legacy_campaign_id: "campaign-1", market_profile_id: "profile-id" }, error: null },
-      { data: profileRow, error: null },
+      { data: [setupRow()], error: null },
     ]);
     const input = { authenticatedUserId: "owner-1", campaignId: "campaign-1", workspaceId: "forged-workspace" } as Parameters<typeof createApplicationContext>[0];
 
@@ -62,9 +75,8 @@ describe("createApplicationContext", () => {
     expect(context.permissions.has("SOURCE_SEARCH")).toBe(true);
     expect(context.permissions.has("CONTACT_ENRICHMENT")).toBe(false);
     expect(context.budget).toEqual({ currency: "USD", maxTotalCost: 0, maxProviderCalls: 0 });
-    expect(queriedTables).toEqual([
-      "campaigns", "workspaces", "intentlead_discovery_briefs", "intentlead_market_profiles",
-    ]);
+    expect(queriedTables).toEqual(["campaigns", "workspaces"]);
+    expect(rpcCalls).toEqual(["intentlead_discovery_setup_for_campaign"]);
   });
 
   it("denies a non-owner before loading discovery setup", async () => {
@@ -82,7 +94,7 @@ describe("createApplicationContext", () => {
     const { client } = fakeClient([
       { data: { id: "campaign-1", workspace_id: "workspace-from-db" }, error: null },
       { data: { id: "workspace-from-db", owner_id: "owner-1" }, error: null },
-      { data: null, error: null },
+      { data: [], error: null },
     ]);
 
     await expect(createApplicationContext({ authenticatedUserId: "owner-1", campaignId: "campaign-1" }, client))
@@ -107,8 +119,7 @@ describe("createApplicationContext", () => {
       const { client } = fakeClient([
         { data: { id: "campaign-1", workspace_id: "workspace-from-db" }, error: null },
         { data: { id: "workspace-from-db", owner_id: "owner-1" }, error: null },
-        { data: { id: "brief-1", workspace_id: "workspace-from-db", legacy_campaign_id: "campaign-1", market_profile_id: "profile-id" }, error: null },
-        { data: storedProfile, error: null },
+        { data: [setupRow(storedProfile)], error: null },
       ]);
 
       await expect(createApplicationContext({ authenticatedUserId: "owner-1", campaignId: "campaign-1" }, client))

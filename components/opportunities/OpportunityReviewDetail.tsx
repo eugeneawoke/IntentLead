@@ -32,6 +32,7 @@ function EvidenceFacts({ item }: { item: Detail["evidence"][number] }) {
     ["Technologies", facts.technologies?.join(", ")],
     ["Location", location],
     ["Observed problem category", facts.problemCategory?.replaceAll("_", " ")],
+    ["Observed condition (fact)", facts.problem?.observedCondition],
     ["Measurement", measurement],
   ].filter((entry): entry is [string, string] => typeof entry[1] === "string" && entry[1].length > 0);
 
@@ -48,8 +49,8 @@ function EvidenceFacts({ item }: { item: Detail["evidence"][number] }) {
         <a className="mt-2 inline-block break-all text-sm underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2" href={safeLink(item.sourceUrl)!} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)" }}>
           Open public source <span className="sr-only">in a new tab</span>
         </a>
-      ) : <p className="mt-2 text-sm" style={{ color: "var(--text-faint)" }}>Source link unavailable</p>}
-      <h4 className="mt-4 text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-faint)" }}>Source facts</h4>
+      ) : <p className="mt-2 text-sm" style={{ color: "var(--text-muted)" }}>Source link unavailable</p>}
+      <h4 className="mt-4 text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Source facts</h4>
       {entries.length ? (
         <dl className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
           {entries.map(([label, value]) => <div key={label}><dt className="text-xs" style={{ color: "var(--text-muted)" }}>{label}</dt><dd className="break-words text-sm" style={{ color: "var(--text)" }}>{value}</dd></div>)}
@@ -99,7 +100,7 @@ export default function OpportunityReviewDetailPage({ basePath = "/workspace/opp
       ) : opportunity ? (
         <>
           <header className="mb-6">
-            <p className="text-xs font-medium uppercase tracking-widest" style={{ color: "var(--text-faint)" }}>Discovery-only · {opportunity.state.replaceAll("_", " ")}</p>
+            <p className="text-xs font-medium uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>Discovery-only · {opportunity.state.replaceAll("_", " ")}</p>
             <h1 className="mt-2 break-words font-display text-2xl font-semibold tracking-tight sm:text-3xl" style={{ color: "var(--text)" }}>{opportunity.company?.name ?? "Company details unavailable"}</h1>
             {opportunity.company?.domain && <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>{opportunity.company.domain}</p>}
             <p className="mt-3 text-sm leading-6" style={{ color: "var(--text-muted)" }}>Signal: {opportunity.signal.family.replaceAll("_", " ")} · {opportunity.signal.subtype.replaceAll("_", " ")}</p>
@@ -133,6 +134,7 @@ export default function OpportunityReviewDetailPage({ basePath = "/workspace/opp
                 {opportunity.assessment ? (
                   <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
                     <div className="col-span-2"><dt className="text-xs" style={{ color: "var(--text-muted)" }}>Assessment</dt><dd style={{ color: "var(--text)" }}>{opportunity.assessment.decision}</dd></div>
+                    {opportunity.assessment.problemStatement && <div className="col-span-2"><dt className="text-xs" style={{ color: "var(--text-muted)" }}>Problem interpretation</dt><dd className="mt-1 break-words" style={{ color: "var(--text)" }}>{opportunity.assessment.problemStatement}</dd></div>}
                     {([["Confidence", opportunity.assessment.confidence], ["Evidence strength", opportunity.assessment.evidenceStrength], ["Freshness", opportunity.assessment.freshness], ["Commercial impact", opportunity.assessment.commercialImpact], ["ICP fit", opportunity.assessment.icpFit], ["Actionability", opportunity.assessment.actionability]] as const).map(([label, value]) => <div key={label}><dt className="text-xs" style={{ color: "var(--text-muted)" }}>{label}</dt><dd style={{ color: "var(--text)" }}>{Math.round(value * 100)}%</dd></div>)}
                   </dl>
                 ) : <p className="mt-4 text-sm" style={{ color: "var(--text-muted)" }}>No current assessment is available.</p>}

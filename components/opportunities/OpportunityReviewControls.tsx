@@ -73,7 +73,7 @@ export default function OpportunityReviewControls({
             ? `This Opportunity was reviewed as ${opportunity.latestReview.decision.toLowerCase().replaceAll("_", " ")}.`
             : `This Opportunity is ${opportunity.state.toLowerCase().replaceAll("_", " ")} and cannot receive another review.`}
         </p>
-        <p className="mt-2 text-xs" style={{ color: "var(--text-faint)" }}>Human review does not enable contact, drafts, outreach, or credit changes.</p>
+        <p className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>Human review does not enable contact, drafts, outreach, or credit changes.</p>
       </section>
     );
   }

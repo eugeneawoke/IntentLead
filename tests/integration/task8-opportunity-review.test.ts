@@ -10,10 +10,14 @@ const outsider = randomUUID();
 const workspace = randomUUID();
 const profile = randomUUID();
 const brief = randomUUID();
+const legacyCampaign = randomUUID();
+const multiBriefCampaign = randomUUID();
+const nonPilotCampaign = randomUUID();
+const contextCampaign = randomUUID();
 const offer = randomUUID();
 const icp = randomUUID();
 const company = randomUUID();
-const opportunities = [randomUUID(), randomUUID(), randomUUID()];
+const opportunities = [randomUUID(), randomUUID(), randomUUID(), randomUUID()];
 const signal = JSON.stringify({ family: "DETECTED_PROBLEM", subtype: "website" });
 const reviewCapability = "ARRAY['SOURCE_SEARCH','COMPANY_RESOLUTION','OPPORTUNITY_ASSESSMENT','HUMAN_REVIEW']::text[]";
 const deniedCapabilities = "ARRAY['PEOPLE_SEARCH','CONTACT_ENRICHMENT','EMAIL_FIND','EMAIL_VERIFY','DRAFT_GENERATION','OUTREACH_READY','OUTREACH_SEND','OUTCOME_RECORDING','PACKAGE_VERIFIED']::text[]";
@@ -29,9 +33,34 @@ async function createFixture(): Promise<void> {
       VALUES ('${offer}','${workspace}','Fixture offer','{}');
     INSERT INTO public.intentlead_icp_definitions (id,workspace_id,name,definition)
       VALUES ('${icp}','${workspace}','Fixture ICP','{}');
+    INSERT INTO public.campaigns (id,workspace_id,entry_mode,what_selling,icp,pain)
+      VALUES ('${legacyCampaign}','${workspace}','cold','Fixture offer','Fixture ICP','Fixture pain'),
+        ('${multiBriefCampaign}','${workspace}','cold','Fixture offer','Fixture ICP','Fixture pain'),
+        ('${nonPilotCampaign}','${workspace}','cold','Fixture offer','Fixture ICP','Fixture pain'),
+        ('${contextCampaign}','${workspace}','cold','Fixture offer','Fixture ICP','Fixture pain');
     INSERT INTO public.intentlead_discovery_briefs
-      (id,workspace_id,offer_profile_id,icp_definition_id,market_profile_id,objective,criteria)
-      VALUES ('${brief}','${workspace}','${offer}','${icp}','${profile}','Fixture discovery','{}');
+      (id,workspace_id,offer_profile_id,icp_definition_id,market_profile_id,legacy_campaign_id,objective,criteria)
+      VALUES ('${brief}','${workspace}','${offer}','${icp}','${profile}','${legacyCampaign}','Fixture discovery','{}');
+    UPDATE public.intentlead_discovery_briefs SET legacy_campaign_id='${contextCampaign}' WHERE id='${brief}';
+    INSERT INTO public.intentlead_market_profiles
+      (id,workspace_id,profile_key,workflow,configuration,capabilities,disabled_capabilities)
+      VALUES ('${randomUUID()}','${workspace}','CIS_RU','ASSISTED_OUTREACH','{}',ARRAY['HUMAN_REVIEW'],ARRAY[]::text[]),
+        ('${randomUUID()}','${workspace}','LOCAL_CUSTOM','DISCOVERY_ONLY','{}',ARRAY['HUMAN_REVIEW'],ARRAY[]::text[]);
+    INSERT INTO public.intentlead_discovery_briefs
+      (workspace_id,offer_profile_id,icp_definition_id,market_profile_id,legacy_campaign_id,objective,criteria)
+      SELECT '${workspace}','${offer}','${icp}',m.id,'${multiBriefCampaign}','Non-pilot linked brief','{}'
+      FROM public.intentlead_market_profiles m WHERE m.workspace_id='${workspace}' AND m.profile_key='CIS_RU';
+    INSERT INTO public.intentlead_discovery_briefs
+      (workspace_id,offer_profile_id,icp_definition_id,market_profile_id,legacy_campaign_id,objective,criteria)
+      SELECT '${workspace}','${offer}','${icp}',m.id,'${multiBriefCampaign}','Non-pilot linked brief','{}'
+      FROM public.intentlead_market_profiles m WHERE m.workspace_id='${workspace}' AND m.profile_key='LOCAL_CUSTOM';
+    INSERT INTO public.intentlead_discovery_briefs
+      (workspace_id,offer_profile_id,icp_definition_id,market_profile_id,legacy_campaign_id,objective,criteria)
+      VALUES ('${workspace}','${offer}','${icp}','${profile}','${multiBriefCampaign}','Third linked discovery brief','{}');
+    INSERT INTO public.intentlead_discovery_briefs
+      (workspace_id,offer_profile_id,icp_definition_id,market_profile_id,legacy_campaign_id,objective,criteria)
+      SELECT '${workspace}','${offer}','${icp}',m.id,'${nonPilotCampaign}','Non-pilot brief','{}'
+      FROM public.intentlead_market_profiles m WHERE m.workspace_id='${workspace}' AND m.profile_key='CIS_RU';
     INSERT INTO public.intentlead_companies (id,workspace_id,canonical_name,domain,confidence)
       VALUES ('${company}','${workspace}','Fixture Company','fixture.example',.95);
   `);
@@ -39,12 +68,16 @@ async function createFixture(): Promise<void> {
   for (const [index, opportunity] of opportunities.entries()) {
     const evidence = randomUUID();
     const assessment = randomUUID();
+    const observedCondition = index === 3 ? "Reach owner@example.test" : "Homepage returns an unavailable page";
+    const problemStatement = index === 3
+      ? "Contact owner@example.test"
+      : "Fixture interpretation not shown in the review UI";
     await sql(`
       INSERT INTO public.intentlead_evidence_items
         (id,workspace_id,evidence_type,source_url,captured_at,excerpt,structured_facts,verification_method,confidence,content_hash,provenance,tombstoned_at)
       VALUES ('${evidence}','${workspace}','structured_fact','https://example.com/source-${index}',now(),
         'Fixture-only evidence excerpt ${index}',
-        '{"companyName":"Fixture Company","companyDomain":"fixture.example","problem":{"category":"website","observedCondition":"Homepage returns an unavailable page"}}',
+        '{"companyName":"Fixture Company","companyDomain":"fixture.example","problem":{"category":"website","observedCondition":"${observedCondition}"}}',
         'fixture_public_source_capture',.9,repeat('${index + 1}',64),
         '{"sourceType":"WEB","sourceId":"${randomUUID()}","providerRunId":null,"rawArtifactId":null}',
         ${index === 2 ? "now()" : "NULL"});
@@ -58,7 +91,7 @@ async function createFixture(): Promise<void> {
          evidence_strength,explicitness,urgency,freshness,commercial_impact,icp_fit,company_confidence,
          buyer_relevance,actionability,confidence,review_reasons,assessed_at)
       VALUES ('${assessment}','${workspace}','${opportunity}',1,'REVIEW','${signal}'::jsonb,
-        'WEBSITE','Fixture interpretation not shown in the review UI',.9,.8,.7,1,.8,.85,.95,.8,.8,.88,
+        'WEBSITE','${problemStatement}',.9,.8,.7,1,.8,.85,.95,.8,.8,.88,
         ARRAY['POLICY_REVIEW_REQUIRED'],now());
       INSERT INTO public.intentlead_assessment_evidence (workspace_id,assessment_id,opportunity_id,evidence_id)
         VALUES ('${workspace}','${assessment}','${opportunity}','${evidence}');
@@ -86,14 +119,42 @@ describe.skipIf(!enabled)("Task 8 disposable PostgreSQL review boundary", () => 
     expect(ownerList.hasMore).toBe(true);
     const memberDetail = await sql(asRole("authenticated", `SELECT public.intentlead_get_opportunity_for_review('${opportunities[0]}')`, member));
     expect(memberDetail).toContain("Fixture Company");
+    expect(memberDetail).toContain("Homepage returns an unavailable page");
+    expect(memberDetail).toContain("Fixture interpretation not shown");
     expect(memberDetail).not.toContain("Fixture-only evidence excerpt");
-    expect(memberDetail).not.toContain("Fixture interpretation not shown");
     expect(memberDetail).not.toContain("contactEmail");
     const missingEvidence = JSON.parse(await sql(asRole("authenticated", `SELECT public.intentlead_get_opportunity_for_review('${opportunities[2]}')`, member))) as { evidenceStatus: string; evidence: unknown[] };
     expect(missingEvidence.evidenceStatus).toBe("MISSING");
     expect(missingEvidence.evidence).toEqual([]);
     expect(await sql(asRole("authenticated", `SELECT public.intentlead_list_opportunities_for_review(50,NULL,NULL)`, outsider))).toContain('"rows": []');
     expect(await sql(asRole("authenticated", `SELECT coalesce(public.intentlead_get_opportunity_for_review('${opportunities[0]}')::text,'null')`, outsider))).toBe("null");
+  });
+
+  it("revokes every direct IntentLead Data API read while preserving legacy leads and narrow setup RPCs", async () => {
+    expect(await sql(`SELECT count(*) FROM information_schema.tables t
+      WHERE t.table_schema='public' AND t.table_name LIKE 'intentlead_%'
+        AND has_table_privilege('authenticated',format('%I.%I',t.table_schema,t.table_name),'SELECT')`)).toBe("0");
+    expect(await sql(`SELECT has_table_privilege('authenticated','public.leads','SELECT')`)).toBe("t");
+    expect(await sql(`SELECT has_table_privilege('service_role','public.intentlead_jobs','SELECT')`)).toBe("t");
+    const setup = JSON.parse(await sql(asRole("authenticated", `SELECT coalesce(jsonb_agg(to_jsonb(s)),'[]'::jsonb)
+      FROM public.intentlead_discovery_setup_for_campaign('${contextCampaign}') s`, owner))) as Array<{ discovery_brief_id: string }>;
+    expect(setup).toHaveLength(1);
+    expect(setup[0].discovery_brief_id).toBe(brief);
+    expect(await sql(asRole("authenticated", `SELECT count(*) FROM public.intentlead_discovery_setup_for_campaign('${contextCampaign}')`, member))).toBe("0");
+    await expect(sql(asRole("authenticated", `SELECT count(*) FROM public.intentlead_people`, member)))
+      .rejects.toThrow(/permission denied/);
+  });
+
+  it("omits unsafe person-like evidence and assessment text from the strict review projection", async () => {
+    const projected = await sql(asRole("authenticated", `SELECT public.intentlead_get_opportunity_for_review('${opportunities[3]}')`, member));
+    expect(projected).not.toContain("owner@example.test");
+    expect(projected).toContain('"problemStatement": null');
+  });
+
+  it("denies a pilot linked after two earlier briefs and leaves outsider/non-pilot behavior unchanged", async () => {
+    expect(await sql(asRole("authenticated", `SELECT public.intentlead_legacy_campaign_is_discovery_only('${multiBriefCampaign}')`, member))).toBe("t");
+    expect(await sql(asRole("authenticated", `SELECT public.intentlead_legacy_campaign_is_discovery_only('${multiBriefCampaign}')`, outsider))).toBe("f");
+    expect(await sql(asRole("authenticated", `SELECT public.intentlead_legacy_campaign_is_discovery_only('${nonPilotCampaign}')`, member))).toBe("f");
   });
 
   it("limits direct review insertion and RPC execution to authenticated members", async () => {
@@ -147,5 +208,22 @@ describe.skipIf(!enabled)("Task 8 disposable PostgreSQL review boundary", () => 
       'costEvents',(SELECT count(*) FROM public.intentlead_cost_events WHERE workspace_id='${workspace}')
     )`));
     expect(after).toEqual(before);
+  });
+
+  it("redacts note fingerprints on owner deletion, hides the tombstone from members, and blocks old-key replay", async () => {
+    const key = "task8-delete-note-001";
+    await sql(rpc(member, opportunities[3], "NEEDS_RESEARCH", "OTHER", key, "A note that must be erased"));
+    await sql(asRole("service_role", `SELECT public.intentlead_delete_discovery_brief('${brief}','${owner}','task8-review-delete')`));
+
+    const stored = JSON.parse(await sql(`SELECT jsonb_build_object(
+      'note',note,'fingerprint',request_fingerprint,'key',idempotency_key,'tombstoned',tombstoned_at IS NOT NULL
+    ) FROM public.intentlead_human_reviews WHERE idempotency_key='${key}'`)) as Record<string, unknown>;
+    expect(stored).toEqual({ note: null, fingerprint: "[redacted]", key, tombstoned: true });
+    expect(await sql(asRole("authenticated", `SELECT coalesce(public.intentlead_get_opportunity_for_review('${opportunities[3]}')::text,'null')`, member))).toBe("null");
+    await expect(sql(asRole("authenticated", `SELECT note,request_fingerprint FROM public.intentlead_human_reviews WHERE idempotency_key='${key}'`, member)))
+      .rejects.toThrow(/permission denied/);
+    await expect(sql(rpc(member, opportunities[3], "NEEDS_RESEARCH", "OTHER", key, "A note that must be erased")))
+      .rejects.toThrow(/opportunity_not_found/);
+    expect(Number(await sql(`SELECT count(*) FROM public.intentlead_human_reviews WHERE workspace_id='${workspace}' AND idempotency_key='${key}'`))).toBe(1);
   });
 });

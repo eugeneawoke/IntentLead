@@ -14,6 +14,7 @@ type Query = {
 
 export interface ApplicationSupabaseClient {
   from(table: string): FromQuery;
+  rpc(functionName: string, args: Record<string, unknown>): PromiseLike<QueryResult<unknown>>;
 }
 
 export interface ApplicationContext {
@@ -71,31 +72,22 @@ export async function createApplicationContext(
     throw new ApplicationError("FORBIDDEN", "Campaign is not available to this owner");
   }
 
-  const briefResult = await supabase.from("intentlead_discovery_briefs")
-    .select("id, workspace_id, legacy_campaign_id, market_profile_id")
-    .eq("legacy_campaign_id", input.campaignId)
-    .eq("workspace_id", campaign.workspace_id)
-    .maybeSingle();
-  throwIfLookupFailed(briefResult.error, "Could not load DiscoveryBrief setup");
-  if (briefResult.error || !briefResult.data) {
+  const setupResult = await supabase.rpc("intentlead_discovery_setup_for_campaign", {
+    p_campaign_id: input.campaignId,
+  });
+  throwIfLookupFailed(setupResult.error, "Could not load DiscoveryBrief setup");
+  const setupRows = Array.isArray(setupResult.data) ? setupResult.data : [];
+  if (setupResult.error || setupRows.length !== 1) {
     throw new ApplicationError("CONFLICT", "Discovery setup is incomplete: linked DiscoveryBrief is missing");
   }
-  const brief = briefResult.data;
-  if (!requiredString(brief.id) || !requiredString(brief.market_profile_id)) {
+  const row = setupRows[0] as Record<string, unknown>;
+  if (!requiredString(row.discovery_brief_id) || !requiredString(row.workspace_id)
+    || row.workspace_id !== campaign.workspace_id) {
     throw new ApplicationError("CONFLICT", "Discovery setup is incomplete: MarketProfile is missing");
   }
-
-  const profileResult = await supabase.from("intentlead_market_profiles")
-    .select("id, workspace_id, profile_key, workflow, configuration, capabilities, disabled_capabilities")
-    .eq("id", brief.market_profile_id)
-    .eq("workspace_id", campaign.workspace_id)
-    .single();
-  throwIfLookupFailed(profileResult.error, "Could not load MarketProfile setup");
-  if (profileResult.error || !profileResult.data) {
+  if (!requiredString(row.profile_key)) {
     throw new ApplicationError("CONFLICT", "Discovery setup is incomplete: MarketProfile is missing");
   }
-
-  const row = profileResult.data;
   const config = row.configuration && typeof row.configuration === "object" && !Array.isArray(row.configuration)
     ? row.configuration as Record<string, unknown>
     : {};
@@ -131,7 +123,7 @@ export async function createApplicationContext(
     authenticatedUserId: input.authenticatedUserId,
     workspace: { id: String(campaign.workspace_id), role: "OWNER" },
     campaignId: input.campaignId,
-    discoveryBriefId: brief.id,
+    discoveryBriefId: row.discovery_brief_id as string,
     traceId: randomUUID(),
     permissions: new Set(parsedProfile.data.capabilities),
     budget: { currency: parsedProfile.data.defaultCurrency, maxTotalCost: 0, maxProviderCalls: 0 },

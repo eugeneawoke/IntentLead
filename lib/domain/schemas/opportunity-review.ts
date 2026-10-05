@@ -41,6 +41,14 @@ const ReviewCompanySchema = z.object({
   confidence: ConfidenceSchema,
 }).strict();
 
+const SafeReviewTextSchema = (maximum: number) => z.string().trim().min(1).max(maximum).refine(
+  value => !/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/i.test(value)
+    && !/(?:https?:\/\/|www\.)/i.test(value)
+    && !/@[A-Za-z0-9_]{2,}/.test(value)
+    && !/(?<!\d)\+?\d[\d(). -]{7,}\d(?!\d)/.test(value),
+  "Text cannot contain contact details",
+);
+
 const ReviewAssessmentSchema = z.object({
   decision: z.enum(["QUALIFY", "REVIEW", "REJECT"]),
   confidence: ConfidenceSchema,
@@ -49,6 +57,7 @@ const ReviewAssessmentSchema = z.object({
   commercialImpact: ConfidenceSchema,
   icpFit: ConfidenceSchema,
   actionability: ConfidenceSchema,
+  problemStatement: SafeReviewTextSchema(600).nullable().optional(),
 }).strict();
 
 const ReviewSummarySchema = z.object({
@@ -78,6 +87,10 @@ export const OpportunityReviewEvidenceFactsSchema = z.object({
     locality: z.string().trim().min(1).nullable().optional(),
   }).strict().optional(),
   problemCategory: z.enum(["website", "local_listing", "reviews", "reputation", "acquisition", "conversion", "operations"]).optional(),
+  problem: z.object({
+    category: z.enum(["website", "local_listing", "reviews", "reputation", "acquisition", "conversion", "operations"]).optional(),
+    observedCondition: SafeReviewTextSchema(500).optional(),
+  }).strict().optional(),
   measurement: z.object({
     metric: z.enum(["REVIEW_COUNT", "MENTION_COUNT", "CITATION_COUNT", "OBSERVATION_COUNT", "SEARCH_RANK", "HTTP_STATUS", "REVIEW_RATING"]),
     value: z.number().finite(),

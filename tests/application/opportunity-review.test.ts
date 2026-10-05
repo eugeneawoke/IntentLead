@@ -20,6 +20,7 @@ function item(id = opportunityId) {
     assessment: {
       decision: "REVIEW", confidence: 0.88, evidenceStrength: 0.9,
       freshness: 1, commercialImpact: 0.8, icpFit: 0.85, actionability: 0.8,
+      problemStatement: "The observed site issue may be affecting customer conversion.",
     },
     evidenceCount: 1,
     evidenceStatus: "COMPLETE",
@@ -40,7 +41,10 @@ function detail(id = opportunityId) {
       confidence: 0.9,
       verificationMethod: "normalized_public_source_capture",
       contentHash: "a".repeat(64),
-      facts: { companyName: "Acme Example", companyDomain: "acme.example" },
+      facts: {
+        companyName: "Acme Example", companyDomain: "acme.example",
+        problem: { observedCondition: "The homepage returned an unavailable page." },
+      },
     }],
     limitations: ["Model interpretation is separate from source facts."],
   };
@@ -111,6 +115,19 @@ describe("Opportunity review application service", () => {
     expect(result.evidence).toEqual([]);
     expect(result.evidenceStatus).toBe("MISSING");
     expect(result.limitations).toContain("Some referenced evidence is missing or tombstoned.");
+  });
+
+  it("keeps sanitized observed facts distinct from bounded model interpretation", async () => {
+    const result = await getOpportunityForReview("member-1", opportunityId, repository());
+
+    expect(result.evidence[0].facts.problem?.observedCondition).toBe("The homepage returned an unavailable page.");
+    expect(result.assessment?.problemStatement).toBe("The observed site issue may be affecting customer conversion.");
+    await expect(getOpportunityForReview("member-1", opportunityId, repository({
+      get: vi.fn().mockResolvedValue({
+        ...detail(),
+        assessment: { ...detail().assessment, problemStatement: "Contact owner@example.test" },
+      }),
+    }))).rejects.toMatchObject({ code: "INTERNAL_ERROR" });
   });
 
   it("does not serialize unexpected contact or downstream fields from a repository", async () => {

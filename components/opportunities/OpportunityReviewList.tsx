@@ -5,7 +5,10 @@ import Link from "next/link";
 import type { OpportunityReviewList } from "@/types/opportunity-review";
 import { loadOpportunityList, OpportunityReviewApiError } from "./opportunity-review-api";
 
-function statusLabel(state: string): string {
+function statusLabel(state: string, latestDecision?: string): string {
+  if (latestDecision === "ACCEPTED") return "Accepted";
+  if (latestDecision === "REJECTED") return "Rejected";
+  if (latestDecision === "NEEDS_RESEARCH") return "Needs research";
   if (state === "REJECTED") return "Rejected";
   if (state === "NEEDS_RESEARCH") return "Needs research";
   return "Awaiting review";
@@ -96,13 +99,13 @@ export default function OpportunityReviewListPage({ basePath = "/workspace/oppor
                   {item.company?.name ?? "Company details unavailable"}
                 </h2>
                 <span className="rounded-full border px-2.5 py-1 text-xs" style={{ borderColor: "var(--border)", color: item.state === "REJECTED" ? "var(--text-muted)" : "var(--accent)" }}>
-                  {statusLabel(item.state)}
+                  {statusLabel(item.state, item.latestReview?.decision)}
                 </span>
               </div>
               {item.company?.domain && <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>{item.company.domain}</p>}
               <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
-                <div><span className="block text-xs" style={{ color: "var(--text-faint)" }}>Signal</span><span style={{ color: "var(--text)" }}>{item.signal.subtype.replaceAll("_", " ")}</span></div>
-                <div><span className="block text-xs" style={{ color: "var(--text-faint)" }}>Evidence</span><span style={{ color: "var(--text)" }}>{item.evidenceCount} active · {item.evidenceStatus.toLowerCase()}</span></div>
+                <div><span className="block text-xs" style={{ color: "var(--text-muted)" }}>Signal</span><span style={{ color: "var(--text)" }}>{item.signal.subtype.replaceAll("_", " ")}</span></div>
+                <div><span className="block text-xs" style={{ color: "var(--text-muted)" }}>Evidence</span><span style={{ color: "var(--text)" }}>{item.evidenceCount} active · {item.evidenceStatus.toLowerCase()}</span></div>
               </div>
               {item.assessment && (
                 <p className="mt-4 border-t pt-3 text-xs" style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}>
