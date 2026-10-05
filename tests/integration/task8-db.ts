@@ -13,6 +13,7 @@ const migrations = [
   ["202610060011_task8_protocol_less_url_projection.sql", "to_regprocedure('public.intentlead_review_text_is_safe(text,integer)') IS NULL OR to_regprocedure('public.intentlead_build_opportunity_review_dto_unfiltered(uuid,boolean)') IS NULL OR to_regprocedure('public.intentlead_build_opportunity_review_dto(uuid,boolean)') IS NULL OR NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgrelid='public.intentlead_human_reviews'::regclass AND tgname='intentlead_human_review_safe_note' AND NOT tgisinternal)"],
   ["202610060012_task8_source_url_sanitization.sql", "to_regprocedure('public.intentlead_sanitize_review_source_url(text)') IS NULL OR to_regprocedure('public.intentlead_build_opportunity_review_dto(uuid,boolean)') IS NULL"],
   ["202610060013_task8_strict_source_url_allowlist.sql", "to_regprocedure('public.intentlead_review_source_url_path_is_safe(text)') IS NULL"],
+  ["202610060014_task8_url_host_control_parity.sql", "to_regprocedure('public.intentlead_review_source_url_host_is_safe(text)') IS NULL"],
 ] as const;
 
 function dollarQuoted(value: string): string {

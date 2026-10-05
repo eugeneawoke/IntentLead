@@ -142,6 +142,9 @@ describe("Opportunity review application service", () => {
     ["normalized safe path", "HTTPS://EXAMPLE.COM/posts/abc-123", "https://example.com/posts/abc-123"],
     ["root URL", "https://EXAMPLE.COM", "https://example.com/"],
     ["trailing slash", "HTTPS://EXAMPLE.COM/posts/", "https://example.com/posts/"],
+    ["hex loopback", "https://0x7f.0.0.1/x", null], ["short hex loopback", "https://0x7f.1/x", null], ["octal loopback", "https://0177.0.0.1/x", null],
+    ["integer loopback", "https://2130706433/x", null], ["short decimal loopback", "https://127.1/x", null], ["numeric subdomain", "https://123.example.com/path", "https://123.example.com/path"],
+    ["leading tab", "\thttps://example.com/posts/abc-123", null], ["trailing newline", "https://example.com/posts/abc-123\r\n", null], ["padded spaces", " https://example.com/posts/abc-123 ", null],
   ] as const)("applies the source URL allowlist to %s", async (_label, sourceUrl, expected) => {
     const candidate = detail();
     candidate.evidence[0].sourceUrl = sourceUrl;

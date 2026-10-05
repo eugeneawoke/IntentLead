@@ -203,13 +203,16 @@ describe.skipIf(!enabled)("Task 8 disposable PostgreSQL review boundary", () => 
       ["https://example.com/用户@example.com", null], ["https://example.com/posts/user@example.com", null], ["https://example.com/in/jane%2Edoe", null], ["https://user@example.com/posts/abc-123", null],
       ["https://example.com/posts/abc-123?token=secret%40example.com#private", "https://example.com/posts/abc-123"], ["https://example.com:99999/posts/abc-123", null], ["https://999.999.999.999/posts/abc-123", null], ["https://example.com/posts\\abc-123", null],
       ["HTTPS://EXAMPLE.COM/posts/abc-123", "https://example.com/posts/abc-123"], ["https://EXAMPLE.COM", "https://example.com/"], ["HTTPS://EXAMPLE.COM/posts/", "https://example.com/posts/"],
+      ["https://0x7f.0.0.1/x", null], ["https://0x7f.1/x", null], ["https://0177.0.0.1/x", null],
+      ["https://2130706433/x", null], ["https://127.1/x", null], ["https://123.example.com/path", "https://123.example.com/path"],
+      ["\thttps://example.com/posts/abc-123", null], ["https://example.com/posts/abc-123\r\n", null], [" https://example.com/posts/abc-123 ", null],
     ] as const;
     for (const [sourceUrl, expected] of cases) {
       const projected = await project(sourceUrl);
       expect(projected.sourceUrl).toBe(expected); if (sourceUrl.includes("token=")) expect(projected.raw).not.toMatch(/token=secret|alice%40|\?|#/);
     }
-    await sql(await readFile(new URL("../../supabase/migrations/202610060013_task8_strict_source_url_allowlist.sql", import.meta.url), "utf8"), "task8-source-url-migration-reapply");
-    expect(await sql(`SELECT count(*)=3 FROM pg_proc p WHERE p.oid IN ('public.intentlead_review_source_url_path_is_safe(text)'::regprocedure,'public.intentlead_sanitize_review_source_url(text)'::regprocedure,'public.intentlead_build_opportunity_review_dto(uuid,boolean)'::regprocedure) AND 'search_path=pg_catalog, public'=ANY(p.proconfig) AND NOT has_function_privilege('authenticated',p.oid,'EXECUTE') AND NOT has_function_privilege('anon',p.oid,'EXECUTE') AND NOT has_function_privilege('service_role',p.oid,'EXECUTE')`)).toBe("t");
+    await sql(await readFile(new URL("../../supabase/migrations/202610060014_task8_url_host_control_parity.sql", import.meta.url), "utf8"), "task8-source-url-migration-reapply");
+    expect(await sql(`SELECT count(*)=4 FROM pg_proc p WHERE p.oid IN ('public.intentlead_review_source_url_path_is_safe(text)'::regprocedure,'public.intentlead_review_source_url_host_is_safe(text)'::regprocedure,'public.intentlead_sanitize_review_source_url(text)'::regprocedure,'public.intentlead_build_opportunity_review_dto(uuid,boolean)'::regprocedure) AND 'search_path=pg_catalog, public'=ANY(p.proconfig) AND NOT has_function_privilege('authenticated',p.oid,'EXECUTE') AND NOT has_function_privilege('anon',p.oid,'EXECUTE') AND NOT has_function_privilege('service_role',p.oid,'EXECUTE')`)).toBe("t");
     expect(await sql(`SELECT has_function_privilege('authenticated','public.intentlead_get_opportunity_for_review(uuid)','EXECUTE')`)).toBe("t"); expect((await project("HTTPS://EXAMPLE.COM/research?campaign=private#section")).sourceUrl).toBe("https://example.com/research");
     expect(await sql(asRole("authenticated", `SELECT coalesce(public.intentlead_get_opportunity_for_review('${opportunities[0]}')::text,'null')`, outsider))).toBe("null");
   });
@@ -221,13 +224,11 @@ describe.skipIf(!enabled)("Task 8 disposable PostgreSQL review boundary", () => 
     await expect(sql(rpc(member, opportunities[3], "NEEDS_RESEARCH", "OTHER", `task8-url-note-${randomUUID()}`, note)))
       .rejects.toThrow(/invalid_review_note/);
   });
-
   it("denies a pilot linked after two earlier briefs and leaves outsider/non-pilot behavior unchanged", async () => {
     expect(await sql(asRole("authenticated", `SELECT public.intentlead_legacy_campaign_is_discovery_only('${multiBriefCampaign}')`, member))).toBe("t");
     expect(await sql(asRole("authenticated", `SELECT public.intentlead_legacy_campaign_is_discovery_only('${multiBriefCampaign}')`, outsider))).toBe("f");
     expect(await sql(asRole("authenticated", `SELECT public.intentlead_legacy_campaign_is_discovery_only('${nonPilotCampaign}')`, member))).toBe("f");
   });
-
   it("limits direct review insertion and RPC execution to authenticated members", async () => {
     expect(await sql(`SELECT has_table_privilege('authenticated','public.intentlead_human_reviews','INSERT')`)).toBe("f");
     expect(await sql(`SELECT has_function_privilege('service_role','public.intentlead_record_opportunity_review(uuid,text,text,text,text)','EXECUTE')`)).toBe("f");
@@ -256,7 +257,6 @@ describe.skipIf(!enabled)("Task 8 disposable PostgreSQL review boundary", () => 
     await expect(sql(rpc(member, opportunities[0], "ACCEPTED", "RELEVANT", key, "changed note"))).rejects.toThrow(/idempotency_conflict/);
     await expect(sql(rpc(member, opportunities[0], "REJECTED", "WEAK_SIGNAL", "second-decision-0001"))).rejects.toThrow(/stale_opportunity/);
   });
-
   it("records reject/research deterministically and leaves all downstream and credit rows unchanged", async () => {
     const before = JSON.parse(await sql(`SELECT jsonb_build_object(
       'credits',(SELECT credits_remaining FROM public.workspaces WHERE id='${workspace}'),

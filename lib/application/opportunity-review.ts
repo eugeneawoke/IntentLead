@@ -33,6 +33,8 @@ const phonePattern = /(?<!\d)\+?\d[\d(). -]{7,}\d(?!\d)/;
 const forbiddenHosts = new Set(["localhost", "localhost.localdomain"]);
 const sourceUrlHostLabelPattern = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/;
 const sourceUrlPathPattern = /^\/[A-Za-z0-9/_~.-]*$/;
+const sourceUrlControlOrWhitespacePattern = /[\x00-\x20\x7f]/;
+const numericHostnameSuffixPattern = /^(?:[0-9]+|0x)/i;
 
 function actor(userId: string): void {
   if (typeof userId !== "string" || !userId.trim()) {
@@ -98,9 +100,9 @@ function privateIp(host: string): boolean {
 }
 
 function safeSourceUrl(value: unknown): string | null {
-  if (typeof value !== "string") return null;
+  if (typeof value !== "string" || sourceUrlControlOrWhitespacePattern.test(value)) return null;
   try {
-    const input = value.trim();
+    const input = value;
     const bareUrl = input.split(/[?#]/, 1)[0];
     if (!bareUrl) return null;
     const parts = /^https:\/\/([^/]+)(\/.*)?$/i.exec(bareUrl);
@@ -109,6 +111,7 @@ function safeSourceUrl(value: unknown): string | null {
     if (!authority) return null;
     const rawHost = authority[1].toLowerCase();
     const labels = rawHost.split(".");
+    if (numericHostnameSuffixPattern.test(labels.at(-1) ?? "")) return null;
     const path = parts[2] ?? "/";
     if (rawHost.length > 253 || /^[0-9.]+$/.test(rawHost) || labels.length < 2 || labels.some(label => !sourceUrlHostLabelPattern.test(label))
       || (authority[2] !== undefined && Number(authority[2]) > 65535)
