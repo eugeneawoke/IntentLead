@@ -524,7 +524,8 @@ BEGIN
   IF (p_decision='ACCEPTED' AND p_reason<>'RELEVANT')
     OR (p_decision<>'ACCEPTED' AND p_reason NOT IN (
       'WRONG_COMPANY','WEAK_SIGNAL','NOT_RELEVANT','TOO_OLD','ALREADY_SOLVED',
-      'DUPLICATE','POLICY_CONCERN','OTHER'
+      'DUPLICATE','POOR_OFFER_FIT','POOR_ICP_FIT','LOW_COMMERCIAL_IMPACT',
+      'BAD_TIMING','UNSUPPORTED_INFERENCE','POLICY_CONCERN','OTHER'
     )) OR (p_reason='OTHER' AND v_note IS NULL)
   THEN RAISE EXCEPTION 'invalid_review_reason' USING ERRCODE='22023'; END IF;
   IF p_note IS NOT NULL AND (
@@ -567,6 +568,14 @@ BEGIN
     SELECT 1 FROM public.intentlead_human_reviews
     WHERE workspace_id=v_workspace AND opportunity_id=p_opportunity_id AND tombstoned_at IS NULL
   ) THEN RAISE EXCEPTION 'stale_opportunity' USING ERRCODE='40001'; END IF;
+  IF p_decision='ACCEPTED' AND NOT EXISTS (
+    SELECT 1
+    FROM public.intentlead_opportunity_evidence oe
+    JOIN public.intentlead_evidence_items e
+      ON e.id=oe.evidence_id AND e.workspace_id=oe.workspace_id
+    WHERE oe.workspace_id=v_workspace AND oe.opportunity_id=p_opportunity_id
+      AND oe.tombstoned_at IS NULL AND e.tombstoned_at IS NULL
+  ) THEN RAISE EXCEPTION 'review_conflict' USING ERRCODE='40001'; END IF;
 
   v_reviewed_at:=clock_timestamp();
   INSERT INTO public.intentlead_human_reviews(

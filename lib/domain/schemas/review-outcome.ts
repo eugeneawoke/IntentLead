@@ -3,7 +3,8 @@ import { IdSchema, NonEmptyStringSchema, ScopedRecordShape, TimestampSchema } fr
 
 const ReviewReasonSchema = z.enum([
   "WRONG_COMPANY", "WEAK_SIGNAL", "NOT_RELEVANT", "TOO_OLD", "ALREADY_SOLVED",
-  "DUPLICATE", "POLICY_CONCERN", "OTHER",
+  "DUPLICATE", "POOR_OFFER_FIT", "POOR_ICP_FIT", "LOW_COMMERCIAL_IMPACT",
+  "BAD_TIMING", "UNSUPPORTED_INFERENCE", "POLICY_CONCERN", "OTHER",
 ]);
 const reviewShape = {
   ...ScopedRecordShape, opportunityId: IdSchema, reviewerId: IdSchema,

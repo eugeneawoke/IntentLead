@@ -75,11 +75,13 @@ The Glook snapshot consumer commits `14097c4` and `3251300` are a dormant option
 
 ## Task F — Dogfood quality gate
 
-- [ ] Run the full backend/frontend/database/security/evaluation suite.
+- [x] Run the full backend/frontend/database/security/evaluation suite (2026-10-06). Final evidence: 454/454 unit, 55/55 disposable-PostgreSQL integration and 16/16 browser checks, both typechecks, production build, lint with zero errors and nine pre-existing `fluid-glass.tsx` warnings.
 - [ ] Run one controlled self-prospecting sample on recorded authorized evidence.
 - [ ] Record acceptance, rejection reasons, company accuracy, evidence sufficiency, duplicates, latency and zero-spend cost.
-- [ ] Obtain independent domain, security and frontend reviews; resolve blockers.
+- [x] Obtain independent domain, security and frontend reviews; resolve blockers (2026-10-06). Review added the recorded-evidence runtime, measurable primary quality reasons and fail-closed acceptance when active evidence is absent; focused regressions passed without repeating the full gate.
 - [ ] Decide GO, REWORK or STOP for a larger sample.
+
+**Current blocker:** code and quality gates are ready, but the repository intentionally contains no real or recorded business evidence. The controlled sample now waits for one founder-authorized, sanitized evidence bundle plus the approved self-prospecting Offer/ICP and preregistered decision thresholds. Synthetic fixture data cannot satisfy this gate.
 
 **Done when:** the result is a measured Opportunity-quality decision, not a demonstration of infrastructure.
 

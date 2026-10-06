@@ -13,6 +13,41 @@ import type {
 import { createSupabaseSelfProspectingPersistence } from "./self-prospecting-persistence";
 import { SYNTHETIC_SELF_PROSPECTING_FIXTURE } from "./fixture-data";
 
+export interface NoNetworkSelfProspectingFixture {
+  version: string;
+  signal: {
+    source: "reddit" | "hackernews";
+    externalId: string;
+    sourceUrl: string;
+    content: string;
+    context: string | null;
+    publishedAt: string | null;
+    capturedAt?: string;
+  };
+  company: {
+    name: string;
+    domain: string;
+    sourceId: string;
+    sourceUrl: string;
+    title: string;
+    excerpt: string;
+    confidence: number;
+    capturedAt?: string;
+  };
+  assessment: {
+    problemType: "website" | "local_listing" | "reviews" | "reputation" | "acquisition" | "conversion" | "operations" | "other";
+    evidenceStrength: number;
+    explicitness: number;
+    urgency: number;
+    commercialImpact: number;
+    icpFit: number;
+    buyerRelevance: number;
+    actionability: number;
+    confidence: number;
+    reviewReasons: readonly string[];
+  };
+}
+
 type RpcResult = { data: unknown; error: { message?: string } | null };
 export interface FixtureRuntimeDatabaseClient {
   rpc(name: string, args: Record<string, unknown>): PromiseLike<RpcResult>;
@@ -49,12 +84,14 @@ function succeededRun<T>(input: {
   recordCount: number;
   provenance?: ProviderRunEnvelope<T>["provenance"];
   now: Date;
+  fixture: NoNetworkSelfProspectingFixture;
+  limitations: string[];
 }): ProviderRunEnvelope<T> {
   return {
     schemaVersion: 1,
     providerRunId: deterministicUuid(input.purpose, input.job.id),
     provider: input.provider,
-    providerVersion: SYNTHETIC_SELF_PROSPECTING_FIXTURE.version,
+    providerVersion: input.fixture.version,
     status: "SUCCEEDED",
     startedAt: input.now.toISOString(),
     finishedAt: input.now.toISOString(),
@@ -62,7 +99,7 @@ function succeededRun<T>(input: {
     usage: { requestCount: 0, recordCount: input.recordCount },
     cost: { configuredAmount: 0, reservedAmount: 0, actualAmount: 0, currency: "USD" },
     provenance: input.provenance ?? [],
-    limitations: ["SYNTHETIC_CONTRACT_FIXTURE", "NO_NETWORK", "NOT_LIVE_PROVIDER_EVIDENCE"],
+    limitations: input.limitations,
     value: input.value,
     failureKind: null,
     capabilityError: null,
@@ -83,26 +120,32 @@ function execution<T>(run: ProviderRunEnvelope<T>, budget: ProviderBudget): Prov
   };
 }
 
-function fixtureRegistry(now: () => Date): SelfProspectingRegistry {
+function fixtureRegistry(
+  now: () => Date,
+  fixtureData: NoNetworkSelfProspectingFixture,
+  limitations: string[],
+): SelfProspectingRegistry {
   return {
     async search({ job, signal, budget }) {
       if (signal.aborted) throw signal.reason;
-      const fixture = SYNTHETIC_SELF_PROSPECTING_FIXTURE.signal;
+      const fixture = fixtureData.signal;
       const value: DiscoveredSignal[] = [{ ...fixture }];
       const capturedAt = now();
       const run = succeededRun({
         job,
         purpose: "fixture-source-run",
-        provider: "hackernews",
+        provider: fixture.source,
         value,
         recordCount: value.length,
         now: capturedAt,
+        fixture: fixtureData,
+        limitations,
         provenance: [{
           schemaVersion: 1,
-          providerId: "hackernews",
+          providerId: fixture.source,
           providerSourceId: fixture.externalId,
           providerRunId: deterministicUuid("fixture-source-run", job.id),
-          capturedAt: capturedAt.toISOString(),
+          capturedAt: fixture.capturedAt ?? capturedAt.toISOString(),
           sourceUrl: fixture.sourceUrl,
         }],
       });
@@ -111,7 +154,7 @@ function fixtureRegistry(now: () => Date): SelfProspectingRegistry {
 
     async resolveCompany({ job, signal, budget }) {
       if (signal.aborted) throw signal.reason;
-      const fixture = SYNTHETIC_SELF_PROSPECTING_FIXTURE.company;
+      const fixture = fixtureData.company;
       const capturedAt = now();
       const runId = deterministicUuid("fixture-company-run", job.id);
       const value = [{
@@ -126,7 +169,7 @@ function fixtureRegistry(now: () => Date): SelfProspectingRegistry {
           sourceUrl: fixture.sourceUrl,
           title: fixture.title,
           excerpt: fixture.excerpt,
-          capturedAt: capturedAt.toISOString(),
+          capturedAt: fixture.capturedAt ?? capturedAt.toISOString(),
           schemaVersion: 1 as const,
         }],
       }];
@@ -137,12 +180,14 @@ function fixtureRegistry(now: () => Date): SelfProspectingRegistry {
         value,
         recordCount: value.length,
         now: capturedAt,
+        fixture: fixtureData,
+        limitations,
         provenance: [{
           schemaVersion: 1,
           providerId: "exa",
           providerSourceId: fixture.sourceId,
           providerRunId: runId,
-          capturedAt: capturedAt.toISOString(),
+          capturedAt: fixture.capturedAt ?? capturedAt.toISOString(),
           sourceUrl: fixture.sourceUrl,
         }],
       });
@@ -151,7 +196,11 @@ function fixtureRegistry(now: () => Date): SelfProspectingRegistry {
   };
 }
 
-function fixtureAssessmentEngine(now: () => Date): SelfProspectingAssessmentEngine {
+function fixtureAssessmentEngine(
+  now: () => Date,
+  fixtureData: NoNetworkSelfProspectingFixture,
+  limitations: string[],
+): SelfProspectingAssessmentEngine {
   return {
     configuredCost: { amount: 0, currency: "USD" },
     async assess(input, context) {
@@ -170,7 +219,7 @@ function fixtureAssessmentEngine(now: () => Date): SelfProspectingAssessmentEngi
         || !payload.discoveryObjective) {
         throw new Error("fixture assessment requires offer, ICP, objective and normalized signal evidence");
       }
-      const fixtureAssessment = SYNTHETIC_SELF_PROSPECTING_FIXTURE.assessment;
+      const fixtureAssessment = fixtureData.assessment;
       const output = {
         decision: "REVIEW" as const,
         problemType: fixtureAssessment.problemType,
@@ -197,6 +246,8 @@ function fixtureAssessmentEngine(now: () => Date): SelfProspectingAssessmentEngi
           value: output,
           recordCount: 1,
           now: now(),
+          fixture: fixtureData,
+          limitations,
         }),
       };
     },
@@ -213,6 +264,20 @@ export function createFixtureSelfProspectingDependencies(
   client: FixtureRuntimeDatabaseClient,
   clock: () => Date = () => new Date(),
 ): SelfProspectingDependencies {
+  return createNoNetworkSelfProspectingDependencies(
+    client,
+    SYNTHETIC_SELF_PROSPECTING_FIXTURE,
+    ["SYNTHETIC_CONTRACT_FIXTURE", "NO_NETWORK", "NOT_LIVE_PROVIDER_EVIDENCE"],
+    clock,
+  );
+}
+
+export function createNoNetworkSelfProspectingDependencies(
+  client: FixtureRuntimeDatabaseClient,
+  fixture: NoNetworkSelfProspectingFixture,
+  limitations: string[],
+  clock: () => Date = () => new Date(),
+): SelfProspectingDependencies {
   return {
     async loadContext(job) {
       const response = await client.rpc("intentlead_get_self_prospecting_context", leaseArgs(job));
@@ -226,8 +291,8 @@ export function createFixtureSelfProspectingDependencies(
         icp: ICPDefinitionContextSchema.parse(context.icp),
       };
     },
-    registry: fixtureRegistry(clock),
-    assessmentEngine: fixtureAssessmentEngine(clock),
+    registry: fixtureRegistry(clock, fixture, limitations),
+    assessmentEngine: fixtureAssessmentEngine(clock, fixture, limitations),
     persistence: createSupabaseSelfProspectingPersistence(client),
     now: clock,
     idFactory: { create: deterministicUuid },

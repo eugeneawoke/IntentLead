@@ -95,6 +95,12 @@ describe("market and identity boundaries", () => {
     expect(ReviewDecisionSchema.safeParse({ ...f.review, decision: "REJECTED", reason: "OTHER" }).success).toBe(false);
     expect(ReviewDecisionSchema.safeParse({ ...f.review, decision: "REJECTED", reason: "OTHER", note: "Outside scope" }).success).toBe(true);
   });
+  it.each([
+    "POOR_OFFER_FIT", "POOR_ICP_FIT", "LOW_COMMERCIAL_IMPACT",
+    "BAD_TIMING", "UNSUPPORTED_INFERENCE",
+  ])("keeps the quality reason %s measurable", reason => {
+    expect(ReviewDecisionSchema.safeParse({ ...f.review, decision: "REJECTED", reason }).success).toBe(true);
+  });
 });
 
 describe("durable jobs and structured capability errors", () => {

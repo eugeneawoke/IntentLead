@@ -4,7 +4,8 @@
 
 | Provider/family | Capability | Current role | Roadmap status |
 |---|---|---|---|
-| Recorded fixtures | discovery, evidence, company resolution, deterministic assessment | wired locally with network guard | required for zero-spend pilot |
+| Synthetic contract fixture | discovery, evidence, company resolution, deterministic assessment | wired locally with network guard | infrastructure-only fixture |
+| Recorded authorized evidence | discovery, evidence, company resolution, deterministic assessment | local JSON input via `SELF_PROSPECTING_MODE=recorded`; schema-validated, sanitized, no-network and zero-cost | required for zero-spend pilot |
 | Reddit | public expressed-intent discovery | adapter exists but is not wired to the pilot | evaluate after fixture gate |
 | Hacker News | public expressed-intent discovery | adapter exists but is not wired to the pilot | evaluate after fixture gate |
 | Exa | web/company discovery | wrapped adapter exists | disabled without explicit budget |

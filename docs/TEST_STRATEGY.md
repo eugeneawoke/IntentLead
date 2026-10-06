@@ -26,8 +26,8 @@
 
 ## Gates
 
-Before commit: focused tests, relevant typecheck/lint, GitNexus detect-changes.
+During implementation and before an intermediate commit: run only focused tests for directly changed behavior, plus a relevant typecheck or lint check when the change can affect compilation or static rules. Do not repeat a green repository-wide suite for unrelated follow-up changes or documentation-only edits.
 
-Before dogfood: full `npm run verify`, disposable DB suite, browser journey, security/evaluation suite and independent functional/security review.
+Before dogfood or at the end of a milestone: run the full `npm run verify`, disposable DB suite, browser journey, security/evaluation suite and independent functional/security review once. After a failure, rerun only the failed or directly affected set; repeat the full gate only if the fix has broad cross-layer impact.
 
 No live-provider smoke, remote migration or production canary is implied by a local green build.

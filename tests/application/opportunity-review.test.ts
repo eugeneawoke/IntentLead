@@ -299,6 +299,17 @@ describe("Opportunity review application service", () => {
     }
   });
 
+  it.each([
+    "POOR_OFFER_FIT", "POOR_ICP_FIT", "LOW_COMMERCIAL_IMPACT",
+    "BAD_TIMING", "UNSUPPORTED_INFERENCE",
+  ] as const)("accepts the measurable quality reason %s", async reason => {
+    const repo = repository();
+    await submitOpportunityReview("member-1", opportunityId, {
+      decision: "REJECTED", reason, note: null, idempotencyKey: `review-${reason.toLowerCase()}`,
+    }, `review-${reason.toLowerCase()}`, repo);
+    expect(repo.review).toHaveBeenCalledWith(opportunityId, expect.objectContaining({ reason }));
+  });
+
   it("maps an unknown repository failure to a non-sensitive application error", async () => {
     const repo = repository({ list: vi.fn().mockRejectedValue(new Error("person@example.test")) });
 

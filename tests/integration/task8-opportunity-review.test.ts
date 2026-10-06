@@ -221,9 +221,13 @@ describe.skipIf(!enabled)("Task 8 disposable PostgreSQL review boundary", () => 
     await expect(sql(rpc(member, opportunities[0], "ACCEPTED", "RELEVANT", key, "changed note"))).rejects.toThrow(/idempotency_conflict/);
     await expect(sql(rpc(member, opportunities[0], "REJECTED", "WEAK_SIGNAL", "second-decision-0001"))).rejects.toThrow(/stale_opportunity/);
   });
+  it("fails closed when acceptance has no active evidence", async () => {
+    await expect(sql(rpc(member, opportunities[2], "ACCEPTED", "RELEVANT", "task8-no-evidence-01")))
+      .rejects.toThrow(/review_conflict/);
+  });
   it("records reject/research deterministically without creating provider cost events", async () => {
     const before = await sql(`SELECT count(*) FROM public.intentlead_cost_events WHERE workspace_id='${workspace}'`);
-    const rejected = JSON.parse(await sql(rpc(member, opportunities[1], "REJECTED", "WEAK_SIGNAL", "task8-reject-key-001")));
+    const rejected = JSON.parse(await sql(rpc(member, opportunities[1], "REJECTED", "POOR_ICP_FIT", "task8-reject-key-001")));
     const research = JSON.parse(await sql(rpc(owner, opportunities[2], "NEEDS_RESEARCH", "OTHER", "task8-research-key-01", "Need another source")));
     expect(rejected.state).toBe("REJECTED");
     expect(research.state).toBe("NEEDS_RESEARCH");

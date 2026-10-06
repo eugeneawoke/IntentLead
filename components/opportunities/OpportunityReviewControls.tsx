@@ -14,6 +14,11 @@ const reasons: { value: ReviewReason; label: string }[] = [
   { value: "TOO_OLD", label: "Too old" },
   { value: "ALREADY_SOLVED", label: "Already solved" },
   { value: "DUPLICATE", label: "Duplicate" },
+  { value: "POOR_OFFER_FIT", label: "Poor offer fit" },
+  { value: "POOR_ICP_FIT", label: "Poor ICP fit" },
+  { value: "LOW_COMMERCIAL_IMPACT", label: "Low commercial impact" },
+  { value: "BAD_TIMING", label: "Bad timing" },
+  { value: "UNSUPPORTED_INFERENCE", label: "Unsupported inference" },
   { value: "POLICY_CONCERN", label: "Policy concern" },
   { value: "OTHER", label: "Other" },
 ];
@@ -33,11 +38,16 @@ export default function OpportunityReviewControls({
   const [status, setStatus] = useState("");
   const commandKey = useRef<{ signature: string; key: string } | null>(null);
   const isReviewed = opportunity.latestReview !== null;
+  const canAcceptEvidence = opportunity.evidenceStatus !== "MISSING" && opportunity.evidenceCount > 0;
 
   const submit = async (decision: "ACCEPTED" | ReviewDecision) => {
     setAttempted(true);
     setError(null);
     setStatus("");
+    if (decision === "ACCEPTED" && !canAcceptEvidence) {
+      setError("At least one active evidence item is required before accepting this finding.");
+      return;
+    }
     if (decision !== "ACCEPTED" && (!reason || (reason === "OTHER" && !note.trim()))) return;
 
     const base = decision === "ACCEPTED"
@@ -86,7 +96,12 @@ export default function OpportunityReviewControls({
       <p id="review-control-info" className="mt-2 text-sm leading-6" style={{ color: "var(--text-muted)" }}>
         Accept records a human decision only. It does not identify a buyer or enable contact, drafts, outreach, outcomes, or billing.
       </p>
-      <button type="button" onClick={() => void submit("ACCEPTED")} disabled={busy} className="mt-4 min-h-11 rounded-lg px-4 text-sm font-semibold disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2" style={{ background: "var(--accent)", color: "var(--bg)" }}>
+      {!canAcceptEvidence && (
+        <p id="review-accept-evidence-help" className="mt-2 text-sm" style={{ color: "var(--warning)" }}>
+          At least one active evidence item is required before accepting this finding. Reject or request more research instead.
+        </p>
+      )}
+      <button type="button" onClick={() => void submit("ACCEPTED")} disabled={busy || !canAcceptEvidence} aria-describedby={!canAcceptEvidence ? "review-accept-evidence-help" : "review-control-info"} className="mt-4 min-h-11 rounded-lg px-4 text-sm font-semibold disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2" style={{ background: "var(--accent)", color: "var(--bg)" }}>
         {busy && status === "Saving review…" ? "Saving…" : "Accept finding"}
       </button>
 

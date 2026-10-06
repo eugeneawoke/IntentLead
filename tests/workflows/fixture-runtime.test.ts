@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createSelfProspectingHandler } from "../../worker/workflows/self-prospecting";
 import { createFixtureSelfProspectingDependencies } from "../../worker/workflows/fixture-runtime";
@@ -52,11 +55,111 @@ describe("fixture self-prospecting runtime", () => {
   it("wires only an explicit fixture mode and rejects unknown modes", () => {
     expect(resolveSelfProspectingMode(undefined)).toBe("disabled");
     expect(resolveSelfProspectingMode("fixture")).toBe("fixture");
+    expect(resolveSelfProspectingMode("recorded")).toBe("recorded");
     expect(() => resolveSelfProspectingMode("live")).toThrow("SELF_PROSPECTING_MODE");
     expect(createConfiguredSelfProspectingHandler({
       mode: "disabled",
       client: { rpc: vi.fn() },
     })).toBeUndefined();
+  });
+
+  it("loads only explicitly authorized sanitized recorded evidence from a local file", () => {
+    const directory = mkdtempSync(join(tmpdir(), "intentlead-recorded-"));
+    const evidencePath = join(directory, "evidence.json");
+    writeFileSync(evidencePath, JSON.stringify({
+      schemaVersion: 1,
+      version: "recorded-test-v1",
+      authorization: {
+        authorizedFor: "INTENTLEAD_DOGFOOD",
+        authorizedAt: "2026-10-06T07:00:00.000Z",
+        reference: "local-dogfood-approval-1",
+        sanitized: true,
+      },
+      signal: {
+        source: "hackernews",
+        externalId: "12345678",
+        sourceUrl: "https://news.ycombinator.com/item?id=12345678",
+        content: "A business team is evaluating a documented operational problem.",
+        context: "Sanitized recorded test evidence",
+        publishedAt: "2026-10-05T12:00:00.000Z",
+        capturedAt: "2026-10-05T13:00:00.000Z",
+      },
+      company: {
+        name: "Example Company",
+        domain: "example.com",
+        sourceId: "recorded-test-company",
+        sourceUrl: "https://example.com/about",
+        title: "Example Company operations",
+        excerpt: "The company describes its operational workflow.",
+        confidence: 0.9,
+        capturedAt: "2026-10-05T13:00:00.000Z",
+      },
+      assessment: {
+        problemType: "operations",
+        evidenceStrength: 0.8,
+        explicitness: 0.8,
+        urgency: 0.6,
+        commercialImpact: 0.7,
+        icpFit: 0.7,
+        buyerRelevance: 0.6,
+        actionability: 0.7,
+        confidence: 0.75,
+        reviewReasons: ["NEEDS_HUMAN_CONFIRMATION"],
+      },
+    }));
+    try {
+      expect(createConfiguredSelfProspectingHandler({
+        mode: "recorded",
+        client: { rpc: vi.fn() },
+        recordedEvidencePath: evidencePath,
+      })).toBeTypeOf("function");
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("fails closed when recorded evidence is absent or not explicitly authorized", () => {
+    expect(() => createConfiguredSelfProspectingHandler({
+      mode: "recorded",
+      client: { rpc: vi.fn() },
+    })).toThrow("SELF_PROSPECTING_RECORDED_EVIDENCE_PATH");
+
+    const directory = mkdtempSync(join(tmpdir(), "intentlead-recorded-invalid-"));
+    const evidencePath = join(directory, "evidence.json");
+    writeFileSync(evidencePath, JSON.stringify({ schemaVersion: 1, authorization: { sanitized: false } }));
+    try {
+      expect(() => createConfiguredSelfProspectingHandler({
+        mode: "recorded",
+        client: { rpc: vi.fn() },
+        recordedEvidencePath: evidencePath,
+      })).toThrow("Recorded evidence file is invalid");
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it.each([
+    ["provider mismatch", { source: "hackernews", externalId: "1", sourceUrl: "https://reddit.com/r/startups/comments/1/test" }],
+    ["personal path", { source: "reddit", externalId: "abc123", sourceUrl: "https://reddit.com/user/example" }],
+    ["contact-like identity", { source: "hackernews", externalId: "owner@example.com", sourceUrl: "https://news.ycombinator.com/item?id=1" }],
+    ["Hacker News identity mismatch", { source: "hackernews", externalId: "12345678", sourceUrl: "https://news.ycombinator.com/item?id=87654321" }],
+    ["Reddit identity mismatch", { source: "reddit", externalId: "abc123", sourceUrl: "https://reddit.com/r/startups/comments/xyz789/test" }],
+  ])("rejects recorded %s", (_label, signalOverride) => {
+    const directory = mkdtempSync(join(tmpdir(), "intentlead-recorded-source-invalid-"));
+    const evidencePath = join(directory, "evidence.json");
+    writeFileSync(evidencePath, JSON.stringify({
+      schemaVersion: 1, version: "recorded-test-v1",
+      authorization: { authorizedFor: "INTENTLEAD_DOGFOOD", authorizedAt: "2026-10-06T07:00:00.000Z", reference: "approval-1", sanitized: true },
+      signal: { ...signalOverride, content: "A company is evaluating an operational problem.", context: "Recorded test", publishedAt: "2026-10-05T12:00:00.000Z", capturedAt: "2026-10-05T13:00:00.000Z" },
+      company: { name: "Example Company", domain: "example.com", sourceId: "company-1", sourceUrl: "https://example.com/about", title: "Example operations", excerpt: "The company describes its workflow.", confidence: 0.9, capturedAt: "2026-10-05T13:00:00.000Z" },
+      assessment: { problemType: "operations", evidenceStrength: 0.8, explicitness: 0.8, urgency: 0.6, commercialImpact: 0.7, icpFit: 0.7, buyerRelevance: 0.6, actionability: 0.7, confidence: 0.75, reviewReasons: ["NEEDS_HUMAN_CONFIRMATION"] },
+    }));
+    try {
+      expect(() => createConfiguredSelfProspectingHandler({ mode: "recorded", client: { rpc: vi.fn() }, recordedEvidencePath: evidencePath }))
+        .toThrow("Recorded evidence file is invalid");
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 
   it("runs the synthetic contract fixture to a reviewable zero-cost Opportunity and reuses it on rerun", async () => {
@@ -166,6 +269,18 @@ describe("fixture network guard", () => {
       "https://db.intentlead.test/rest/v1/jobs",
       expect.objectContaining({ redirect: "error" }),
     );
+    restore();
+  });
+
+  it("applies the same network deny guard to recorded evidence mode", async () => {
+    const underlying = vi.fn(async () => new Response("ok"));
+    const restore = installFixtureNetworkGuard({
+      mode: "recorded",
+      supabaseUrl: "https://db.intentlead.test",
+      fetchImplementation: underlying,
+    });
+    await expect(fetch("https://api.openai.com/v1/responses")).rejects.toThrow("blocked network origin");
+    expect(underlying).not.toHaveBeenCalled();
     restore();
   });
 });

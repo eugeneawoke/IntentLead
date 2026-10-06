@@ -36,14 +36,23 @@ function companyRun(provider: ProviderId, failure?: "DEPENDENCY_UNAVAILABLE" | "
   } : { ...base, status: "SUCCEEDED", value: [companyCandidate], failureKind: null, capabilityError: null };
 }
 
-function providerRun(id: string, provider: "hackernews" | "exa" | "openai", value: unknown, cost = 0) {
+function providerRun(
+  id: string,
+  provider: "hackernews" | "exa" | "openai",
+  value: unknown,
+  cost = 0,
+  provenance: Array<{
+    schemaVersion: 1; providerId: "hackernews"; providerSourceId: string;
+    providerRunId: string; capturedAt: string; sourceUrl: string;
+  }> = [],
+) {
   return {
     schemaVersion: 1 as const, providerRunId: id, provider,
     providerVersion: "fixture-v1", status: "SUCCEEDED" as const,
     startedAt: date, finishedAt: date, latencyMs: 0,
     usage: { requestCount: 1, recordCount: 1 },
     cost: { configuredAmount: cost, reservedAmount: cost, actualAmount: cost, currency: provider === "openai" ? "USD" : null },
-    provenance: [], limitations: [], value, failureKind: null, capabilityError: null,
+    provenance, limitations: [], value, failureKind: null, capabilityError: null,
   };
 }
 
@@ -68,6 +77,7 @@ function makeHarness(options: {
   cancelDuring?: "SOURCE_SEARCH" | "OPPORTUNITY_ASSESSMENT";
   checkpoint?: (value: Record<string, unknown>) => void;
   runOperation?: (capability: string, run: () => Promise<unknown>) => Promise<unknown>;
+  sourceCapturedAt?: string;
 } = {}) {
   const calls = { search: 0, company: 0, assessment: 0, persist: 0 };
   const persisted: Array<Record<string, unknown>> = [];
@@ -87,7 +97,10 @@ function makeHarness(options: {
     async search(input: { signal: AbortSignal }) {
       calls.search++;
       if (options.cancelDuring === "SOURCE_SEARCH") await waitForAbort(input.signal);
-      const run = providerRun(fixtureIds.sourceRun, "hackernews", [signal]);
+      const run = providerRun(fixtureIds.sourceRun, "hackernews", [signal], 0, options.sourceCapturedAt ? [{
+        schemaVersion: 1, providerId: "hackernews", providerSourceId: signal.externalId,
+        providerRunId: fixtureIds.sourceRun, capturedAt: options.sourceCapturedAt, sourceUrl: signal.sourceUrl,
+      }] : []);
       return successful(run, [signal], options.remainingBudget ?? budget);
     },
     async resolveCompany() {
@@ -175,6 +188,18 @@ describe("Task 7 self-prospecting workflow", () => {
     expect(harness.persisted[0]?.modelDecision).toBe("QUALIFY");
     expect(harness.persisted[0]?.assessment).toMatchObject({ decision: "REVIEW" });
     expect(harness.calls).toEqual({ search: 1, company: 1, assessment: 1, persist: 1 });
+  });
+
+  it("preserves the provider capture time when replaying recorded evidence", async () => {
+    const capturedAt = "2026-10-05T10:30:00.000Z";
+    const harness = makeHarness({ sourceCapturedAt: capturedAt });
+    await harness.handler(job, harness.execution);
+    expect(harness.persisted[0]?.sourceItems).toEqual(expect.arrayContaining([
+      expect.objectContaining({ capturedAt }),
+    ]));
+    expect(harness.persisted[0]?.evidenceItems).toEqual(expect.arrayContaining([
+      expect.objectContaining({ capturedAt }),
+    ]));
   });
 
   it("keeps a model REVIEW in HUMAN_REVIEW with the model reason", async () => {

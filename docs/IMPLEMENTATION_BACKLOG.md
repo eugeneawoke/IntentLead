@@ -11,7 +11,7 @@
 - [x] Wire the self-prospecting handler in fixture/no-network/zero-cost mode (2026-10-06).
 - [x] Preserve Opportunity, tenant, no-downstream-action and retired-route boundaries while deleting legacy code (2026-10-06).
 - [x] Remove the legacy schema bridge through a forward-only migration after clean/populated upgrade verification (2026-10-06).
-- [ ] Run the controlled dogfood quality gate and independent reviews.
+- [ ] Run the controlled dogfood sample and record a GO/REWORK/STOP decision. The full local suite and independent reviews passed on 2026-10-06; execution waits only for founder-authorized recorded evidence and approved Offer/ICP/threshold inputs.
 
 ## After dogfood proof
 

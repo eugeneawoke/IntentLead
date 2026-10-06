@@ -33,7 +33,7 @@ This stage establishes versioned domain contracts, evidence provenance, provider
 
 The system receives IntentLead's offer, ICP, exclusions and market, then discovers companies, captures evidence, resolves company identity and produces `QUALIFY`, `REVIEW` or `REJECT` assessments. The founder reviews results and records rejection reasons.
 
-The first runnable contract uses an explicitly synthetic no-network fixture and zero paid-provider spend. A later dogfood gate uses separately authorized recorded evidence. Neither depends on Glook, website analysis, contact enrichment, message drafting or any sending capability.
+The first runnable contract uses an explicitly synthetic no-network fixture and zero paid-provider spend. The controlled dogfood runtime is also implemented locally: it accepts only separately authorized, sanitized recorded evidence from an external file, preserves capture provenance and blocks every network origin except Supabase. The first recorded sample is waiting for founder-supplied evidence and approved Offer/ICP/threshold inputs. Neither mode depends on Glook, website analysis, contact enrichment, message drafting or any sending capability.
 
 **Gate:** a reproducible sample with measured acceptance rate, company-resolution quality, evidence sufficiency, false-positive reasons, latency and cost.
 

@@ -151,6 +151,10 @@ test("partial and missing detail evidence stay explicit and separate from interp
   await page.goto(`/e2e-fixtures/opportunities/${ids.missing}`);
   await expect(page.getByText(/No active evidence is available/)).toBeVisible();
   await expect(page.getByText("No active source items are available.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Accept finding" })).toBeDisabled();
+  await expect(page.getByText(/At least one active evidence item is required/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Reject", exact: true })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Needs research" })).toBeEnabled();
   await expectNoDownstreamControls(page);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(1440);
 });

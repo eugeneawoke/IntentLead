@@ -4,7 +4,8 @@ import { SignalSchema } from "./opportunity";
 
 const ExistingReviewReasonSchema = z.enum([
   "WRONG_COMPANY", "WEAK_SIGNAL", "NOT_RELEVANT", "TOO_OLD", "ALREADY_SOLVED",
-  "DUPLICATE", "POLICY_CONCERN", "OTHER",
+  "DUPLICATE", "POOR_OFFER_FIT", "POOR_ICP_FIT", "LOW_COMMERCIAL_IMPACT",
+  "BAD_TIMING", "UNSUPPORTED_INFERENCE", "POLICY_CONCERN", "OTHER",
 ]);
 
 // Block URL-shaped domain/path tokens, but preserve plain domains and ordinary prose.

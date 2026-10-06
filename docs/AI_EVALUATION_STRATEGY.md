@@ -20,6 +20,6 @@ Include clear expressed intent, weak pain, non-commercial discussion, wrong comp
 
 ## Review labels
 
-`ACCEPT`, `REJECT` or `NEEDS_RESEARCH`, plus one or more reasons: wrong company, weak evidence, poor offer/ICP fit, stale, already solved, duplicate, low commercial impact, bad timing, unsupported inference, policy concern or other note.
+`ACCEPT`, `REJECT` or `NEEDS_RESEARCH`, plus one primary measurable reason: wrong company, weak evidence, poor offer fit, poor ICP fit, stale, already solved, duplicate, low commercial impact, bad timing, unsupported inference, policy concern or other note. A free-text note may add secondary context without replacing the structured primary reason.
 
 The fixture/no-network gate must prove that external content cannot alter system instructions, create evidence, bypass policy or trigger network/personal-data actions.

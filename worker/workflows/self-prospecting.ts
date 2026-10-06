@@ -87,7 +87,9 @@ export function createSelfProspectingHandler(dependencies: SelfProspectingDepend
       const provider = providerId(signal.source);
       const sourceRun = sourceRuns.find(run => run.provider === provider);
       if (!sourceRun) throw new Error("signal provider run is missing from its registry result");
-      const capturedAt = dependencies.now().toISOString();
+      const capturedAt = sourceRun.provenance.find(item => (
+        item.providerSourceId === signal.externalId && item.sourceUrl === signal.sourceUrl
+      ))?.capturedAt ?? dependencies.now().toISOString();
       const sourceId = dependencies.idFactory.create("source-item", candidateIdentity);
       const evidenceId = dependencies.idFactory.create("signal-evidence", candidateIdentity);
       const sourceEvidence = makeObservation({
