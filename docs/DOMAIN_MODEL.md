@@ -1,38 +1,33 @@
-# Domain model
+# IntentLead domain model
 
-**Status:** Accepted target model, 2026-10-04 (ADR-001, ADR-006, ADR-007). Existing code remains a narrower Lead projection during migration. The `EN_DISCOVERY_ONLY` pilot stops before contact enrichment and outreach.
+**Status:** Accepted target model, revised 2026-10-06.
 
-## Aggregate boundaries
+## Aggregate boundary
 
-`Signal` is an input observation. `Opportunity` is a commercial judgment supported by evidence. `Lead` is a delivery projection after company, buyer and contact work. These terms are not interchangeable.
+`Opportunity` is the central commercial aggregate. A raw observation is not a Lead and does not become an Opportunity until evidence, company identity and offer/ICP relevance have been assessed.
+
+`Lead` is not a target-domain entity. Existing `leads` and `messages` tables are legacy storage to be retired after the Opportunity read path and deletion/migration checks are complete.
 
 ## Core entities
 
 | Entity | Responsibility |
 |---|---|
-| Workspace | Tenant, entitlements, budgets and policy scope |
-| OfferProfile | What the user sells, outcomes, exclusions and price range |
-| ICPDefinition | Target firmographics, geographies, business model, buyer roles and negative criteria |
-| MarketProfile | Language, region, providers, legal rules and available capabilities |
-| DiscoveryBrief | A bounded search objective; evolves current campaign semantics |
-| SourceItem | Normalized immutable observation from a provider |
-| EvidenceItem | Auditable fact/artifact with provenance and verification method |
-| Company | Resolved organization identity independent of provider payloads |
-| Person | Resolved human identity with evidence and confidence |
-| Signal | Expressed intent, event, detected problem or visibility/reputation finding |
-| Opportunity | Evidence-backed reason this company may be worth contacting for this offer |
-| OpportunityAssessment | Separate fit, impact, timing, actionability and confidence dimensions |
-| BuyerCandidate | Problem-aware hypothesis about who owns the issue |
-| ContactPoint | Email/profile/phone with source and verification state |
-| ContactVerification | Provider-independent verification observation and timestamp for a contact point |
-| VerificationPolicy | Versioned requirements for declaring a package verified in a market/workflow |
-| SuppressionEntry | Minimal policy record that prevents prohibited outreach across campaigns |
-| ArtifactMetadata | Hash, storage reference, media type, retention and access metadata for large evidence |
-| OutreachDraft | Human-reviewable message whose claims reference evidence ids |
-| ReviewDecision | Accepted/rejected/needs-research decision and reason |
-| Outcome | Contacted, reply, positive reply, meeting, opportunity, customer or closed |
-| Job/StepAttempt | Durable workflow state and retries |
-| ProviderRun/CostEvent | Provider, model, latency, usage, cost and outcome |
+| Workspace | Tenant, budget and policy boundary |
+| OfferProfile | What the user sells, outcome, exclusions and commercial range |
+| ICPDefinition | Target company characteristics, market and negative criteria |
+| MarketProfile | Language, region, available capabilities and data policy |
+| DiscoveryBrief | Bounded objective for finding Opportunities |
+| SourceItem | Normalized immutable provider observation |
+| EvidenceItem | Auditable fact or artifact with provenance and verification method |
+| Company | Resolved business identity independent of provider payloads |
+| Signal | Typed expressed intent, event, detected problem or market observation |
+| Opportunity | Evidence-backed reason the company may fit the user's offer now |
+| OpportunityAssessment | Fit, impact, timing, actionability, confidence and rejection reasons |
+| ReviewDecision | Human accept, reject or needs-research decision with reason |
+| Job / StepAttempt | Durable workflow execution and retry state |
+| ProviderRun / CostEvent | Provider/model usage, latency, cost and outcome |
+
+Optional later research entities such as `BuyerHypothesis` or `ConversationBrief` must not be required by Opportunity Core. Personal contacts, mailboxes, send events and delivery events are outside the target domain.
 
 ## Signal taxonomy
 
@@ -40,92 +35,53 @@
 EXPRESSED_INTENT
   recommendation_request | comparison | switching | complaint | solution_search | rfp
 
-TRIGGER_EVENT
+BUSINESS_EVENT
   hiring | funding | launch | expansion | leadership_change | technology_change
 
 DETECTED_PROBLEM
-  website | local_listing | reviews | reputation | acquisition | conversion | operations
+  operations | acquisition | conversion | reputation | customer_experience | market_presence
 
-VISIBILITY_FINDING
-  ai_visibility | citation_gap | competitor_overtake | local_visibility
+MARKET_OBSERVATION
+  competitor_change | review_pattern | category_gap | local_presence | visibility_gap
 ```
 
-Each subtype defines freshness, evidence and assessment rules. A detected problem must never be relabeled as expressed intent.
-
-## Evidence contract
-
-```ts
-type EvidenceItem = {
-  id: string;
-  workspaceId: string;
-  sourceItemId: string | null;
-  type: "text" | "structured_fact" | "screenshot" | "document" | "observation";
-  sourceUrl: string | null;
-  capturedAt: string;
-  excerpt: string | null;
-  structuredFacts: Record<string, unknown>;
-  verificationMethod: string;
-  confidence: number;
-  contentHash: string;
-  provenance: Record<string, unknown>;
-};
-```
-
-Raw material and interpretation are separate. An evidence item is immutable; corrected interpretations create a new assessment.
+Evidence sources such as websites, maps, directories, reviews, communities or AI answers live in provenance. They do not define the product or silently change the signal type.
 
 ## Opportunity assessment
 
-```ts
-type OpportunityAssessment = {
-  decision: "QUALIFY" | "REVIEW" | "REJECT";
-  signalType: string;
-  problemType: string;
-  problemStatement: string;
-  evidenceStrength: number;
-  explicitness: number;
-  urgency: number;
-  freshness: number;
-  commercialImpact: number;
-  icpFit: number;
-  companyConfidence: number;
-  buyerRelevance: number;
-  actionability: number;
-  confidence: number;
-  evidenceIds: string[];
-  rejectionReasons: string[];
-};
-```
+The model returns `QUALIFY`, `REVIEW` or `REJECT` across separate dimensions:
 
-No single total score is authoritative. Product policy decides which dimensions are mandatory by signal type and market.
+- evidence strength and freshness;
+- company-resolution confidence;
+- offer and ICP fit;
+- commercial impact;
+- timing and actionability;
+- uncertainty and rejection reasons.
 
-## Opportunity lifecycle
+There is no authoritative combined intent score.
+
+## Lifecycle
 
 ```text
 DISCOVERED
-→ ENRICHING
+→ EVIDENCE_PENDING
 → ASSESSABLE | INSUFFICIENT_EVIDENCE
-→ PACKAGE_READY | MODEL_REJECTED
+→ MODEL_QUALIFIED | MODEL_REVIEW | MODEL_REJECTED
 → HUMAN_REVIEW
-→ OUTREACH_READY | REJECTED | NEEDS_RESEARCH
-→ CONTACTED
-→ REPLIED | NO_REPLY | OPTED_OUT
-→ POSITIVE_REPLY | NEGATIVE_REPLY
-→ MEETING | SALES_OPPORTUNITY | CUSTOMER | CLOSED
+→ ACCEPTED | REJECTED | NEEDS_RESEARCH
+→ ARCHIVED
 ```
 
-State transitions are deterministic commands. LLM output can propose an assessment, buyer or draft but cannot directly charge credits, accept an Opportunity, contact a person or mutate terminal outcome state.
-
-## Compatibility path
-
-The current `signals`, `leads` and `messages` tables remain during migration. A ready Opportunity may project into the existing Lead UI. New tables are introduced alongside the old pipeline, populated by the new vertical slice, then old writes are retired after reconciliation and migration tests.
+Models may propose assessments. Deterministic application commands own persistence, state changes, authorization and review decisions.
 
 ## Invariants
 
-- Every Opportunity references at least one evidence item.
-- Every outreach claim references supporting evidence or is explicitly framed as a hypothesis.
-- Workspace authority is derived from authenticated membership, never from client-supplied workspace id.
-- Contact discovery and contact verification are distinct.
-- Under `EN_DISCOVERY_ONLY`, contact discovery/enrichment, outreach-ready transitions and outreach are disabled regardless of generic lifecycle capabilities.
-- Current credit usage is attached exactly once to a package that satisfies the explicit verification policy, not to a provider call or model recommendation. Any future human-acceptance billing policy requires a separate decision.
-- Suppressed contacts cannot move to outreach-ready state.
-- Provider payloads are stored as provenance, not used as canonical domain schemas.
+- Every Opportunity references at least one accessible EvidenceItem.
+- Raw evidence and interpretation are stored separately.
+- Every claim declares its evidence reference or is explicitly labeled as inference.
+- Workspace authority comes from authenticated membership, never client-supplied workspace id.
+- Provider payloads are provenance, not canonical domain schemas.
+- Reprocessing is idempotent and cannot duplicate an Opportunity or cost event.
+- `EN_DISCOVERY_ONLY` exposes only discovery, assessment and review capabilities.
+- No workflow state authorizes contact lookup, drafting or sending.
+- Existing legacy tables cannot be written by the new Opportunity workflow except through an explicitly temporary migration adapter with a removal date and tests.

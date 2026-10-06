@@ -1,5 +1,7 @@
 # Current state audit
 
+> **2026-10-06 decision update:** the accepted product no longer contains a Lead projection, personal-contact/email workflow, message sending, mandatory Glook/site audit or committed AI Visibility phase. Rows below that describe those implementations are legacy inventory scheduled for removal, not target capabilities. The self-prospecting handler exists but the worker is not yet wired to it and currently terminalizes through `CAPABILITY_UNAVAILABLE`.
+
 Audit date: 2026-10-04. Commit inspected: `37dceff` on `main`. This is a factual inventory, not the target architecture.
 
 ## Executive finding
@@ -15,10 +17,10 @@ IntentLead is an implemented MVP skeleton, not a documentation-only project. The
 | Auth/tenancy | Supabase Auth helpers and RLS migrations exist | `lib/auth`, `supabase/migrations/002_rls.sql` | Audit negative tenant cases |
 | Campaign API | Create/list/run paths implemented | `app/api/campaigns/**` | Move orchestration behind application services |
 | Signal sources | Reddit and Hacker News implemented | `worker/pipeline/signals.ts` | Treat all other sources as documented-only |
-| Pipeline | Linear signal→lead pipeline implemented | `worker/pipeline/runner.ts` | Wrap and strangle; do not rewrite at once |
+| Pipeline | Unused linear signal→lead pipeline implemented | `worker/pipeline/runner.ts` | Remove after negative-boundary tests; it has no runtime callers |
 | Company resolution | Exa with Serper fallback | `worker/pipeline/company.ts` | Move behind provider capability contract |
-| Contact role | Implemented with a fixed decision-maker policy | `worker/pipeline/contact.ts` | Replace with problem/company-aware buyer resolution |
-| Email waterfall | Prospeo→Hunter→Apollo implemented | `worker/pipeline/email.ts` | Split discovery from verification and define status semantics |
+| Contact role | Legacy fixed decision-maker policy | `worker/pipeline/contact.ts` | Remove from active runtime |
+| Email waterfall | Legacy Prospeo→Hunter→Apollo implementation | `worker/pipeline/email.ts` | Remove from active runtime |
 | Credits | RPC called after four flags | migration + runner | Keep invariant; fix ownership and idempotency proofs |
 | Message generation | Implemented after charge, retry loop | `worker/pipeline/message.ts`, runner | Require evidence-linked claims; reload enriched data |
 | Glook warm path | Direct shared-table reads | `lib/glook/report.ts`, API route | Replace with versioned owned contract |
@@ -78,7 +80,7 @@ Runtime verification, 2026-10-04: `npm run test:integration -- tests/integration
 The supplied materials support two opportunity families:
 
 - expressed intent: a person or company explicitly seeks, compares, complains or asks;
-- detected commercial problem: the system finds a verifiable gap in website, maps, reviews, hiring, reputation or AI visibility.
+- detected commercial problem: the system finds a verifiable operational, acquisition, conversion, reputation, customer or market condition. Website content may establish company context; technical site analysis is not automatic.
 
 Maps and reviews are not automatically buyer intent. They may discover companies, problems and evidence. The product must verify the problem without claiming purchase readiness.
 

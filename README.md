@@ -1,18 +1,19 @@
 # IntentLead AI
 
-IntentLead develops evidence-backed Opportunities: a company, an observable problem or event, and a defensible reason for human review.
+IntentLead is an Opportunity Intelligence Engine. It discovers businesses with a concrete, evidence-backed reason to consider a user's offer and presents that reasoning for human review.
 
-The existing MVP contains a narrower signal-to-lead pipeline. The accepted Opportunity Core direction and current implementation status are documented in [docs/INDEX.md](docs/INDEX.md).
+```text
+Offer + ICP + market
+→ business discovery
+→ evidence
+→ company resolution
+→ commercial assessment
+→ Opportunity
+→ human review
+```
 
-The first self-prospecting pilot uses `EN_DISCOVERY_ONLY`: contact enrichment and outreach are disabled. The accepted target ties customer credits to an atomic, owner-validated, idempotent `PACKAGE_VERIFIED` event under a versioned verification policy; human review and commercial payment are separate.
+The product does not send messages, automate mailboxes or operate as an AI SDR. A company website may be read to understand its products, audience and positioning; technical, SEO and AI-readiness auditing is outside product scope. Glook and AI Visibility are optional future evidence sources, not first-stage dependencies.
 
----
+The first pilot is self-prospecting under `EN_DISCOVERY_ONLY`, locally and with zero paid-provider spend.
 
-## Entry points
-
-- **Cold** — new user: minimal chat assistant extracts your ICP and target, launches pipeline.
-- **Warm** — a Glook context path exists in the MVP; the accepted target is a versioned, owner-bound contract rather than direct shared-table access.
-
----
-
-See [the implementation plan](docs/IMPLEMENTATION_PLAN.md) for the staged migration.
+Start with [docs/INDEX.md](docs/INDEX.md). The active engineering sequence is [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md).

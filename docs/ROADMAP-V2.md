@@ -1,123 +1,98 @@
-# IntentLead roadmap V2
+# IntentLead product roadmap
 
-**Status: Accepted 2026-10-04.** This roadmap replaces the old seven-phase build plan. It is ordered by validated user value, not feature count. The first self-prospecting pilot uses `EN_DISCOVERY_ONLY`; contact enrichment and outreach stay disabled in that pilot.
+**Status:** Accepted direction, revised 2026-10-06.
 
-## Phase 0 — Architecture and truth reconciliation
+IntentLead is an Opportunity Intelligence Engine. It discovers businesses with a concrete, evidence-backed commercial reason to consider a user's offer. The product ends at an inspectable Opportunity package and human decision. It does not send messages, operate mailboxes or automate outreach.
 
-**Objective:** establish one accurate product and technical model.
+## Product sequence
 
-**User value:** prevents unreliable data, lost jobs and incorrect charging before pilot use.
+```text
+Offer + ICP + market
+→ business discovery
+→ observable signal, event or problem
+→ evidence and provenance
+→ company resolution
+→ commercial assessment
+→ Opportunity package
+→ human review and feedback
+```
 
-**Why now:** code exists, but canonical documents describe a pre-code state and the current worker is not durable or idempotent.
+A website, Glook snapshot, map listing, review, public post, job posting or AI-answer observation is only a possible evidence source. None is the product boundary or a mandatory stage.
 
-**Prerequisites:** repository and supplied research audit complete.
+## Stage 0 — Opportunity foundation
 
-**Architecture changes:** Opportunity/Evidence contracts, application capability boundary, MarketProfile, provider registry, durable job contract, structured errors, idempotency, cost and provenance conventions.
+**Outcome:** one durable, tenant-safe and provider-independent Opportunity Core.
 
-**Backend:** reconcile active agent instructions; fix warm-path ownership, async rate-limit enforcement, atomic chat quota, fail-closed worker secret, test scopes, dispatch acceptance, shared-database namespace and credit ownership/idempotency design.
+This stage establishes versioned domain contracts, evidence provenance, provider registry, market profiles, durable jobs, cost controls, application authorization and human review.
 
-**Frontend:** no redesign; define Opportunity loading/error/review states.
+**Current state:** contracts, storage, durable jobs and review foundation are implemented locally. Worker cutover, native brief authority and legacy removal remain in progress. Production deployment and migrations remain outside the authorized scope.
 
-**Tests/evaluation:** repeatable baseline; real DB RLS/concurrency plan; threat cases; frozen initial fixtures.
+## Stage 1 — Self-prospecting discovery
 
-**Observability/cost:** trace ids, job/provider status and budget contracts.
+**Outcome:** IntentLead finds reviewable Opportunities for IntentLead itself under `EN_DISCOVERY_ONLY`.
 
-**Definition of Done:** documents agree with code; critical security/correctness fixes are planned with failing tests; legacy roadmap is explicitly historical; one approved immediate implementation plan exists.
+The system receives IntentLead's offer, ICP, exclusions and market, then discovers companies, captures evidence, resolves company identity and produces `QUALIFY`, `REVIEW` or `REJECT` assessments. The founder reviews results and records rejection reasons.
 
-**Kill/postpone:** no new providers or AI Visibility build until this gate passes.
+The first run uses sanitized recorded evidence and zero paid-provider spend. It does not depend on Glook, website analysis, contact enrichment, message drafting or any sending capability.
 
-## Phase 1 — Self-prospecting vertical slice
+**Gate:** a reproducible sample with measured acceptance rate, company-resolution quality, evidence sufficiency, false-positive reasons, latency and cost.
 
-**Objective:** IntentLead finds usable Opportunities for IntentLead.
+## Stage 2 — Opportunity quality
 
-**User value:** proves the path from discovery to an evidence-backed Opportunity worth human review.
+**Outcome:** high precision and explainable rejection on a larger self-prospecting sample.
 
-**Why now:** discovery-only dogfooding supplies immediate review labels; commercial outcomes require a later authorized outreach stage.
+Improve evidence policies, freshness, entity resolution, deduplication, commercial-fit assessment, reviewer feedback and source economics. Prefer rejecting uncertain candidates over filling a list.
 
-**Prerequisites:** Phase 0, one market profile, one offer/ICP, minimal legal source set.
+**Gate:** predeclared precision, reviewer agreement and cost-per-accepted-Opportunity thresholds pass.
 
-**Architecture changes:** source adapters, evidence persistence, company resolution, Opportunity assessment, optional buyer-role hypothesis and human review. Contact, grounded draft, sent/reply outcomes and contact-bearing Lead projection require a later jurisdiction-gated workflow.
+## Stage 3 — Design-partner workflow
 
-**Providers:** use recorded Reddit/HN and Exa/Serper fixtures for the no-spend slice; do not select contact providers under `EN_DISCOVERY_ONLY`.
+**Outcome:** 3–5 users repeatedly receive Opportunities they consider worth acting on.
 
-**Agents:** bounded signal/opportunity analysis and ambiguous entity resolution; deterministic orchestration. Outreach drafting is deferred.
+Add workspace-safe offer/ICP management, bounded discovery briefs, Opportunity delivery, review reasons and export of the evidence package. A user may optionally copy a conversation brief or draft, but IntentLead does not send it and does not track mailbox delivery.
 
-**MCP:** capability schemas become transport-neutral; no public server.
+**Gate:** repeat use, willingness to pay, accepted-Opportunity yield and delivery economics are measured by cohort.
 
-**Tests:** provider fixtures, pipeline integration, tenant denial, prompt injection, idempotent rerun, negative profile-gate tests, front-end review path and one zero-spend fixture/mock smoke. Live provider calls are deferred until a free-only path proves zero external spend or separate founder authorization.
+## Stage 4 — Intelligence-domain expansion
 
-**Evaluation:** founder labels at least the declared pilot sample; record accepted, rejection reason, evidence/company quality, zero-spend cost and latency. Contact validity and outreach outcomes belong to the later authorized workflow.
+**Outcome:** one additional detector materially improves accepted-Opportunity yield.
 
-**Definition of Done:** the first pilot proves reproducible ICP→Opportunity→evidence→human decision on recorded real-company evidence under `EN_DISCOVERY_ONLY`, without contact enrichment, outreach, unsupported claims or duplicate charge. Buyer→verified contact→draft is a later jurisdiction-gated extension of the vertical slice, not a prerequisite for this discovery-only pilot.
+Candidate domains include expressed public intent, company and market changes, hiring, reviews/reputation, competitor changes, local-business evidence and operational/commercial gaps. Choose one from measured customer demand, legal access, evidence quality and economics. Do not add sources for coverage optics.
 
-**Kill/postpone:** do not scale a source that misses the agreed acceptance/economics threshold.
+A company website may supply business identity and context: products, audience, positioning and public claims. Technical, SEO and AI-readiness auditing are outside the accepted product scope. Glook may later supply a versioned business-context snapshot, but it is not required by the core workflow.
 
-## Phase 2 — Opportunity quality and calibration
+## Stage 5 — Market expansion
 
-**Objective:** reduce false positives and quantify confidence.
+**Outcome:** the validated workflow works in one additional market or language without forking domain logic.
 
-**Changes:** golden dataset, taxonomy-specific policies, freshness decay, entity resolution evidence, buyer ranking, feedback loop, cost optimization and source funnel analytics.
+Expand through `MarketProfile`, provider capability and evidence policy. Each market requires an explicit access/compliance assessment and measured source quality.
 
-**Tests:** repeated-run stability, wrong-company/person, stale/already-solved, weak evidence and adversarial content.
+## Stage 6 — Capability API and MCP
 
-**Definition of Done:** precision, reviewer agreement, entity/buyer accuracy and cost targets are measured and pass the pilot gate.
+**Outcome:** stable Opportunity capabilities can be consumed safely by external software and agents.
 
-## Phase 3 — Commercial pilot
+Expose typed, workspace-aware, budgeted capabilities and resources only after application services and async jobs are stable. MCP and REST are transports over the same domain services.
 
-**Objective:** sell a concierge/pilot outcome to 3–5 design partners.
+## Deferred research modules
 
-**Changes:** workspace-safe review delivery, usage/charging policy, support runbook, manual outcome tracking and pilot reporting.
+AI Visibility, local visibility and other deep intelligence modules remain research candidates. They are not part of Stages 0–3. A module enters implementation only after the core is validated and a design-partner problem justifies it. AI Visibility, if selected, produces evidence and findings for Opportunity assessment; it is never treated as buying intent by itself.
 
-**Definition of Done:** repeat use, willingness to pay, positive conversations and gross-margin envelope are measured by cohort.
+## Permanent non-goals
 
-**Kill/postpone:** no subscription scale if users do not act on or reorder accepted Opportunities.
+- automatic or assisted sending;
+- mailbox connection, sequencing, follow-ups or delivery tracking;
+- AI SDR behavior;
+- a CRM or proprietary contact database;
+- bulk lead generation without inspectable evidence;
+- a generic website, SEO or AI Visibility dashboard;
+- provider-specific domain logic;
+- direct reads of another product's internal tables;
+- claims that a proxy proves lost revenue or purchase intent.
 
-## Phase 4 — Intelligence expansion
+## Decision rule
 
-**Objective:** add one intelligence domain only when it improves accepted-opportunity yield.
+Every roadmap item must answer:
 
-Candidate experiments: company/web events, hiring, reviews/reputation, competitor/switching. Each experiment uses provider registry, evidence and the same Opportunity core.
+> Does this help a user find a business with a concrete, defensible reason to consider the user's offer?
 
-**Definition of Done:** incremental source/domain lift is demonstrated against the existing baseline.
-
-## Phase 5 — AI Visibility opportunity module
-
-**Objective:** turn repeated visibility observations into commercially relevant findings and Opportunities.
-
-**Sequence:** prompt discovery → versioned portfolios → multi-engine observations → mentions/citations/competitors → findings → actions/experiments → Opportunity bridge.
-
-**Definition of Done:** stable evidence across repeated observations and accepted commercial Opportunities; not merely a dashboard.
-
-## Phase 6 — Local/CIS vertical slice
-
-**Objective:** evidence-backed local Opportunities for one geography and high-value category.
-
-**Sequence:** business discovery → official site/listing/review evidence → concrete problem → buyer/contact → draft → review/outcome.
-
-**Definition of Done:** one legal provider path, one MarketProfile, measured acceptance and cost, and reproducible evidence users can verify quickly.
-
-Phases 5 and 6 are candidate expansion work packages, not a committed ordering. After Phase 4, choose at most one first from preregistered demand, access/compliance feasibility, evidence quality and economics; postpone the other.
-
-## Phase 7 — International and compliance expansion
-
-Add markets, languages and providers only through MarketProfile. Each market requires data-access classification, retention/opt-out rules, provider availability and quality/economics proof.
-
-## Phase 8 — MCP capability release
-
-MCP-readiness begins in Phase 0; public/private MCP ships only after application capabilities stabilize. Release typed tools/resources, scoped auth, async jobs, pagination, idempotency, budgets, audit logs and examples.
-
-## Phase 9 — Workflow ecosystem
-
-CRM sync, assisted send, external automations and MCP client adapters follow proven core value and compliance. Human approval remains default; autonomous mass sending remains out of scope.
-
-## Old roadmap disposition
-
-**Keep:** RLS, server-only service role, async worker, manual-send default, verified-only charging intent, prompt-injection defense, warm bridge concept and grounded outreach.
-
-**Rewrite:** fixed four-level verification, linear signal→lead model, single intent threshold, static source lists, fixed vendor waterfall and phase numbering.
-
-**Move later:** assisted send, dashboard analytics, broad multi-workspace, CRM, public MCP and broad source expansion.
-
-**Freeze pending proof:** direct shared-DB Glook integration, PayPro reuse, regional source/API legality.
-
-**Deprecate:** “code not started,” Next.js 16 as current fact, the one-shot autonomous build prompt and unmeasured reply/verified/cost claims as release gates.
+If not, it is outside IntentLead Core.

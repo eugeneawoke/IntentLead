@@ -1,103 +1,97 @@
 # IntentLead product model
 
-**Status:** Accepted by founder, 2026-10-04. Initial pilot scope is `EN_DISCOVERY_ONLY` as specified below.
+**Status:** Accepted, revised 2026-10-06.
 
 ## Product
 
-IntentLead is an Opportunity Intelligence Engine. It finds businesses with a concrete, defensible reason to contact them, identifies the person most likely to own the problem, verifies a contact path, and prepares an evidence-backed conversation starter for human review.
+IntentLead is an Opportunity Intelligence Engine. It discovers businesses with a concrete, defensible reason to consider a user's offer and explains that reason with inspectable evidence.
 
-The product is not a contact database, generic AI SDR, social-listening dashboard, automatic cold-email sender, SEO suite or standalone AI Visibility tracker.
+IntentLead is not a lead database, AI SDR, sender, CRM, website auditor, SEO suite, social-listening dashboard or standalone AI Visibility product.
 
 ## Core outcome
 
 ```text
-“Who should I contact?”
+user offer + ICP + market
 → company
-→ observable problem or event
-→ evidence
+→ observed signal, event or problem
+→ evidence and provenance
 → commercial relevance and timing
-→ buyer hypothesis
-→ verified contact path
-→ grounded outreach draft
+→ Opportunity assessment
+→ human decision
 ```
 
-## Signal families
+An accepted Opportunity answers:
 
-### Expressed intent
+1. Which business is this?
+2. What happened or what was observed?
+3. What evidence supports it?
+4. Why could it matter commercially?
+5. Why is it relevant to this user's offer and ICP?
+6. Why may the timing matter now?
+7. What is known, inferred and still uncertain?
+8. What is the recommended next research or conversation angle?
 
-The subject publicly expresses a need: recommendation request, comparison, complaint, replacement search, manual-process pain or RFP.
+## Intelligence domains
 
-### Trigger event
+- **Expressed intent:** public requests, comparisons, complaints, replacement searches and stated manual-process pain.
+- **Business events:** hiring, funding, launches, expansion, leadership or technology change.
+- **Detected commercial problems:** observable operational, acquisition, conversion, reputation or market gaps.
+- **Customer and market evidence:** reviews, recurring complaints, competitor changes and category dynamics.
+- **Business-presence evidence:** public website, directory, map, search or AI-answer observations when relevant to the user's offer.
 
-A public event such as hiring, funding, launch, expansion, leadership change or technology change creates a plausible commercial condition without explicitly requesting a solution.
+No domain proves readiness to buy. Opportunity assessment preserves the original evidence semantics and may reject a candidate at any stage.
 
-### Detected commercial problem
+## First workflow
 
-IntentLead independently detects a problem: missing local presence, inconsistent listings, repeated review issue, website/indexing defect, competitor advantage or another measurable acquisition/conversion/reputation issue.
-
-### Visibility finding
-
-Repeated observations show an AI-answer, search, citation, competitor or local-visibility gap. A visibility finding retains its measurement context and does not become intent.
-
-No signal family proves readiness to buy. Even expressed intent may be non-commercial, stale, already resolved or attributable to the wrong person. Opportunity assessment determines actionability while UI, scoring and outreach preserve the original signal semantics.
-
-## Accepted initial experiment (2026-10-04)
-
-The first product proof is IntentLead self-prospecting under `EN_DISCOVERY_ONLY`: discover companies that fit IntentLead, build evidence-backed Opportunity candidates and let the founder accept/reject them. Contact enrichment and outreach are disabled in this pilot. The full contact/draft/outcome workflow remains a later capability, gated by a jurisdiction-specific profile and separate authorization; this acceptance does not permit real outreach or provider spend.
-
-The next expansion is deliberately uncommitted. After core dogfood and pilot evidence, choose either one jurisdiction-specific local vertical slice or one AI Visibility detector according to user demand, legal/provider feasibility, evidence quality and economics.
-
-## Users and discovery
-
-Existing documents hypothesize growth freelancers, small outbound agencies and founder-led B2B teams. This is not a permanent constraint. Product research and pilots must test who obtains repeatable value, willingness to pay and repeat usage.
+The first workflow is IntentLead self-prospecting under `EN_DISCOVERY_ONLY`. It discovers and assesses Opportunities for IntentLead, then records founder review. It stops before personal-contact enrichment and any message workflow. It does not require Glook, website diagnostics or AI Visibility.
 
 ## Product promises
 
-- Every commercial claim is traceable to evidence.
-- Facts and model interpretations are visibly distinct.
-- The user reviews before outreach.
-- Rejected and insufficient-evidence candidates are normal outcomes.
-- Vendors and regions are replaceable implementation details.
+- Every material claim is traceable to evidence.
+- Facts, inference and uncertainty are visibly distinct.
+- Rejection and insufficient evidence are valuable outcomes.
+- Sources, vendors and markets are replaceable implementation details.
 - Cost, freshness, confidence and limitations are visible.
+- Human review determines usefulness; models never contact anyone or create commercial truth.
 
-## Non-goals
+## Product boundary
 
-- Mass autonomous sending.
-- LinkedIn automation or ToS evasion.
-- A universal CRM.
-- A giant proprietary contact database.
-- Fifty integrations before source economics are known.
-- A single magic intent score.
-- Claiming causal business loss from a weak proxy.
+IntentLead may later provide a copyable conversation brief or draft grounded in evidence. It never sends messages, connects mailboxes, schedules sequences, performs follow-ups or provides delivery/reply tracking.
 
 ## Success model
 
-Early quality proxy: `user-accepted evidence-backed opportunities / delivered opportunities`.
+Primary quality metric:
 
-Keep the funnel separate:
+`human-accepted evidence-backed Opportunities / reviewed Opportunities`
 
-- `accepted / delivered` measures Opportunity quality;
-- `contacted / accepted` measures activation;
-- `qualified positive conversations / contacted` measures outreach yield;
-- `qualified positive conversations / delivered` remains the end-to-end business metric.
+Supporting metrics:
 
-Guardrails:
+- company-resolution accuracy;
+- evidence sufficiency and freshness;
+- false-positive reasons;
+- reviewer agreement;
+- cost and latency per accepted Opportunity;
+- repeat usage and willingness to pay.
 
-- hallucinated commercial facts: 0;
-- cross-tenant data exposure: 0;
-- credit charged for machine-rejected, failed or duplicate package: 0;
-- wrong-company, wrong-buyer, stale-signal and invalid-contact rates tracked separately;
-- cost per accepted Opportunity within the pilot budget;
-- complaint and opt-out rates monitored.
+Commercial outcomes may be collected through explicit user feedback, independently of any sending system.
 
-## Commercial validation stages
+## Validation stages
 
-1. Internal dogfood: founder reviews real Opportunities.
-2. Concierge pilot: 3–5 design partners, human review, manual delivery.
-3. Paid pilot: use explicitly approved invoice/subscription/usage terms. Commercial payment is distinct from the internal `PACKAGE_VERIFIED` credit event unless a later decision deliberately connects them.
-4. Productized subscription: only after repeat usage and source economics.
-5. API/MCP exposure: only after application capabilities and authorization are stable.
+1. Internal self-prospecting dogfood.
+2. Larger calibrated self-prospecting sample.
+3. Concierge delivery to 3–5 design partners.
+4. Paid pilot after repeat use and unit economics.
+5. Additional intelligence domains and markets based on measured value.
+6. API/MCP exposure after capabilities stabilize.
 
-## Kill or pivot criteria
+## Permanent non-goals
 
-Pause a source or vertical if, after a predeclared sample, it has poor acceptance, weak entity resolution, unacceptable legal/platform risk, or cost above the willingness-to-pay envelope. Pause the whole wedge if accepted opportunities do not produce qualified conversations materially better than unsignaled prospecting.
+- any automatic or assisted sending;
+- mailbox automation and AI SDR workflows;
+- high-volume list production;
+- a universal CRM;
+- a giant proprietary people/contact database;
+- a generic website, SEO or AI Visibility product;
+- treating public availability as permission for unrestricted collection or use;
+- a single magic intent score;
+- unsupported causal or revenue-loss claims.

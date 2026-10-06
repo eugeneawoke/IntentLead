@@ -1,11 +1,15 @@
-# ADR-006: Evidence and provenance are mandatory
+# ADR-006: Evidence provenance is mandatory
 
-**Status:** Accepted by founder, 2026-10-04; no amendments.
+**Status:** Accepted.
+
+## Context
+
+Opportunity value depends on whether a human can inspect why a company was selected. Provider payloads and model interpretations are fallible and mutable.
 
 ## Decision
 
-Every Opportunity and factual outreach claim references immutable evidence with source, capture time, content hash, verification method and provenance. Raw facts and AI interpretation are stored separately.
+Every material Opportunity claim references immutable evidence with source, capture time, content hash, verification method, schema version and provenance. Raw observations and interpretation are stored separately. Unsupported facts are rejected or explicitly labeled as inference.
 
 ## Consequences
 
-Storage and UI are more complex, but trust, audit, evaluation and safe personalization become enforceable.
+Evidence storage, access control, retention and deletion are product-critical. Model fluency never substitutes for verification.

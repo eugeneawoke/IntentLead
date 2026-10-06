@@ -1,11 +1,17 @@
-# ADR-002: Glook integration uses a versioned contract
+# ADR-002: Glook is an optional versioned context adapter
 
-**Status:** Accepted by founder, 2026-10-04; no amendments.
+**Status:** Accepted integration boundary; activation deferred.
+
+## Context
+
+Legacy code reads Glook internal tables through service role. This creates ownership and schema coupling. Glook's technical findings are not required for IntentLead's business-wide Opportunity workflow.
 
 ## Decision
 
-Replace direct service-role reads of Glook internal tables with an authenticated versioned SiteContextSnapshot API or signed event. Shared Supabase/Auth may remain infrastructure.
+Remove direct table reads. If a measured use case later justifies Glook, consume only an authenticated, owner-authorized, versioned snapshot through an API or signed event.
+
+The snapshot may help understand a business or contribute an observation. It cannot trigger a technical audit inside IntentLead, qualify an Opportunity by itself or become a first-pilot dependency.
 
 ## Consequences
 
-Ownership and schema version become explicit. Both repositories need contract tests and a transition period. Glook readiness findings cannot silently become visibility or buying-intent claims.
+The existing consumer adapter remains dormant. Producer work is postponed. Direct-read removal is security debt, not a product-integration milestone.

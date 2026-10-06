@@ -13,7 +13,7 @@ Autonomous execution may start only when the milestone has an approved spec, int
 5. Implement one independently reviewable task using test-first steps.
 6. Run focused tests, typecheck and relevant integration checks.
 7. Run GitNexus `detect_changes` and check expected flows.
-8. Send the task to a fresh reviewer; return findings to the implementer.
+8. Assign the task to a fresh reviewer; return findings to the implementer.
 9. After approval, checkpoint with a named commit containing only intended files.
 10. Repeat until milestone gate, then run full release verification.
 
@@ -51,4 +51,4 @@ Default limits per task unless the plan states otherwise:
 
 ## Human checkpoints
 
-Human confirmation is required before: production schema migration, provider spend above agreed cap, contacting a prospect, enabling assisted sending, changing credit/billing semantics, publishing MCP externally, or accepting a legal/compliance trade-off.
+Human confirmation is required before: production schema migration, any unapproved provider spend, changing billing semantics, publishing MCP externally, or accepting a legal/compliance trade-off. IntentLead has no sending capability.

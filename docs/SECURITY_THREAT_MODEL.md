@@ -2,59 +2,32 @@
 
 ## Protected assets
 
-Workspace isolation, Glook-derived context, evidence artifacts, personal/contact data, provider credentials, billing/credits, opportunity decisions, suppression records, prompts/model outputs and cost budgets.
+Workspace isolation, Offer/ICP data, discovery briefs, evidence artifacts, company records, Opportunity decisions, provider credentials, budgets, prompts/model outputs and audit history.
 
 ## Trust boundaries
 
-- browser → Next.js;
-- Next.js → Supabase;
-- Next.js → worker;
-- worker → provider;
-- external web/source content → normalization/model;
-- Glook → IntentLead;
-- future MCP consumer → application capabilities.
+- browser → Next.js application;
+- application → Supabase;
+- application → Railway worker;
+- worker → external sources/providers;
+- optional external product snapshot → IntentLead importer;
+- untrusted public content → normalization/reasoning.
 
-All external content and provider output are untrusted. Authentication does not imply authorization to a workspace or resource.
+## Required controls
 
-## Priority threats and controls
-
-| Threat | Required control | Verification |
+| Risk | Control | Verification |
 |---|---|---|
-| Glook scan IDOR | owner-bound versioned contract; no bare service-role UUID read | negative cross-user API tests |
-| Cross-tenant access | RLS plus application membership checks | real DB matrix for every table |
-| Worker spoof/replay | timestamped HMAC, nonce/idempotency, rotation, private network when possible | expired/replayed/wrong signature tests |
-| Empty/missing worker secret | fail startup and authentication closed; never substitute an empty value | missing/empty/wrong secret tests |
-| Rate/quota bypass | await limit checks and use atomic owner-bound quota RPCs | enforcement and concurrent-request tests |
-| Duplicate charge | idempotent deliverable key and ownership-validating RPC | concurrent DB test |
-| Lost/duplicated job | lease, heartbeat, step idempotency and recovery | crash/restart integration test |
-| SSRF | scheme/host policy, DNS/IP validation before and after redirects, size/time limits | private/rerouted host fixtures |
-| Prompt injection | typed extraction, delimiters, least-capability tools, evidence policy, output validation | adversarial benchmark |
-| Evidence poisoning | immutable source capture, content hash, provenance, fact/interpretation split | tamper/schema tests |
-| Stored XSS/HTML | sanitize evidence previews; safe text rendering | payload tests |
-| CSV injection | prefix/escape formula cells | export tests |
-| PII leakage | data classification, retention, redacted logs, least access | log scan and deletion tests |
-| Cost abuse | per-workspace/capability budgets, rate limits, max_cost | concurrency and budget tests |
-| MCP privilege escalation | token scopes mapped server-side; workspace never trusted from input | tool authorization tests |
-| Suppression bypass | centralized policy check before outreach/export | suppressed-contact tests |
+| Cross-tenant access | auth-derived workspace, RLS, owner-checked RPCs | negative two-tenant tests |
+| Service-role bypass | narrow server modules; authorization before access | route/repository tests |
+| Worker replay/forgery | request-bound HMAC, timestamp, nonce and persisted replay claim | auth/replay tests |
+| SSRF and redirect abuse | URL policy, private-address denial and DNS rebinding checks | adversarial fetch tests |
+| Prompt/evidence injection | content treated as data, typed outputs, evidence never model-created | injection fixtures |
+| Evidence poisoning | immutable source/hash/time/provenance and separate interpretation | tamper tests |
+| Cost/network escape | injected providers, budget checks and no-network test mode | zero-spend tests |
+| Stored XSS/unsafe URLs | validation, sanitization and safe rendering | API/component tests |
+| Sensitive logging | structured allowlist and redaction | log-capture tests |
+| Destructive deletion gaps | owner-bound delete/redaction with serialized terminal writes | DB integration tests |
 
-## Service-role policy
+Public availability does not imply unrestricted commercial use. Every source declares access and retention policy. The current workflow performs no external communication.
 
-Service role exists only in narrow server/worker repositories. Each operation still receives a validated tenant subject and enforces ownership in its query or RPC. No browser bundle, generic helper or MCP tool receives the key.
-
-## Local Task 2 controls (2026-10-04, not deployed)
-
-- Both direct Glook reads require authenticated ownership and completed status. Foreign, absent and not-ready scan responses are identical.
-- Campaign creation awaits the existing asynchronous limiter. Chat plan/strategy reservation uses `intentlead_consume_chat_quota(workspace_id, user_id)`: SQL checks the owner, locks the workspace row, derives its existing plan limit, and resets/increments on UTC boundaries inside one transaction. The RPC is executable only by `service_role`; it does not charge credits.
-- Workspace client authority is limited to owner-scoped `UPDATE(name)` under the existing RLS policy. Broad and historical column-level INSERT/UPDATE grants are revoked, as are direct client DELETE/TRUNCATE/REFERENCES/TRIGGER rights. This prevents owner edits to plan, credits, quota, identity and timestamps, including replacement-row bypasses. All current workspace creation paths use service role; its grants are preserved.
-- Worker signatures use HMAC-SHA256 over newline-separated `v1`, method, exact path plus query, SHA-256 of raw body bytes, Unix-second timestamp and UUID-v4 nonce. Headers are `x-worker-timestamp`, `x-worker-nonce`, and `x-worker-signature`. The receiver compares fixed-size digests in constant time, allows at most 60 seconds of clock skew, and rejects the former raw-key header.
-- `intentlead_claim_worker_nonce` independently validates timestamp freshness and claims a unique nonce in PostgreSQL before execution. Only `service_role` may execute it; the RLS-enabled table has no client policies or direct role grants. Database failure returns 503 without executing work. Expired records are removed on subsequent claims after the last acceptable timestamp second; rows carry no tenant/source content.
-- Nonce cleanup skips locked rows, and freshness is checked again after the potentially blocking INSERT. A request that waited past its validity returns false and retains its tombstone for normal cleanup rather than deleting it and reopening the nonce. The DB regression fixture pauses a claimant at insertion, expires/removes the original nonce concurrently, then checks rejection after it resumes.
-- All deterministic checks pass. The earlier blocked local-runtime note is superseded: **31/31 real PostgreSQL integration tests passed on 2026-10-04** in a disposable local `postgres:16-alpine` container, including quota concurrency, delayed replay versus expiry cleanup, and RPC/table/column privilege checks. The container was removed; no remote/production migration occurred. Task 2's DB gate is passed, while the broader production security release gate and durable-job requirements remain separate.
-
-## Compliance boundary
-
-Public availability does not grant unrestricted commercial use. Every source has a legal/access status and market policy. Outreach remains human-approved, opt-outs enter a suppression list, and regional requirements are configuration inputs. Legal conclusions require qualified review; project documents are engineering controls, not legal advice.
-
-## Security release gate
-
-No production pilot until Glook ownership, RLS matrix, worker replay, idempotent charging, SSRF, prompt injection, log redaction and suppression tests pass. Harness security scanners such as ECC AgentShield may inspect agent/hook/MCP configuration, but do not replace application security review.
+No production release until RLS, worker replay, SSRF, injection, evidence integrity, redaction, deletion and budget controls pass independent review.

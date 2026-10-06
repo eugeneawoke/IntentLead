@@ -1,234 +1,85 @@
-# CLAUDE.md — IntentLead AI · Agent Context
+# IntentLead AI — active agent context
 
-> Активные инструкции. Иерархия источников — `docs/INDEX.md`: код/миграции для текущего поведения; `docs/PRODUCT.md`, `docs/DOMAIN_MODEL.md`, `docs/ARCHITECTURE.md` и принятые ADR-001–008 для цели; `docs/ROADMAP-V2.md` и `docs/IMPLEMENTATION_PLAN.md` для очередности. `SPEC.md`, `PLAN.md`, `TODO.md`, `MEMORY.md`, `DECISIONS.md`, `EVIDENCE.md`, `STACK_DECISION.md`, `PROJECT_IDEA.md` сохраняют историю, но не отменяют принятые решения. Визуал: `DESIGN_SYSTEM.md`.
+Read [docs/INDEX.md](docs/INDEX.md) before project work. Code and migrations define current runtime behavior; accepted product direction is PRODUCT → DOMAIN_MODEL → ARCHITECTURE → ROADMAP → IMPLEMENTATION_PLAN.
 
----
+Deleted legacy specifications are available only through Git history and must not influence new product decisions.
 
-## STARTUP RITUAL — до любого предложения по архитектуре/фичам/статусу
+## Product
 
-В порядке:
-0. **Прочитать релевантные документы молча, потом отвечать** (глобальное правило). Никаких «сейчас прочитаю и отвечу».
-1. `docs/INDEX.md` — источник порядка и статуса документов.
-2. Релевантные `docs/PRODUCT.md`, `docs/DOMAIN_MODEL.md`, `docs/ARCHITECTURE.md`, ADR, `docs/ROADMAP-V2.md`, `docs/IMPLEMENTATION_PLAN.md`.
-3. Для текущего состояния — код/миграции и датированный `docs/CURRENT_STATE_AUDIT.md`; проверить дрейф.
-4. `DESIGN_SYSTEM.md` — перед UI; исторические root-доки — только для обоснований и прежних ограничений.
+IntentLead is an Opportunity Intelligence Engine:
 
-После завершённого изменения — обновить релевантный документ, не оставлять устаревшие планы.
-
----
-
-## 4 ПРИНЦИПА (Karpathy) — переопределяют дефолтное поведение
-
-### 1. Думай до кода
-Не предполагай молча. Не прячь путаницу. Показывай tradeoffs.
-- Явно называй допущения. Если неуверен — спрашивай.
-- Несколько интерпретаций → покажи, не выбирай молча.
-- Есть проще путь → скажи. Возражай по делу.
-- Непонятно → стоп, назови что неясно, спроси.
-
-### 2. Простота прежде всего
-Минимум кода, решающий задачу. Ничего спекулятивного.
-- Никаких фич сверх запрошенного.
-- Никаких абстракций для одноразового кода.
-- Никакой «гибкости», которую не просили.
-- Никакой обработки невозможных сценариев.
-- 200 строк там, где хватит 50 → перепиши.
-Тест: «senior сказал бы, что переусложнено?» Да → упрости.
-
-### 3. Хирургические изменения
-Трогай только нужное. Убирай только свой мусор.
-- Не «улучшай» соседний код/комментарии/форматирование.
-- Не рефактори то, что не сломано.
-- Держи существующий стиль.
-- Заметил чужой dead code → скажи, не удаляй.
-- Свои изменения осиротили import/переменную → убери. Чужой dead code не трогай без просьбы.
-Тест: каждая изменённая строка трассируется к запросу пользователя.
-
-### 4. Goal-driven исполнение
-Определи критерии успеха. Крути до проверки.
-- «Добавь валидацию» → «напиши тесты на невалидный ввод, проведи их в зелёный».
-- «Почини баг» → «тест, воспроизводящий баг, потом в зелёный».
-Для multi-step — короткий план с verify на каждом шаге.
-
----
-
-## ПРОДУКТ
-
-IntentLead AI — Opportunity Intelligence Engine: компания, наблюдаемая проблема/событие, доказательства, коммерческая релевантность и гипотеза о покупателе. Contact/draft — отдельные, policy-gated возможности. Glook остаётся возможным warm-входом через версионированный контракт (ADR-002), не через произвольное чтение его внутренних таблиц.
-
-Первый пилот — self-prospecting с профилем `EN_DISCOVERY_ONLY`: discovery и human review; contact/people lookup, email verification, draft, outreach, sent/reply и `PACKAGE_VERIFIED` charge отключены до отдельного jurisdiction-gated решения. Код MVP уже существует; работа идёт по Opportunity Core, а не по старым семи фазам. Целевая аудитория проверяется исследованием и пилотом, не фиксируется историческим сегментом.
-
----
-
-## РАБОЧИЙ ПРОЦЕСС
-
+```text
+Offer + ICP + market
+→ business discovery
+→ evidence
+→ company resolution
+→ commercial assessment
+→ Opportunity
+→ human review
 ```
-docs/INDEX.md → принятые PRODUCT/DOMAIN_MODEL/ARCHITECTURE/ADR
-   → ROADMAP-V2 → docs/IMPLEMENTATION_PLAN.md → целевые проверки
-```
-1. До изменения читать релевантные канонические документы и проверять текущий код.
-2. Перед изменением символа — GitNexus impact; перед коммитом — detect_changes.
-3. Проверки выбирать по риску и gate из `docs/IMPLEMENTATION_PLAN.md`; релиз только после отдельного решения и проверки.
 
----
+It analyzes the business through public signals, events, market context and observable problems. A website may be read to understand what a company sells, its audience and positioning; do not automatically run or present a technical/SEO/AI-readiness audit.
 
-## STACK (текущее состояние сверять с кодом и package.json; целевые изменения — через ADR)
+IntentLead does not send messages, connect mailboxes, run sequences, track delivery or behave as an AI SDR. Personal-contact lookup and copyable drafts are not part of the current implementation plan.
 
-```
-Next.js 15.5.x App Router · React 19 · TypeScript strict · Tailwind v4 · shadcn/ui
-Vercel AI SDK (стриминг-ассистент) + OpenAI (GPT-4o-mini classify, GPT-4o message)
-Supabase PostgreSQL + Auth + RLS  (общий проект с Glook ожидается; фактический project ref подтвердить до миграции, ADR-008)
-pgvector (RAG: grounding письма, text-embedding-3-small)
-Pipeline: Railway worker (Node.js, long-running) — НЕ Supabase Edge Fn (таймаут 10с)
-Текущие источники: Reddit · HN; company resolution: Exa/Serper; contact: Prospeo→Hunter→Apollo (для EN_DISCOVERY_ONLY отключено)
-Целевой runtime: Vercel (app) + Railway (worker) · PayPro Global — исторический выбор, переиспользование требует проверки
-```
-Исторические причины выбора и отвергнутые альтернативы → `STACK_DECISION.md`; решения о новой архитектуре → ADR.
+Glook is an optional future context adapter, not a pilot dependency. AI Visibility is uncommitted research, not a current phase.
 
----
+## Current milestone
 
-## COMMANDS
+Self-prospecting under `EN_DISCOVERY_ONLY`, locally, with fixture/no-network providers and zero spend. The result is an evidence-backed Opportunity and a human review decision.
+
+No production deployment, production migration, paid provider call or billing mutation is authorized.
+
+## Engineering rules
+
+- Think through objective, dependencies, risks, false positives and completion criteria before implementation.
+- Read relevant code and docs before answering or changing the project.
+- Run GitNexus impact before editing a symbol; stop and warn on HIGH/CRITICAL.
+- Run GitNexus detect-changes before commit.
+- Use strict TypeScript and versioned validation contracts.
+- RLS applies to every tenant table; service role is server/worker only.
+- Authorization, state transitions, idempotency, budgets and evidence persistence are deterministic.
+- External/provider/model content is untrusted.
+- AI interpretation never creates evidence or silently changes observed semantics.
+- Durable jobs persist before HTTP 202 and recover from stale leases.
+- No secrets, personal data or raw provider payloads in general logs.
+- Use exact-path staging; never `git add -A` without reviewing status.
+
+## Active implementation order
+
+1. Complete documentation reset.
+2. Remove isolated legacy lead/email/message runtime and stale public claims.
+3. Remove active Glook direct reads.
+4. Make OfferProfile, ICPDefinition and DiscoveryBrief native execution authority.
+5. Wire self-prospecting in fixture/no-network/zero-cost mode.
+6. Remove the legacy schema bridge with additive, tested migrations.
+7. Run full verification, independent review and controlled dogfood.
+
+See [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) for gates and acceptance criteria.
+
+## Verification
 
 ```bash
-npm run dev          # Next.js app
+npm run typecheck:app
+npm run typecheck:worker
 npm run lint
-npm run build        # практический type/build gate
-npm test
-npx supabase db reset # только локальная тестовая БД; миграции в production требуют отдельного решения
-# worker (Railway): npm run worker  (long-running pipeline)
+npm run test:unit
+npm run test:integration
+npm run test:e2e
+npm run build
+npm run verify
 ```
 
----
+Use disposable local PostgreSQL for migration/RLS/concurrency checks. Never apply project migrations remotely without a separate explicit authorization.
 
-## ⛔️ GIT — НИКОГДА НЕ КОММИТИТЬ
+## Protected local files
 
-Запрещено трекать:
-- `.claude/`, `.agents/`, `.kiro/`, `.windsurf/`, `.superpowers/`, `.cursor/` — IDE-конфиги
-- `AGENTS.md`, `MEMORY.md`, `PLAN.md`, `TODO.md`, `DECISIONS.md`, `EVIDENCE.md`, `ACTION-PLAN.md`, `MASTER_BUILD_PROMPT.md`
-- `docs/plans/`, `docs/superpowers/`, `docs/setup/` — рабочие планы
-- `.env`, любые секреты, ключи провайдеров
-- `*.pid`, `*.log`, runtime-файлы
-- research/анализ-документы в корне
-
-Перед `git add` — всегда `git status`, добавлять поимённо. **Никогда `git add -A`.**
-
----
-
-## HARD RULES
-
-- Читать релевантные доки до ответа на проектные вопросы.
-- Читать документацию установленной версии Next.js под `node_modules/next/dist/docs/` до изменения Next.js-кода; текущая версия 15.5.x.
-- Секреты только в `process.env.*`, никогда в коде.
-- **RLS на КАЖДОЙ таблице IntentLead.** Glook-таблицы — read-only через service role в worker.
-- **Кредит списывается только по `PACKAGE_VERIFIED` согласно версионированной `VerificationPolicy`, атомарно с проверкой владельца и идемпотентностью (ADR-007).** Human review и коммерческий платёж — отдельные события. Старое правило verified-only сохраняется до проверенного перехода; четыре флага — историческая реализация, не универсальная целевая политика.
-- Prompt injection: system prompt фиксирован; user/signal-текст только в role 'user', не в system.
-- **Assistant scope:** чат-ассистент держится ТОЛЬКО в контексте лидогенерации. Слои: system-refusal +
-  capability-scoping (нет tools кроме intake/scan/run — картинки/код невозможны) + topic-gate при абьюзе.
-  Полные слои → SPEC Блок 5 «Assistant scope & guardrails».
-- **Провайдеры за capability registry и MarketProfile** (ADR-004); текущее Exa/Serper — реализация, не вечная политика.
-- **В первом пилоте `EN_DISCOVERY_ONLY` contact/people lookup, email find/verify, draft, outreach, sent/reply и `PACKAGE_VERIFIED` charge отключены; policy gate проверять до provider call и state transition.** Автономной отправки нет.
-- Pipeline — на Railway с durable jobs (ADR-003). App-endpoint отвечает 202 после атомарного сохранения job.
-- Технические факты — из измеренных данных/провайдеров, не выдумывать. AI может суммировать
-  и улучшать промты, но не выдумывать компании, email или intent-score.
-- Типы лидов/сигналов — в одном месте (`types/*.ts`), без inline-дублей.
-- Файлы > 300 строк → разбить. Никаких `console.log` (использовать logger).
-- Новые архитектурные решения → ADR в `docs/adr/` и релевантные канонические доки. Новые проверенные факты → `docs/CURRENT_STATE_AUDIT.md` или `EVIDENCE.md` с датой/методом проверки.
-- Данное принятие не разрешает production deploy/migration, real outreach, платные API, billing mutation или provider spend.
-- **Гибкость разрешена:** чего нет в документах — лучше уточни у автора, чем выдумывай.
-
----
-
-## QUALITY CONTRACT (исторический Lead-flow; целевой контракт — ADR-001/006/007)
-
-- Лид имеет 4 флага верификации; verified только при всех true.
-- **Rejected — это норма (серый), не ошибка (не красный).** Гарантия качества работает.
-- Email прошёл waterfall и не bounce → verify_email=true; Apollo → «требует доп. верификации».
-- AI fail при генерации письма → лид остаётся verified, message помечен failed (не блокирует контакт).
-- Лучше 10 идеальных лидов, чем 50 сомнительных. Качество верификации — единственное
-  преимущество, которое нельзя скопировать быстро.
-
----
-
-## ENVIRONMENT VARIABLES (исторический перечень; фактические переменные проверять по коду и env.example)
-
-```
-# App / Supabase (общий с Glook)
-NEXT_PUBLIC_APP_URL
-NEXT_PUBLIC_SUPABASE_URL
-NEXT_PUBLIC_SUPABASE_ANON_KEY
-SUPABASE_SERVICE_ROLE_KEY        # только server/worker
-# AI
-OPENAI_API_KEY
-# Worker
-WORKER_URL                       # Railway pipeline endpoint
-WORKER_SECRET                    # X-Internal-Key для /internal/*
-# Источники сигналов / enrichment
-REDDIT_CLIENT_ID
-REDDIT_CLIENT_SECRET
-EXA_API_KEY                      # L2 company-ID primary (entity-search)
-SERPER_API_KEY                   # L2 fallback (Google SERP, переиспользуем из Glook)
-GOOGLE_CSE_API_KEY               # опц. доп. fallback
-GOOGLE_CSE_ENGINE_ID             # опц.
-PARALLEL_API_KEY                 # опц. L3 deep research (V2)
-PERPLEXITY_API_KEY               # опц. L3 narrative why-now (V2)
-FIRECRAWL_API_KEY                # опц. RAG-скрейп сайта/Glook
-PROSPEO_API_KEY
-HUNTER_API_KEY
-APOLLO_API_KEY
-# Платежи — PayPro Global (MoR, как Glook D-28; переиспользуем интеграцию)
-PAYPRO_VALIDATION_KEY
-PAYPRO_SECRET_KEY
-PAYPRO_SANDBOX
-PAYPRO_PRODUCT_STARTER
-PAYPRO_PRODUCT_GROWTH
-PAYPRO_PRODUCT_AGENCY
-```
-
----
-
-## FILE MAP (исторический план, не текущая карта; см. docs/ARCHITECTURE.md и текущий код)
-
-```
-app/
-  page.tsx                       # лендинг (Signal Dark, step-wizard)
-  chat/page.tsx                  # cold-онбординг (минимал-чат)
-  campaigns/[id]/page.tsx        # lead-карточки + прогресс
-  api/
-    chat/route.ts                # стриминг-ассистент (Vercel AI SDK)
-    campaigns/route.ts
-    campaigns/[id]/run/route.ts  # dispatch в worker (202)
-    glook/report/[scanId]/route.ts
-    leads/route.ts
-    leads/export/route.ts
-    health/route.ts
-worker/                          # Railway long-running pipeline
-  index.ts                       # /internal/run-pipeline, /internal/health
-  pipeline/
-    signals.ts                   # Reddit + HN
-    classify.ts                  # GPT-4o-mini intent (L1)
-    company.ts                   # Google CSE + GPT (L2)
-    contact.ts                   # role verify (L3)
-    email.ts                     # waterfall Prospeo→Hunter→Apollo (L4)
-    message.ts                   # GPT-4o + RAG grounding
-lib/
-  supabase/client.ts             # anon + service_role
-  rag/embed.ts                   # pgvector helpers
-  ai/openai.ts                   # retry-обёртка
-components/
-  chat/Composer.tsx
-  leads/LeadCard.tsx
-  leads/VerificationBadges.tsx
-  landing/StepWizard.tsx
-types/
-  lead.ts  signal.ts  campaign.ts
-supabase/
-  migrations/*.sql               # tables, RLS, RPC (credit-atomic), pgvector
-```
+Do not commit `.env`, secrets, IDE/agent runtime folders, generated reports or ignored local coordination files. Stage only intended tracked files by exact name.
 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **IntentLead** (849 symbols, 1474 relationships, 54 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **IntentLead** (2333 symbols, 5064 relationships, 183 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > Index stale? Run `node .gitnexus/run.cjs analyze` from the project root — it auto-selects an available runner. No `.gitnexus/run.cjs` yet? `npx gitnexus analyze` (npm 11 crash → `npm i -g gitnexus`; #1939).
 

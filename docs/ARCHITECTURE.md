@@ -1,118 +1,102 @@
-# Target architecture
+# IntentLead target architecture
 
-**Status:** Accepted target architecture, 2026-10-04 (ADR-001–008). The first pilot is `EN_DISCOVERY_ONLY`; contact enrichment and outreach capabilities remain disabled for its execution.
+**Status:** Accepted, revised 2026-10-06.
 
 ## Decision
 
-Evolve the current application as a modular monolith with two runtime contours: Next.js for UI/API and a Railway worker for durable workflows. Do not start with microservices or a repository rewrite.
+Evolve the existing application into a modular Opportunity Intelligence system with Next.js for UI/API, a Railway worker for durable workflows and Supabase PostgreSQL/Auth for authoritative state. Do not rewrite the repository into microservices.
 
-## Logical layers
+## Runtime flow
 
 ```text
-Web UI / REST API / internal agents / future MCP adapter
-                         ↓
-Application capabilities and authorization
-                         ↓
-Durable workflow orchestration and policy
-                         ↓
+UI / REST / future MCP
+        ↓
+authenticated application capabilities
+        ↓
+durable workflow and policy
+        ↓
 Opportunity domain services
-                         ↓
-Normalization, evidence and entity resolution
-                         ↓
-Source/provider adapters
-                         ↓
-Supabase Postgres/Auth + external providers
+        ↓
+normalization + evidence + company resolution
+        ↓
+business-intelligence source adapters
+        ↓
+Postgres/Auth + authorized external sources
 ```
 
-Transport layers call the same application services. REST, UI, agents and MCP must not own independent business logic.
-
-## Bounded modules
-
-The initial physical layout can remain under current folders, but dependencies must converge toward these boundaries:
+## Core modules
 
 ```text
-modules/
-  identity-entitlements
-  workspace
-  offers-icp
-  market-profile
-  provider-registry
-  jobs
-  source-ingestion
-  evidence
-  entity-resolution
-  opportunity
-  buyer-resolution
-  contact-enrichment
-  outreach
-  feedback-evaluation
-  ai-visibility
-  glook-bridge
-shared/
-  contracts
-  validation
-  observability
-  cost-control
+identity-workspace
+offers-icp
+market-profile
+discovery-briefs
+provider-registry
+jobs
+source-ingestion
+evidence
+company-resolution
+opportunity-assessment
+human-review
+feedback-evaluation
+observability-cost
 ```
 
-Folder moves are not a milestone. Stable typed contracts and dependency direction are.
+Transport layers call the same application services. UI, REST, workers and MCP do not own parallel business logic.
+
+## Source-adapter boundary
+
+IntentLead analyzes a business through multiple evidence surfaces. Adapters may collect public intent, company events, hiring, reviews, market/competitor changes, directories or other observable commercial conditions.
+
+A company website may be read only to establish business identity and context: products, audience, positioning, market and public claims. Technical, SEO or AI-readiness auditing is outside the accepted product scope and roadmap.
+
+Glook is an optional future adapter. If enabled, it may provide a versioned, owner-authorized snapshot. Opportunity Core never reads Glook internal tables and never treats a Glook interpretation as commercial truth.
 
 ## Application capabilities
 
-Examples: start opportunity search, get job, list/get Opportunity, research company, resolve buyer, verify contact, draft outreach, record review, record outcome. Each capability:
+Near-term capabilities are:
 
-- derives workspace from auth context;
-- validates input with a versioned schema;
-- supports idempotency for mutations;
-- declares cost class and budget ceiling;
-- returns provider-independent errors;
-- includes trace id, provenance references and limitations;
-- performs no transport-specific redirects or response formatting.
+- create and update OfferProfile and ICPDefinition;
+- create a DiscoveryBrief;
+- start, inspect and cancel a discovery job;
+- list and inspect Opportunities and EvidenceItems;
+- record ReviewDecision and rejection reason;
+- delete/redact a discovery brief and its owned data;
+- inspect provider health, provenance, cost and limitations.
+
+Contact lookup, mailbox access, sending, sequencing and delivery tracking are not application capabilities. A later explicit product decision may add a copyable conversation brief without changing that boundary.
 
 ## Durable jobs
 
-Replace in-memory background execution with Postgres-backed jobs:
-
 ```text
-QUEUED → LEASED → RUNNING → RETRY_WAIT → COMPLETED | PARTIAL | FAILED | CANCELLED
+QUEUED → LEASED → RUNNING → RETRY_WAIT
+       → COMPLETED | PARTIAL | FAILED | CANCELLED
 ```
 
-Workers lease a job with expiration, heartbeat while running, checkpoint each step, and resume idempotently. Dispatch succeeds only after a job row is committed. A stale lease is recoverable. Each step records attempt, schema version, provider run ids, timeout, retry reason and cost.
-
-## Provider architecture
-
-Domain code requests a capability, not a vendor. Registry selection considers market, language, availability, legal status, reliability, cost and workspace policy. Required interfaces include source search, web fetch/extraction, company resolution, people search, email find, email verify, AI answer observation and model inference.
+Workers use bounded leases, heartbeat, step checkpoints and idempotent writes. Dispatch succeeds only after the job is committed. Every provider/model attempt records schema version, timeout, result, cost and provenance.
 
 ## Reasoning boundary
 
-Use deterministic code for authorization, state transitions, dedupe, idempotency, provider selection, budgets, evidence persistence and charging. Use models only for bounded analysis with typed outputs: problem interpretation, ambiguous entity resolution, opportunity assessment, buyer hypothesis, grounded outreach and AI Visibility diagnosis.
+Deterministic code owns authorization, state transitions, deduplication, idempotency, provider selection, budgets and persistence. Models may perform bounded, typed interpretation of observed facts, ambiguous company resolution and Opportunity assessment. Model output cannot create evidence, accept an Opportunity or invoke external action.
 
-## Data migration strategy
+## Migration strategy
 
-1. Add new tables without changing existing reads.
-2. Introduce application services and adapters around current Reddit/HN and enrichment code.
-3. Produce Opportunities and compatibility Lead projections in the dogfood flow.
-4. Compare old/new outputs on recorded fixtures.
-5. Move UI to Opportunity reads.
-6. Stop legacy writes only after parity and rollback proof.
+1. Keep the verified Opportunity tables, jobs, provider registry and review UI.
+2. Remove unused legacy pipeline, lead API/UI, message generation and active Glook direct reads.
+3. Add native OfferProfile, ICPDefinition and DiscoveryBrief commands so new execution no longer depends on `campaigns`.
+4. Wire the self-prospecting handler to the worker in an explicit fixture/no-network/zero-cost mode.
+5. Replace legacy lifecycle synchronization and foreign keys with native `intentlead_*` ownership.
+6. Add an additive cleanup migration that removes obsolete `campaigns`, `signals`, `leads`, `messages` and credit RPCs only after fresh-database and upgrade tests pass.
+7. Run the controlled self-prospecting sample and quality review.
 
-Because Supabase is expected to be shared with Glook, every new database object uses the `intentlead_` prefix under accepted ADR-008. This repository owns those migrations. Security-definer RPCs fix `search_path`, revoke public execution, grant the minimum role and enforce tenant/lease identity inside SQL.
+Applied migrations are never rewritten. Legacy removal uses new additive migrations and tested rollback/reconciliation.
 
 ## Cross-cutting requirements
 
-- RLS on every tenant table with negative cross-tenant tests.
-- Service role limited to narrow server modules.
-- URL fetching protected against SSRF, redirects to private addresses and DNS rebinding.
-- External content always untrusted.
-- Structured logs exclude secrets, emails and unnecessary raw personal content.
-- Every provider call has timeout, retry budget, rate-limit mapping and cost record.
-- Schema versions are stored with source items, evidence, assessments and jobs.
-
-## Deployment direction
-
-- Vercel: web app and short authenticated capability endpoints.
-- Railway: job workers and controlled scheduled work.
-- Supabase: authoritative relational state, job leases, RLS and audit metadata.
-- Object storage, if required: screenshots/large evidence artifacts referenced by hash and signed access.
-
-No Kafka, Kubernetes or separate database is justified until measured workload requires it.
+- RLS and negative cross-tenant tests for every tenant entity.
+- External content is untrusted.
+- Provider calls have explicit timeout, retry, budget and legal/access status.
+- Structured logs exclude secrets and unnecessary personal data.
+- Evidence stores source, capture time, content hash, verification method and provenance.
+- The first pilot has no paid/network provider path unless separately authorized.
+- No Kafka, Kubernetes or separate database until measured load justifies it.

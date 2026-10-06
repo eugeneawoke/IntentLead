@@ -1,57 +1,11 @@
-# Glook integration contract
+# Optional Glook context adapter
 
-## Current problem
+**Status:** Dormant; not a self-prospecting dependency.
 
-The repositories are expected to share Supabase; the deployed project identity still needs confirmation. IntentLead reads Glook `scans` and internal JSON using service role. The 2026-10-04 local Task 2 change requires `scanId` plus the authenticated `userId` in `getOwnedGlookContext`, and both report and chat paths filter by owner and `status = 'done'`. Missing, foreign and unfinished scans all return the same 404 before warm context reaches embeddings or the model. Negative route tests pass; this has not been deployed. Direct schema coupling remains debt. Glook AI readiness is also not evidence of observed AI visibility or buying intent.
+IntentLead analyzes businesses, not websites. If a company website is used, the default purpose is business-context extraction: product, audience, positioning, market and public claims. A technical, SEO, security or AI-readiness audit is not automatically requested or converted into an Opportunity.
 
-## Target boundary
+Glook may later provide one optional, versioned snapshot through an authenticated API or signed event. Direct reads of Glook internal tables are prohibited and are being removed from the active chat/runtime path.
 
-```text
-Glook
-→ authenticated versioned API or signed event
-→ immutable redacted SiteContextSnapshot
-→ IntentLead SourceItem + EvidenceItems
-```
+The existing consumer adapter is retained only as dormant technical groundwork. Its fields are untrusted provider observations and cannot qualify an Opportunity without independent evidence and offer/ICP assessment.
 
-Minimum snapshot fields:
-
-```text
-schemaVersion
-snapshotId
-scanId
-subjectUserId / tenant binding
-siteUrl
-capturedAt
-businessContext
-findings[] with explicit domain semantics
-source/provenance
-redaction policy
-signature / issuer
-```
-
-## Rules
-
-- Caller identity must own or be explicitly authorized for the source scan.
-- IntentLead never relies on unversioned `scans.results` shape.
-- Glook findings remain readiness/site findings unless observed evidence supports stronger semantics.
-- Imported content is untrusted and passes validation/sanitization.
-- Snapshot import is idempotent and auditable.
-- In the consumer v1 contract, every `businessContext` value is `GENERATED_INTERPRETATION`; do not treat AI-produced service, audience, or profile text as `SOURCE_FACT`. Project these strings as untrusted content, including prompt-injection-like text.
-- `siteUrl` is a canonical public-site identifier only, never fetch authorization. Consumer validation rejects direct private IP and local host syntax, but does not resolve DNS or claim exhaustive DNS safety; `nip.io` may be a valid identifier and the importer makes no network request. Any future fetch must add SSRF controls for resolved addresses, redirects, and DNS rebinding before connecting.
-- Direct cross-product writes are forbidden.
-- Shared auth/billing may remain infrastructure, but product tables have clear ownership and migration namespaces.
-
-## Migration
-
-1. Close ownership gap in every existing warm path.
-2. Define snapshot schema and contract tests in both repositories.
-3. Add Glook export endpoint or signed event.
-4. Import into IntentLead source/evidence tables.
-5. Shadow-compare direct DB and contract output.
-6. Remove direct table reads after parity and rollback window.
-
-The owner-bound direct read in step 1 is temporary debt. It may support a bounded warm-path smoke test but must be removed before AI Visibility work, public MCP exposure or a production Glook-dependent pilot. The removal evidence is zero runtime call sites that read Glook internal tables directly.
-
-## Reuse decisions
-
-Potential reuse: safe fetch/crawl, robots/structured-data diagnostics, scheduled scanning and evidence primitives after code/contract review. Do not reuse the Glook monolithic scan aggregate, global score or AI-readiness claims as Opportunity truth.
+Activation requires a new measured use case, contract tests on both repositories and proof that the snapshot improves accepted-Opportunity yield. It is not required for dogfood, design-partner delivery, API or MCP.

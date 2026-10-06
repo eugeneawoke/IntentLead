@@ -1,66 +1,22 @@
-# Pilot validation protocol
+# Self-prospecting validation protocol
 
-Status: proposed template. Complete and freeze one copy before every live pilot or source/domain expansion.
+## Pilot unit
 
-## Decision header
+One unit is one reviewed Opportunity for one company and one OfferProfile/ICPDefinition.
 
-```text
-Experiment id:
-Owner:
-Decision date:
-Market/jurisdiction:
-Offer:
-Audience hypothesis (not assumed fact):
-Signal family and detector:
-Source/provider:
-Start/end date:
-Maximum provider spend:
-Allowed outreach action:
-```
+## Preregistration
 
-## Unit and sample
+Record sample size, evidence sources, time window, acceptance threshold, maximum wrong-company rate, duplicate policy, cost ceiling and stop conditions before running the sample.
 
-- Sampling unit: define whether one unit is a source item, company, Opportunity, accepted Opportunity or contacted Opportunity.
-- Inclusion/exclusion rules: freeze before collection.
-- Duplicate rule: define company/source/time-window deduplication.
-- Minimum sample size: declare for each decision; `3–5 design partners` is qualitative discovery, not proof of repeatability.
-- Review protocol: number of reviewers, blind/double review if needed, and disagreement resolution.
-- Baseline/control: define unsignaled prospecting, previous detector/version or holdout where feasible.
+## Metrics
 
-## Metric definitions
+- accepted / reviewed;
+- needs-research / reviewed;
+- wrong-company, weak-evidence, stale, duplicate and poor-fit rates;
+- evidence accessibility and provenance completeness;
+- latency and cost per accepted Opportunity;
+- reviewer notes and repeat-usage intent.
 
-```text
-delivered = reviewable Opportunity with required evidence and limitations
-accepted = reviewer judges it worth action under the declared offer/ICP
-contacted = approved outreach was actually sent through the allowed channel
-qualified_positive_conversation = reply from a relevant person that confirms a relevant problem or agrees to a substantive next step
-```
+## Current authorized run
 
-Report at minimum:
-
-- accepted / delivered;
-- contacted / accepted;
-- qualified positive conversations / contacted;
-- qualified positive conversations / delivered;
-- wrong-company, wrong-person, stale/already-solved, insufficient-evidence, invalid-contact and policy-rejection rates;
-- cost and latency per delivered and accepted Opportunity;
-- complaints, opt-outs and source/provider failures.
-
-## Predeclared decision thresholds
-
-Do not put universal numbers in the platform docs. For each experiment, the owner records:
-
-- minimum acceptance rate and confidence interval/reporting rule;
-- maximum wrong-company, unsupported-claim and invalid-contact rates;
-- maximum cost per accepted Opportunity;
-- minimum qualified-conversation result or qualitative learning criterion;
-- stop condition for legal, provider, abuse or complaint risk;
-- GO, REWORK and STOP rules.
-
-## Evidence packet
-
-Store the frozen brief, sampled ids, sanitized labels, detector/model/provider versions, costs, failures, metric calculations, reviewer notes, deviations and final decision. Do not retain more personal or source content than the data policy allows.
-
-## Interpretation rule
-
-A positive small concierge pilot shows that a workflow and problem may be valuable; it does not establish a universal persona, scalable source economics or market superiority. Expansion requires a separately preregistered test.
+Use recorded authorized evidence, fixture/no-network providers and zero spend. Do not collect personal contacts or generate/send messages. The result is GO, REWORK or STOP for a larger discovery sample.
