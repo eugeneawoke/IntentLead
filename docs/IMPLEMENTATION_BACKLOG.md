@@ -5,11 +5,11 @@
 ## Now
 
 - [x] Complete canonical reset and remove active legacy documents (2026-10-06).
-- [ ] Remove isolated legacy lead/email/message runtime and stale public claims.
-- [ ] Remove active direct Glook reads; keep the versioned consumer adapter dormant.
+- [x] Remove isolated legacy lead/email/message runtime and stale public claims (`523939b`, `92571ce`).
+- [x] Remove active direct Glook reads; keep the versioned consumer adapter dormant (`92571ce`).
 - [ ] Make OfferProfile, ICPDefinition and DiscoveryBrief native execution authority.
 - [ ] Wire the self-prospecting handler in fixture/no-network/zero-cost mode.
-- [ ] Replace old security tests with equivalent Opportunity-boundary tests before deleting legacy code.
+- [x] Preserve Opportunity, tenant, no-downstream-action and retired-route boundaries while deleting legacy code (2026-10-06).
 - [ ] Remove legacy schema bridge through additive migrations after fresh/upgrade verification.
 - [ ] Run the controlled dogfood quality gate and independent reviews.
 

@@ -34,15 +34,15 @@ The Glook snapshot consumer commits `14097c4` and `3251300` are a dormant option
 
 ## Task B — Remove immediately isolated legacy runtime
 
-- [ ] Re-index GitNexus and confirm impact for every removed symbol.
-- [ ] Add negative route/UI tests for retired lead export, lead delivery and message-generation surfaces.
-- [ ] Remove the unused linear worker pipeline and its provider wrappers/tests.
-- [ ] Remove legacy lead API/export, lead cards/dashboard and message-generation code.
-- [ ] Remove active Glook direct reads and warm-chat coupling; retain only the dormant versioned adapter if it has no runtime route.
-- [ ] Remove or replace public copy, pricing, comparison, methodology and roadmap claims based on verified leads, email waterfall, reply rate or sending.
-- [ ] Run focused tests and full `npm run verify`.
+- [x] Re-index GitNexus and confirm impact for every removed symbol (2026-10-06).
+- [x] Add negative route/UI tests for retired lead export, lead delivery and message-generation surfaces (2026-10-06).
+- [x] Remove the unused linear worker pipeline and its provider wrappers/tests (`523939b`).
+- [x] Remove legacy lead API/export, lead cards/dashboard and message-generation code (`523939b`).
+- [x] Remove active Glook direct reads and warm-chat coupling; retain only the dormant versioned adapter with no runtime route (`92571ce`).
+- [x] Remove or replace public copy, pricing, comparison, methodology and roadmap claims based on verified leads, email waterfall, reply rate or sending (`92571ce`).
+- [x] Run focused tests, full `npm run verify` and retired-route browser smoke tests: 526 unit and 9/9 smoke checks passed (2026-10-06).
 
-**Done when:** no reachable UI/API/worker path exposes the old lead/email/message product.
+**Done:** no reachable UI/API/worker path exposes the old lead/email/message product. Applied historical migrations and schema compatibility objects remain isolated debt for Task E.
 
 ## Task C — Native discovery authority
 

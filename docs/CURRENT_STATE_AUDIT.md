@@ -1,95 +1,53 @@
 # Current state audit
 
-> **2026-10-06 decision update:** the accepted product no longer contains a Lead projection, personal-contact/email workflow, message sending, mandatory Glook/site audit or committed AI Visibility phase. Rows below that describe those implementations are legacy inventory scheduled for removal, not target capabilities. The self-prospecting handler exists but the worker is not yet wired to it and currently terminalizes through `CAPABILITY_UNAVAILABLE`.
+**Verified:** 2026-10-06 on branch `codex/opportunity-core` after `523939b` and `92571ce`.
 
-Audit date: 2026-10-04. Commit inspected: `37dceff` on `main`. This is a factual inventory, not the target architecture.
+This document reports current local code, not planned scope and not production state.
 
-## Executive finding
+## Product boundary now represented in code
 
-IntentLead is an implemented MVP skeleton, not a documentation-only project. The root documentation still says “code not started” and describes Next.js 16, while the repository contains a Next.js 15.5.19 application, Supabase migrations, authenticated APIs, a Railway-style worker, pipeline code, UI and tests. Continuing from the old seven-phase build plan would repeat completed work and preserve the wrong `Lead`-centric domain boundary.
+IntentLead is an Opportunity Intelligence Engine. The active application presents business context → public evidence → company resolution → commercial assessment → human review. A website may supply product, audience and positioning context; the application does not run a technical, SEO or AI-readiness audit.
 
-## Verified baseline
+No active UI, API or worker route provides:
 
-| Area | Current state | Evidence | Disposition |
-|---|---|---|---|
-| Web application | Implemented | Next.js routes, landing, chat, workspace, pricing, compare pages | Preserve; evolve surfaces around Opportunity |
-| Framework | Next.js 15.5.19 at build time | `package.json`, successful build | Correct documentation before any upgrade decision |
-| Auth/tenancy | Supabase Auth helpers and RLS migrations exist | `lib/auth`, `supabase/migrations/002_rls.sql` | Audit negative tenant cases |
-| Campaign API | Create/list/run paths implemented | `app/api/campaigns/**` | Move orchestration behind application services |
-| Signal sources | Reddit and Hacker News implemented | `worker/pipeline/signals.ts` | Treat all other sources as documented-only |
-| Pipeline | Unused linear signal→lead pipeline implemented | `worker/pipeline/runner.ts` | Remove after negative-boundary tests; it has no runtime callers |
-| Company resolution | Exa with Serper fallback | `worker/pipeline/company.ts` | Move behind provider capability contract |
-| Contact role | Legacy fixed decision-maker policy | `worker/pipeline/contact.ts` | Remove from active runtime |
-| Email waterfall | Legacy Prospeo→Hunter→Apollo implementation | `worker/pipeline/email.ts` | Remove from active runtime |
-| Credits | RPC called after four flags | migration + runner | Keep invariant; fix ownership and idempotency proofs |
-| Message generation | Implemented after charge, retry loop | `worker/pipeline/message.ts`, runner | Require evidence-linked claims; reload enriched data |
-| Glook warm path | Direct shared-table reads | `lib/glook/report.ts`, API route | Replace with versioned owned contract |
-| Durable execution | Not implemented | in-memory background promise after HTTP 202 | Add database-backed job lease model |
-| Evidence/provenance | Missing as first-class entities | no evidence table/contracts | Required before Opportunity rollout |
-| Feedback/outcomes | Missing | no review/outcome entities | Required for product validation |
-| MCP | Not ready | no stable application capabilities or job resource contract | Prepare boundaries now; release later |
+- lead/contact or email enrichment;
+- message generation or outreach planning;
+- sending, mailbox connection, sequences or delivery tracking;
+- verified-lead pricing, credit guarantees or competitor claims;
+- direct reads from Glook internal tables.
 
-## Verification run
+## Verified implementation inventory
 
-Commands executed on 2026-10-04:
+| Area | Current local state | Next disposition |
+|---|---|---|
+| Web application | Opportunity landing, method, roadmap, privacy/terms and authenticated review workspace | Add native brief workflow after Task C |
+| Auth and tenancy | Supabase auth helpers, application authorization and RLS foundations | Preserve negative tenant tests |
+| Opportunity contracts | Versioned Evidence, Company, Opportunity, review and governance contracts | Keep provider-independent |
+| Durable jobs | Lease, recovery, cancellation and replay protections implemented locally | Rewire around native DiscoveryBrief |
+| Provider registry | Capability, provenance, reservation and cost policies implemented | Add explicit no-network fixture set |
+| Self-prospecting | Discovery-only handler and persistence adapter implemented | Wire into the worker in Task D |
+| Human review | List, detail and decision APIs/UI implemented | Use for dogfood quality feedback |
+| Glook | Versioned snapshot consumer exists with contract tests; no active route or direct table read | Keep dormant and optional |
+| Legacy lead runtime | Pipeline, provider wrappers, API/export, cards and message code removed | Keep absent |
+| Legacy public runtime | Pricing, compare, chat, RAG and anonymous campaign-transfer surfaces removed | Keep absent |
+| Database bridge | Applied historical campaign/lead/contact/draft/chat-credit objects remain in migrations and compatibility tests | Remove through forward migration in Task E |
 
-```text
-npm run build
-Result: PASS; Next.js 15.5.19; 26 static/dynamic route outputs.
+## Current execution gap
 
-npx vitest run tests --exclude 'tests/e2e/**' --exclude '.claude/**' --exclude '.worktrees/**'
-Result: PASS; 7 files, 31 tests.
+The worker does not yet inject `createSelfProspectingHandler`. A discovery job therefore cannot complete the accepted pilot end to end and terminates through the unavailable-capability path. OfferProfile, ICPDefinition and DiscoveryBrief also still depend on legacy campaign authority.
 
-npx tsc -p worker/tsconfig.json --noEmit
-Result: PASS.
+The critical sequence is therefore:
 
-npx tsc --noEmit
-Result: FAIL in tests/auth.test.ts due unsafe mock cast to SupabaseClient.
-```
+1. make OfferProfile, ICPDefinition and DiscoveryBrief the native authority;
+2. wire the self-prospecting handler with recorded evidence, no network and zero cost;
+3. remove the legacy schema bridge through additive migrations;
+4. run the controlled dogfood quality gate.
 
-The successful Next build type-checks production code, but standalone TypeScript is not green. The current `npm test` scope also needs permanent excludes for worktrees and Playwright tests. The file named `credit-atomicity.test.ts` uses mocked RPC behavior and does not prove database-level concurrency.
+## Quality evidence for the reset
 
-## Critical correctness and security findings
+- GitNexus was re-indexed; individual removed exports had LOW impact. The aggregate public rewrite was rated HIGH because six connected landing/Auth/Lang flows changed together, so it received full build, browser and independent review gates.
+- `npm run verify`: app and worker typecheck pass; lint has zero errors; 526 unit tests pass; production build passes.
+- Browser smoke: 9/9 pass, including 404 assertions for retired public/API routes and sitemap exclusions.
+- Independent review found no dangling imports, auth regression or product/security blocker.
 
-1. `getGlookContext(scanId)` uses service role and does not accept an owner/workspace identity. Any caller that reaches it without the ownership-checking route can read a scan by UUID. All warm paths must enforce ownership before service-role access.
-2. Fire-and-forget dispatch marks a campaign running before confirmed job acceptance. Missing configuration, network failure or worker restart can leave permanent `running` state.
-3. The worker has no lease, heartbeat, resume, cancellation or idempotency key. A restart loses the run.
-4. A rerun can recreate a lead for an existing signal; the data model does not prove exactly-once charging across reruns.
-5. Credit RPC must validate the workspace through the lead→campaign relationship rather than trust an independently supplied workspace id.
-6. Email provider responses are not consistently separated into `found`, `deliverable`, `risky` and `verified` states.
-7. Message generation receives the original inserted lead object, not a refreshed enriched projection; generated context may contain null company/contact fields.
-8. Prompt injection controls require typed extraction, claim-to-evidence grounding and output validation; role separation alone is insufficient.
-9. A campaign can become `done` after technical failures; product completion must distinguish completed, partial and failed.
-10. Fixed global decision-maker roles do not support different problems, company sizes, industries and markets.
-11. Campaign creation calls the asynchronous rate limiter without awaiting it, so the current truthiness check does not enforce the intended limit.
-12. The chat daily counter uses a read-then-write update and can lose increments under concurrent requests.
-13. Worker authentication permits an empty configured/default secret path; startup and requests must fail closed before staging.
-
-## Local Task 2 follow-up (2026-10-04)
-
-The branch now replaces the bare-scan helper with `getOwnedGlookContext({scanId,userId})`, adds owner/ready filters in both warm paths, awaits campaign limits, moves chat quota reservation to an owner-checked SQL RPC, and replaces raw worker secrets with request-bound HMAC plus persisted nonce claims. Reproduction: `npx vitest run tests/api/glook-ownership.test.ts tests/api/rate-limit-enforcement.test.ts tests/worker/authentication.test.ts` passes 35 tests; `npm run verify` passes all 66 deterministic tests, both typechecks and the Next build, with 24 existing lint warnings.
-
-The Task 2 migration has **not** been applied remotely or in production. The initial real database suite exited 1 at setup because a disposable local database/runtime was unavailable; this historical blocker is superseded by the successful runtime verification below. Findings 1/11/12/13 above describe the original inspected baseline; code fixes are local and are not production-resolution claims. Fire-and-forget reliability, legacy pipeline capabilities and versioned Glook-contract migration remain later tasks.
-
-Task 2 review follow-up: the local migration now checks nonce freshness after blocking insertion, skips locked cleanup rows, and restricts direct workspace writes to owner rename; service-role creation remains intact. The DB fixture models default and column-level grants before migration and adds the delayed-expiry race plus role/field privilege cases (31 total). Query-string and encoded-path signature coverage brings the focused suite to 37 passing tests; `npm run verify` passes 68 tests, both typechecks and the build.
-
-Runtime verification, 2026-10-04: `npm run test:integration -- tests/integration/chat-quota-concurrency.test.ts`, with `INTENTLEAD_TEST_DATABASE_URL` targeting a disposable local `postgres:16-alpine` container, passed **31/31 tests in 8.23 seconds**. This includes actual 32-way quota contention and delayed replay after concurrent expiry cleanup (4.249 seconds), plus migration/privilege checks. The container was removed afterward. The Task 2 DB gate is passed; no remote/production migration or deployment was performed.
-
-## Research reconciliation
-
-The supplied materials support two opportunity families:
-
-- expressed intent: a person or company explicitly seeks, compares, complains or asks;
-- detected commercial problem: the system finds a verifiable operational, acquisition, conversion, reputation, customer or market condition. Website content may establish company context; technical site analysis is not automatic.
-
-Maps and reviews are not automatically buyer intent. They may discover companies, problems and evidence. The product must verify the problem without claiming purchase readiness.
-
-External numbers in the research reports are hypotheses until primary sources, methodology and dates are recorded. The field report “100 messages → 6 replies → 5 interested → 2 purchases” is suitable as a pilot hypothesis, not a general benchmark.
-
-## Immediate stop conditions
-
-- Do not add more source integrations to the current linear pipeline.
-- Do not build a generic AI Visibility dashboard.
-- Do not expose current route handlers directly as MCP tools.
-- Do not continue the root seven-phase plan.
-- Do not call an Opportunity “verified buyer intent” merely because a problem and email exist.
+No production deployment, production migration, real-source run, real sending or paid API call was performed.
