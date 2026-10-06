@@ -17,7 +17,7 @@ async function expectSignalDark(page: Page) {
   const bg = await page.evaluate(() =>
     getComputedStyle(document.documentElement).getPropertyValue("--bg").trim()
   );
-  expect(bg, "Signal Dark --bg variable missing — CSS pipeline broken").toBe("#0A0C0F");
+  expect(bg.toUpperCase(), "Signal Dark --bg variable missing — CSS pipeline broken").toBe("#0A0C0F");
 }
 
 async function expectNoSSRBailout(page: Page) {
@@ -52,10 +52,6 @@ test("/ landing renders with Signal Dark", async ({ page }) => {
   await smokePublic(page, "/");
 });
 
-test("/pricing renders with Signal Dark", async ({ page }) => {
-  await smokePublic(page, "/pricing");
-});
-
 test("/privacy renders with Signal Dark", async ({ page }) => {
   await smokePublic(page, "/privacy");
 });
@@ -72,30 +68,27 @@ test("/roadmap renders with Signal Dark", async ({ page }) => {
   await smokePublic(page, "/roadmap");
 });
 
-// ── /compare comparison pages ─────────────────────────────────────────────────
-
-test("/compare index renders with Signal Dark", async ({ page }) => {
-  await smokePublic(page, "/compare");
-});
-
-const COMPETITORS = ["clay", "apollo", "hunter", "instantly", "lemlist"];
-
-for (const slug of COMPETITORS) {
-  test(`/compare/${slug} renders with Signal Dark`, async ({ page }) => {
-    await smokePublic(page, `/compare/${slug}`);
-  });
-}
-
-// ── Chat page ─────────────────────────────────────────────────────────────────
-
-test("/chat renders with Signal Dark", async ({ page }) => {
-  await smokePublic(page, "/chat");
+test("legacy public and API routes stay retired", async ({ request }) => {
+  for (const path of [
+    "/pricing",
+    "/compare",
+    "/compare/apollo",
+    "/chat",
+    "/api/chat",
+    "/api/glook/report/legacy-scan",
+    "/api/session/transfer",
+    "/api/leads",
+    "/api/leads/export",
+  ]) {
+    const response = await request.get(path);
+    expect(response.status(), `${path} should not be reachable`).toBe(404);
+  }
 });
 
 // ── Auth-protected pages ──────────────────────────────────────────────────────
 
 test("/workspace redirects unauthenticated user to /?auth=1", async ({ page }) => {
-  const response = await page.goto("/workspace", { waitUntil: "domcontentloaded" });
+  await page.goto("/workspace", { waitUntil: "domcontentloaded" });
   // Accept either a redirect chain ending at / or /?auth=1
   const url = page.url();
   expect(
@@ -122,12 +115,10 @@ test("/sitemap.xml is served and contains all URLs", async ({ request }) => {
   expect(res.status()).toBe(200);
   const text = await res.text();
   expect(text).toContain("<urlset");
-  // Key pages present
-  for (const path of ["/pricing", "/privacy", "/terms", "/compare"]) {
+  for (const path of ["/methodology", "/roadmap", "/privacy", "/terms"]) {
     expect(text, `sitemap missing ${path}`).toContain(path);
   }
-  // All competitor slugs present
-  for (const slug of COMPETITORS) {
-    expect(text, `sitemap missing /compare/${slug}`).toContain(`/compare/${slug}`);
+  for (const path of ["/pricing", "/compare", "/chat"]) {
+    expect(text, `sitemap should not contain ${path}`).not.toContain(path);
   }
 });

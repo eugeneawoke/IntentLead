@@ -1,33 +1,19 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 import { Footer } from "@/components/layout/Footer";
 
 export const metadata: Metadata = {
-  title: "Terms of Service — IntentLead AI",
-  description: "Terms of service for IntentLead AI — credit guarantee, billing, and acceptable use.",
+  title: "Pilot Terms — IntentLead AI",
+  description: "Terms for the IntentLead Opportunity Intelligence pilot.",
 };
 
-const UPDATED = "June 6, 2026";
-const EMAIL = "support@glook.dev";
+const UPDATED = "October 6, 2026";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section>
-      <h2
-        style={{
-          fontSize: 15,
-          fontWeight: 600,
-          color: "var(--text)",
-          margin: "0 0 12px",
-          fontFamily: "var(--font-display, 'Space Grotesk', sans-serif)",
-        }}
-      >
-        {title}
-      </h2>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 14, color: "var(--text-muted)", lineHeight: 1.7 }}>
-        {children}
-      </div>
+      <h2 className="text-base font-semibold">{title}</h2>
+      <div className="mt-3 space-y-3 text-sm leading-7" style={{ color: "var(--text-muted)" }}>{children}</div>
     </section>
   );
 }
@@ -35,163 +21,46 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 export default function TermsPage() {
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)" }}>
-      <main style={{ maxWidth: 680, margin: "0 auto", padding: "64px 24px" }}>
-        <div style={{ marginBottom: 32 }}>
-          <Link
-            href="/"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              fontSize: 13,
-              color: "var(--text-muted)",
-              textDecoration: "none",
-            }}
-          >
-            <ArrowLeft size={14} />
-            Back
-          </Link>
-        </div>
+      <main className="mx-auto max-w-3xl px-6 pb-24 pt-36">
+        <Link href="/" className="text-sm" style={{ color: "var(--text-muted)", textDecoration: "none" }}>← Back</Link>
+        <h1 className="mt-10 text-4xl font-semibold" style={{ letterSpacing: "-0.04em" }}>Pilot terms</h1>
+        <p className="mt-2 text-sm" style={{ color: "var(--text-muted)" }}>Effective date: {UPDATED}</p>
 
-        <h1
-          style={{
-            fontSize: 28,
-            fontWeight: 700,
-            color: "var(--text)",
-            margin: "0 0 6px",
-            fontFamily: "var(--font-display, 'Space Grotesk', sans-serif)",
-          }}
-        >
-          Terms of Service
-        </h1>
-        <p style={{ fontSize: 13, color: "var(--text-muted)", margin: "0 0 48px" }}>
-          Effective date: {UPDATED}
-        </p>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 40 }}>
-          <Section title="1. Acceptance">
-            <p>
-              By accessing or using IntentLead AI (&quot;the Service&quot;), you agree to be bound by these
-              Terms. If you do not agree, do not use the Service. IntentLead AI is operated by Eugene Gusakov.
-            </p>
+        <div className="mt-14 space-y-10">
+          <Section title="1. Pilot status">
+            <p>IntentLead is currently a local and controlled Opportunity Intelligence pilot. It is not a generally available paid service, and no public pricing, lead quota or credit guarantee is offered at this stage.</p>
           </Section>
 
-          <Section title="2. Description of service">
-            <p>
-              IntentLead AI is an intent-based lead generation tool. It scans public sources (Reddit, Hacker
-              News, VK, GitHub, and others) for intent signals, identifies relevant companies and
-              decision-makers, verifies email addresses through a four-level waterfall, and generates
-              personalized outreach messages.
-            </p>
+          <Section title="2. What the product does">
+            <p>The product researches permitted public business evidence, resolves companies and prepares an evidence-backed Opportunity assessment for human review.</p>
+            <p>It does not provide contact databases, email enrichment, automated or assisted sending, mailbox operation, sequences or delivery tracking.</p>
           </Section>
 
-          <Section title="3. Acceptable use">
-            <p>You agree not to:</p>
-            <ul style={{ paddingLeft: 20, margin: 0, display: "flex", flexDirection: "column", gap: 6 }}>
-              <li>Use the Service to send spam, unsolicited mass outreach, or bulk automated emails without recipient consent.</li>
-              <li>Run lead generation on protected categories of personal data (health, financial status, political views, etc.).</li>
-              <li>Violate applicable laws including CAN-SPAM, GDPR, or CASL when contacting leads. You are responsible for compliance with anti-spam laws in your jurisdiction.</li>
-              <li>Attempt to reverse-engineer, scrape, or overload the Service.</li>
-              <li>Use the Service for any illegal purpose.</li>
-            </ul>
-            <p>We reserve the right to suspend accounts that violate these rules without prior notice.</p>
+          <Section title="3. Authorized use">
+            <p>Users must provide lawful research objectives and may use only sources and data they are authorized to access. The service must not be used to collect protected personal categories, bypass access controls, violate source terms or create unsupported claims about a company.</p>
           </Section>
 
-          <Section title="4. Free plan limits">
-            <p>
-              The free plan provides 10 verified leads as a one-time allocation. These leads do not reset
-              monthly. Once used, a paid plan is required to continue generating verified leads. Circumventing
-              this limit by creating multiple accounts is not permitted.
-            </p>
+          <Section title="4. Evidence and human judgment">
+            <p>An Opportunity is a research assessment, not proof that a company intends to buy. Source content can be incomplete, outdated or ambiguous. Users must review the evidence and uncertainty before acting on a result.</p>
           </Section>
 
-          <Section title="5. Credit guarantee">
-            <p
-              style={{
-                background: "rgba(163,230,53,0.06)",
-                border: "1px solid rgba(163,230,53,0.2)",
-                borderRadius: 8,
-                padding: "12px 16px",
-                color: "var(--text)",
-              }}
-            >
-              <strong>Credit guarantee:</strong> A credit is deducted only when a lead passes all 4
-              verification levels: signal intent (L1), company identification (L2), contact role
-              verification (L3), and email deliverability (L4). Rejected leads — those failing any
-              verification level — are never charged. This guarantee is technically enforced at the
-              database level via an atomic transaction and cannot be bypassed.
-            </p>
+          <Section title="5. No outreach authorization">
+            <p>Using IntentLead does not authorize unsolicited contact or transfer responsibility for compliance with privacy, marketing or communications law. The current product does not send or facilitate messages.</p>
           </Section>
 
-          <Section title="6. Paid plans and billing">
-            <ul style={{ paddingLeft: 20, margin: 0, display: "flex", flexDirection: "column", gap: 6 }}>
-              <li><strong style={{ color: "var(--text)" }}>Starter:</strong> $39/month (auto-renews monthly). 30 verified leads/month.</li>
-              <li><strong style={{ color: "var(--text)" }}>Growth:</strong> $89/month (auto-renews monthly). 100 verified leads/month.</li>
-              <li><strong style={{ color: "var(--text)" }}>Agency:</strong> $199/month (auto-renews monthly). 300 verified leads/month.</li>
-              <li>Annual plans available at 20% off (auto-renew annually).</li>
-              <li>Cancellation takes effect at the end of the current billing period.</li>
-              <li>Refunds and chargebacks are handled according to PayPro Global payment provider policies.</li>
-              <li>Prices may change with 30 days advance notice to your account email. Earlybird users with locked pricing are exempt from price increases as described at signup.</li>
-            </ul>
+          <Section title="6. Availability and warranties">
+            <p>The pilot is provided as-is for evaluation. Workflows may be changed, paused or removed while quality, security and economics are validated. No minimum Opportunity volume, acceptance rate or commercial outcome is guaranteed.</p>
           </Section>
 
-          <Section title="7. AI-generated content">
-            <p>
-              Outreach messages are generated by OpenAI and provided as-is. They are starting points, not
-              guaranteed results. Always review AI-generated content before sending. IntentLead AI is not
-              responsible for issues arising from applying AI suggestions.
-            </p>
+          <Section title="7. Account and data handling">
+            <p>Access may be suspended for abuse, unauthorized data collection or attempts to bypass security boundaries. Workspace data is handled according to the current Privacy notice and retention policy.</p>
           </Section>
 
-          <Section title="8. Disclaimer of warranties">
-            <p>
-              The Service is provided <strong style={{ color: "var(--text)" }}>&quot;as is&quot;</strong>{" "}
-              without warranties of any kind. We do not guarantee a specific number of verified leads per
-              campaign — results depend on signal availability and verification success rates.
-            </p>
-          </Section>
-
-          <Section title="9. Limitation of liability">
-            <p>
-              To the maximum extent permitted by law, IntentLead AI and Eugene Gusakov shall not be liable
-              for any indirect, incidental, or consequential damages arising from your use of the Service.
-              Our total liability shall not exceed the amount you paid us in the 3 months prior to the claim.
-            </p>
-          </Section>
-
-          <Section title="10. Termination">
-            <p>
-              We may suspend or terminate your access for violations of these Terms. You may delete your
-              account at any time by contacting us. On termination, your data will be deleted within 30 days.
-            </p>
-          </Section>
-
-          <Section title="11. Changes to terms">
-            <p>
-              We may update these Terms. We will notify you by email at least 14 days before material changes
-              take effect. Continued use after that date constitutes acceptance.
-            </p>
-          </Section>
-
-          <Section title="12. Governing law">
-            <p>
-              These Terms are governed by the laws of the Republic of Belarus. Disputes shall first be
-              resolved through good-faith negotiation, then by the courts of Minsk, Belarus.
-            </p>
-          </Section>
-
-          <Section title="13. Contact">
-            <p>
-              Questions about these Terms? Email{" "}
-              <a href={`mailto:${EMAIL}`} style={{ color: "var(--accent)", textDecoration: "none" }}>
-                {EMAIL}
-              </a>
-              .
-            </p>
+          <Section title="8. Future commercial terms">
+            <p>Any production release, billing model or paid plan will require separate terms presented before purchase or production use. Historical pricing and verified-lead packages are not current offers.</p>
           </Section>
         </div>
       </main>
-
       <Footer />
     </div>
   );

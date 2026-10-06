@@ -28,21 +28,21 @@ export function Footer() {
           color: "var(--text-muted)",
         }}
       >
+        <Link href="/" style={{ color: "var(--text-muted)", textDecoration: "none" }}>
+          IntentLead
+        </Link>
+        <Link href="/methodology" style={{ color: "var(--text-muted)", textDecoration: "none" }}>
+          {t.footer.methodology}
+        </Link>
+        <Link href="/roadmap" style={{ color: "var(--text-muted)", textDecoration: "none" }}>
+          {t.footer.roadmap}
+        </Link>
         <Link href="/privacy" style={{ color: "var(--text-muted)", textDecoration: "none" }}>
           {t.footer.privacy}
         </Link>
         <Link href="/terms" style={{ color: "var(--text-muted)", textDecoration: "none" }}>
           {t.footer.terms}
         </Link>
-        <Link href="/pricing" style={{ color: "var(--text-muted)", textDecoration: "none" }}>
-          {t.footer.pricing}
-        </Link>
-        <Link href="/compare" style={{ color: "var(--text-muted)", textDecoration: "none" }}>
-          {t.footer.compare}
-        </Link>
-        <a href="mailto:support@glook.dev" style={{ color: "var(--text-muted)", textDecoration: "none" }}>
-          support@glook.dev
-        </a>
       </div>
       <p style={{ fontSize: 12, color: "var(--text-faint)", margin: 0 }}>
         {t.footer.copyright}

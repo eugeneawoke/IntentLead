@@ -15,32 +15,26 @@ const jsonLd = {
   "name": "IntentLead AI",
   "applicationCategory": "BusinessApplication",
   "operatingSystem": "Web",
-  "description": "Find B2B leads from public intent signals. Signal → Company → Email → Message. Pay only when all 4 verification levels pass.",
-  "offers": {
-    "@type": "Offer",
-    "price": "0",
-    "priceCurrency": "USD",
-    "description": "10 verified leads free, no credit card required",
-  },
+  "description": "Opportunity intelligence that turns public business evidence into reviewable company opportunities.",
   "url": process.env.NEXT_PUBLIC_APP_URL ?? "https://intent-lead-hazel.vercel.app",
 };
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "https://intent-lead-hazel.vercel.app"),
-  title: "IntentLead AI — Find people ready to buy",
-  description: "Signal → Company → Email → Message. Pay only for leads that pass all 4 verification levels.",
+  title: "IntentLead AI — Evidence-backed Opportunity Intelligence",
+  description: "Find companies with a concrete, evidence-backed reason to consider your offer.",
   alternates: { canonical: "/" },
   openGraph: {
-    title: "IntentLead AI — Find people ready to buy",
-    description: "Signal → Company → Email → Message. Pay only for leads that pass all 4 verification levels.",
+    title: "IntentLead AI — Evidence-backed Opportunity Intelligence",
+    description: "Find companies with a concrete, evidence-backed reason to consider your offer.",
     siteName: "IntentLead AI",
     type: "website",
     images: [{ url: "/og.png", width: 1200, height: 630 }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "IntentLead AI — Find people ready to buy",
-    description: "Signal → Company → Email → Message.",
+    title: "IntentLead AI — Evidence-backed Opportunity Intelligence",
+    description: "Find companies with a concrete, evidence-backed reason to consider your offer.",
     images: ["/og.png"],
   },
 };
@@ -49,7 +43,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={cn("font-sans", dmSans.variable, spaceGrotesk.variable)}>
       <head>
-        {/* eslint-disable-next-line @next/next/no-before-interactive-script-outside-document */}
         <script
           type="application/ld+json"
           // Safe: jsonLd is a hardcoded static object — no user input involved
