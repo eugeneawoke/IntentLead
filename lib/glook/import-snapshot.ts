@@ -5,9 +5,9 @@ import { EvidenceItemSchema, SourceItemSchema } from "@/lib/domain/schemas/evide
 import { SiteContextSnapshotSchema } from "@/lib/domain/schemas/glook-site-context-snapshot";
 import type { EvidenceItem } from "@/types/evidence";
 import type { SourceItem } from "@/types/source-item";
-import type { SiteContextSnapshot } from "@/types/glook-site-context-snapshot";
+import type { GlookSnapshotSiteUrlUse, SiteContextSnapshot } from "@/types/glook-site-context-snapshot";
 
-export type GlookSnapshotEvidenceClass = "SOURCE_FACT" | "GENERATED_INTERPRETATION";
+export type GlookSnapshotEvidenceClass = "GENERATED_INTERPRETATION";
 export type GlookSnapshotEvidenceField =
   | "detectedService" | "targetAudience" | "businessProfile" | "aiSummary" | "topPriority";
 
@@ -22,6 +22,7 @@ export interface GlookSnapshotImportRecord {
   snapshotId: string;
   idempotencyKey: string;
   contentDigest: string;
+  siteUrlUse: GlookSnapshotSiteUrlUse;
   sourceItem: SourceItem;
   evidenceItems: GlookSnapshotEvidenceProjection[];
 }
@@ -33,9 +34,16 @@ export class GlookSnapshotIdentityConflictError extends Error {
   }
 }
 
+export class GlookSnapshotExpiredImportError extends Error {
+  constructor() {
+    super("Expired snapshot has not been imported before");
+    this.name = "GlookSnapshotExpiredImportError";
+  }
+}
+
 export interface GlookSnapshotImportRepository {
-  /** Atomically per workspace return an exact prior import, insert a new one, or reject identity reuse with changed content. */
-  persistIdempotently(record: GlookSnapshotImportRecord): Promise<GlookSnapshotImportRecord>;
+  /** Atomically per workspace return exact prior imports, conflict on changed content, or create only when allowed. */
+  persistIdempotently(record: GlookSnapshotImportRecord, allowCreate: boolean): Promise<GlookSnapshotImportRecord>;
 }
 
 export interface GlookSnapshotImportDependencies {
@@ -71,7 +79,7 @@ function evidenceRows(snapshot: SiteContextSnapshot): Array<{
   const rows: Array<{ classification: GlookSnapshotEvidenceClass; field: GlookSnapshotEvidenceField; value: string }> = [];
   for (const field of ["detectedService", "targetAudience", "businessProfile"] as const) {
     const value = facts[field];
-    if (value !== null) rows.push({ classification: "SOURCE_FACT", field, value });
+    if (value !== null) rows.push({ classification: "GENERATED_INTERPRETATION", field, value });
   }
   if (interpretations.aiSummary !== null) {
     rows.push({ classification: "GENERATED_INTERPRETATION", field: "aiSummary", value: interpretations.aiSummary });
@@ -117,13 +125,12 @@ function projectImport(context: ApplicationContext, snapshot: ActiveSiteContextS
       id: evidenceId,
       workspaceId,
       sourceItemId,
-      type: row.classification === "SOURCE_FACT" ? "structured_fact" : "text",
+      type: "text",
       sourceUrl: snapshot.siteUrl,
       capturedAt: snapshot.scanCompletedAt,
       excerpt: row.value,
       structuredFacts: {},
-      verificationMethod: row.classification === "SOURCE_FACT"
-        ? "glook_untrusted_business_context_fact" : "glook_untrusted_generated_interpretation",
+      verificationMethod: "glook_untrusted_generated_interpretation",
       confidence: 0,
       contentHash: sha256(row.value),
       provenance,
@@ -142,6 +149,7 @@ function projectImport(context: ApplicationContext, snapshot: ActiveSiteContextS
     snapshotId: snapshot.snapshotId,
     idempotencyKey: snapshot.idempotencyKey,
     contentDigest: snapshot.producerContentDigest,
+    siteUrlUse: "CANONICAL_IDENTIFIER_ONLY_NO_FETCH_AUTHORIZATION",
     sourceItem: sourceResult.data,
     evidenceItems,
   };
@@ -170,16 +178,20 @@ export async function importGlookSiteContextSnapshot(
     throw new ApplicationError("INVALID_INPUT", "Redacted Glook snapshots cannot be imported");
   }
   const now = (dependencies.now ?? (() => new Date()))().getTime();
-  if (!Number.isFinite(now) || now < Date.parse(snapshot.issuedAt) || now >= Date.parse(snapshot.expiresAt)) {
-    throw new ApplicationError("INVALID_INPUT", "Glook snapshot is stale or outside its validity window");
+  if (!Number.isFinite(now) || now < Date.parse(snapshot.issuedAt)) {
+    throw new ApplicationError("INVALID_INPUT", "Glook snapshot is outside its validity window");
   }
 
   const record = projectImport(context, snapshot);
+  const allowCreate = now < Date.parse(snapshot.expiresAt);
   try {
-    return await dependencies.repository.persistIdempotently(record);
+    return await dependencies.repository.persistIdempotently(record, allowCreate);
   } catch (error) {
     if (error instanceof GlookSnapshotIdentityConflictError) {
       throw new ApplicationError("CONFLICT", "Glook snapshot identity conflicts with a prior import");
+    }
+    if (error instanceof GlookSnapshotExpiredImportError) {
+      throw new ApplicationError("INVALID_INPUT", "Glook snapshot is expired and has not been imported previously");
     }
     throw new ApplicationError("INTERNAL_ERROR", "Glook snapshot could not be imported", { cause: error });
   }

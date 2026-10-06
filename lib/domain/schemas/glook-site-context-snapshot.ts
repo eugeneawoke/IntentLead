@@ -9,6 +9,7 @@ const SnapshotText = (max: number) => z.string().min(1).max(max).refine(value =>
 const ContentDigestSchema = z.string().regex(/^[a-f0-9]{64}$/);
 
 function isCanonicalPublicHttpsUrl(value: string): boolean {
+  // Check the URL as a canonical site identifier only. This does not resolve DNS or authorize fetching it.
   if (value !== value.trim() || value.length > 2048) return false;
   try {
     const url = new URL(value);
@@ -34,10 +35,13 @@ function isCanonicalPublicHttpsUrl(value: string): boolean {
   }
 }
 
-export const GlookSiteUrlSchema = z.string().url().refine(isCanonicalPublicHttpsUrl, "Expected a canonical public HTTPS site URL");
+export const GlookSiteUrlSchema = z.string().url().refine(
+  value => !value.includes("?") && !value.includes("#") && isCanonicalPublicHttpsUrl(value),
+  "Expected a canonical HTTPS site identifier without a query or fragment",
+);
 
 const BusinessFactsSchema = z.object({
-  kind: z.literal("SOURCE_FACTS"),
+  kind: z.literal("GENERATED_INTERPRETATION"),
   detectedService: SnapshotText(300).nullable(),
   targetAudience: SnapshotText(300).nullable(),
   businessProfile: SnapshotText(1200).nullable(),
@@ -50,7 +54,7 @@ const InterpretationSchema = z.object({
 }).strict();
 
 const RedactedBusinessFactsSchema = z.object({
-  kind: z.literal("SOURCE_FACTS"),
+  kind: z.literal("GENERATED_INTERPRETATION"),
   detectedService: z.null(),
   targetAudience: z.null(),
   businessProfile: z.null(),

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SiteContextSnapshotSchema } from "../../lib/domain/schemas/glook-site-context-snapshot";
+import { GlookSiteUrlSchema, SiteContextSnapshotSchema } from "../../lib/domain/schemas/glook-site-context-snapshot";
 import {
   digestMismatchSnapshot,
   invalidRedactedSnapshot,
@@ -26,7 +26,10 @@ describe("Glook SiteContextSnapshot v1 contract", () => {
       "http://example.com/",
       "https://user:pass@example.com/",
       "https://example.com/?token=secret",
+      "https://example.com/?",
       "https://example.com/#fragment",
+      "https://example.com/#",
+      "https://example.com/?#",
       "https://localhost/",
       "https://example.local/",
       "https://service.intranet/",
@@ -37,13 +40,19 @@ describe("Glook SiteContextSnapshot v1 contract", () => {
       "https://example..com/",
       "https://example.com/path/../admin",
     ]) {
-      expect(SiteContextSnapshotSchema.safeParse({ ...validActiveSnapshot, siteUrl }).success).toBe(false);
+      expect(GlookSiteUrlSchema.safeParse(siteUrl).success).toBe(false);
     }
     const unsafeUrlResult = SiteContextSnapshotSchema.safeParse(unsafeUrlSnapshot);
     expect(unsafeUrlResult.success).toBe(false);
     if (!unsafeUrlResult.success) {
       expect(unsafeUrlResult.error.issues.some(issue => issue.path[0] === "siteUrl")).toBe(true);
     }
+  });
+
+  it("accepts a DNS alias only as a canonical site identifier", () => {
+    expect(GlookSiteUrlSchema.parse("https://127.0.0.1.nip.io/")).toBe("https://127.0.0.1.nip.io/");
+    expect(SiteContextSnapshotSchema.parse(validActiveSnapshot).businessContext.kind)
+      .toBe("GENERATED_INTERPRETATION");
   });
 
   it("rejects impossible timestamps and mismatched content digests", () => {

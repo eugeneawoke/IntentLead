@@ -36,6 +36,8 @@ signature / issuer
 - Glook findings remain readiness/site findings unless observed evidence supports stronger semantics.
 - Imported content is untrusted and passes validation/sanitization.
 - Snapshot import is idempotent and auditable.
+- In the consumer v1 contract, every `businessContext` value is `GENERATED_INTERPRETATION`; do not treat AI-produced service, audience, or profile text as `SOURCE_FACT`. Project these strings as untrusted content, including prompt-injection-like text.
+- `siteUrl` is a canonical public-site identifier only, never fetch authorization. Consumer validation rejects direct private IP and local host syntax, but does not resolve DNS or claim exhaustive DNS safety; `nip.io` may be a valid identifier and the importer makes no network request. Any future fetch must add SSRF controls for resolved addresses, redirects, and DNS rebinding before connecting.
 - Direct cross-product writes are forbidden.
 - Shared auth/billing may remain infrastructure, but product tables have clear ownership and migration namespaces.
 
