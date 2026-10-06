@@ -407,6 +407,8 @@ Complete. Final gates: full verify 550/550, focused URL/API 77/77, Task 8 Postgr
 **Interfaces:**
 - Produces versioned `SiteContextSnapshot` export/import with authenticated tenant binding and idempotent provenance.
 
+**Consumer-only sub-evidence (2026-10-06):** IntentLead now has a strict v1 schema, frozen consumer fixtures and an injected workspace-scoped idempotent import boundary; `npm run verify` passes with 563 unit tests. This does not complete the two-sided contract step: producer fixture parity and an approved Glook SiteContextSnapshot export/authentication plan are still missing. Producer transport, shadow comparison, database persistence/runtime wiring and direct-read removal remain pending. Task 9 and Steps 1–4 remain unchecked.
+
 - [ ] **Step 1: Contract test both sides**
 
 Freeze compatible producer/consumer fixtures for valid, foreign-owner, malformed, stale, redacted and unknown-version snapshots.
