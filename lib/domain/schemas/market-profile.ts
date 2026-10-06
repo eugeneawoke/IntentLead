@@ -50,3 +50,41 @@ export const DiscoveryBriefSchema = z.object({
   brief => brief.marketProfileId === "EN_DISCOVERY_ONLY" || brief.jurisdictions.length > 0,
   "Regional discovery requires explicit jurisdiction",
 );
+
+export const DiscoveryCriteriaSchema = z.object({
+  jurisdictions: z.array(JurisdictionSchema).max(30).default([]),
+  languages: z.array(LanguageSchema).min(1).max(10).default(["en"]),
+  signalFamilies: z.array(z.enum([
+    "EXPRESSED_INTENT", "BUSINESS_EVENT", "DETECTED_PROBLEM", "MARKET_OBSERVATION",
+  ])).min(1).max(4),
+  exclusions: z.array(z.string().trim().min(1).max(500)).max(30).default([]),
+  limits: z.object({
+    maxSourceItems: z.number().int().min(1).max(500),
+    maxOpportunities: z.number().int().min(1).max(100),
+  }).strict(),
+}).strict();
+
+export const DiscoveryBriefSummarySchema = z.object({
+  id: z.string().uuid(),
+  state: z.enum(["DRAFT", "QUEUED", "RUNNING", "COMPLETED", "FAILED", "CANCELLED"]),
+  objective: z.string().min(1).max(500),
+  criteria: DiscoveryCriteriaSchema,
+  offer: z.object({
+    id: z.string().uuid(), name: z.string().min(1),
+    definition: z.object({
+      summary: z.string().min(1).max(500),
+      outcomes: z.array(z.string().min(1).max(500)).max(20),
+      exclusions: z.array(z.string().min(1).max(500)).max(20),
+    }).strict(),
+  }).strict(),
+  icp: z.object({
+    id: z.string().uuid(), name: z.string().min(1),
+    definition: z.object({
+      description: z.string().min(1).max(500),
+      companyAttributes: z.array(z.string().min(1).max(500)).max(30),
+      exclusions: z.array(z.string().min(1).max(500)).max(20),
+    }).strict(),
+  }).strict(),
+  createdAt: z.string().datetime({ offset: true }),
+  updatedAt: z.string().datetime({ offset: true }),
+}).strict();

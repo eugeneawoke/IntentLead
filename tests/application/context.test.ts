@@ -1,72 +1,31 @@
 import { describe, expect, it, vi } from "vitest";
 import { createApplicationContext, type ApplicationSupabaseClient } from "@/lib/application/context";
 
-type QueryResult = {
-  data: unknown;
-  error: { code?: string; message?: string } | null;
-};
-
 const profileConfig = {
-  jurisdictions: [],
-  regions: [],
-  languages: ["en"],
-  legalPolicyId: "legal-v1",
-  retentionPolicyId: "retention-v1",
-  outreachPolicyId: null,
-  outreachChannels: [],
-  defaultCurrency: "USD",
-  timezone: "UTC",
+  jurisdictions: [], regions: [], languages: ["en"], legalPolicyId: "legal-v1",
+  retentionPolicyId: "retention-v1", outreachPolicyId: null, outreachChannels: [],
+  defaultCurrency: "USD", timezone: "UTC",
 };
 
-const profileRow = {
-  id: "profile-id",
-  workspace_id: "workspace-from-db",
-  profile_key: "EN_DISCOVERY_ONLY",
-  workflow: "DISCOVERY_ONLY",
-  configuration: profileConfig,
-  capabilities: ["SOURCE_SEARCH", "WEB_FETCH", "COMPANY_RESOLUTION", "OPPORTUNITY_ASSESSMENT", "HUMAN_REVIEW"],
-  disabled_capabilities: ["PEOPLE_SEARCH", "CONTACT_ENRICHMENT", "EMAIL_FIND", "EMAIL_VERIFY", "DRAFT_GENERATION", "OUTREACH_READY", "OUTREACH_SEND", "OUTCOME_RECORDING", "PACKAGE_VERIFIED"],
-};
-
-function fakeClient(results: QueryResult[]) {
-  const queriedTables: string[] = [];
-  const rpcCalls: string[] = [];
-  const client: ApplicationSupabaseClient = {
-    from(table: string) {
-      queriedTables.push(table);
-      const result = results.shift() ?? { data: null, error: null };
-      const query = {
-        eq: vi.fn(() => query),
-        single: vi.fn().mockResolvedValue(result),
-        maybeSingle: vi.fn().mockResolvedValue(result),
-      };
-      return { select: vi.fn(() => query) };
-    },
-    rpc(functionName) {
-      rpcCalls.push(functionName);
-      return Promise.resolve(results.shift() ?? { data: null, error: null });
-    },
-  };
-  return { client, queriedTables, rpcCalls };
-}
-
-function setupRow(overrides: Record<string, unknown> = {}) {
+function contextRow(overrides: Record<string, unknown> = {}) {
   return {
-    ...profileRow,
-    discovery_brief_id: "brief-1",
-    workspace_id: "workspace-from-db",
+    discovery_brief_id: "brief-1", workspace_id: "workspace-from-db",
+    profile_key: "EN_DISCOVERY_ONLY", workflow: "DISCOVERY_ONLY", configuration: profileConfig,
+    capabilities: ["SOURCE_SEARCH", "WEB_FETCH", "COMPANY_RESOLUTION", "OPPORTUNITY_ASSESSMENT", "HUMAN_REVIEW"],
+    disabled_capabilities: ["PEOPLE_SEARCH", "CONTACT_ENRICHMENT", "EMAIL_FIND", "EMAIL_VERIFY", "DRAFT_GENERATION", "OUTREACH_READY", "OUTREACH_SEND", "OUTCOME_RECORDING", "PACKAGE_VERIFIED"],
     ...overrides,
   };
 }
 
+function fakeClient(result: { data: unknown; error: { code?: string; message?: string } | null }) {
+  const rpc = vi.fn().mockResolvedValue(result);
+  return { client: { rpc } as ApplicationSupabaseClient, rpc };
+}
+
 describe("createApplicationContext", () => {
-  it("derives owner, workspace, brief and permissions from stored relations", async () => {
-    const { client, queriedTables, rpcCalls } = fakeClient([
-      { data: { id: "campaign-1", workspace_id: "workspace-from-db" }, error: null },
-      { data: { id: "workspace-from-db", owner_id: "owner-1" }, error: null },
-      { data: [setupRow()], error: null },
-    ]);
-    const input = { authenticatedUserId: "owner-1", campaignId: "campaign-1", workspaceId: "forged-workspace" } as Parameters<typeof createApplicationContext>[0];
+  it("derives owner workspace, brief and permissions from the owner-scoped native RPC", async () => {
+    const { client, rpc } = fakeClient({ data: [contextRow()], error: null });
+    const input = { authenticatedUserId: "owner-1", discoveryBriefId: "brief-1", workspaceId: "forged" } as Parameters<typeof createApplicationContext>[0];
 
     const context = await createApplicationContext(input, client);
 
@@ -75,54 +34,23 @@ describe("createApplicationContext", () => {
     expect(context.permissions.has("SOURCE_SEARCH")).toBe(true);
     expect(context.permissions.has("CONTACT_ENRICHMENT")).toBe(false);
     expect(context.budget).toEqual({ currency: "USD", maxTotalCost: 0, maxProviderCalls: 0 });
-    expect(queriedTables).toEqual(["campaigns", "workspaces"]);
-    expect(rpcCalls).toEqual(["intentlead_discovery_setup_for_campaign"]);
+    expect(rpc).toHaveBeenCalledWith("intentlead_discovery_context", { p_discovery_brief_id: "brief-1" });
   });
 
-  it("denies a non-owner before loading discovery setup", async () => {
-    const { client, queriedTables } = fakeClient([
-      { data: { id: "campaign-1", workspace_id: "workspace-from-db" }, error: null },
-      { data: { id: "workspace-from-db", owner_id: "another-user" }, error: null },
-    ]);
-
-    await expect(createApplicationContext({ authenticatedUserId: "owner-1", campaignId: "campaign-1" }, client))
-      .rejects.toMatchObject({ code: "FORBIDDEN" });
-    expect(queriedTables).toEqual(["campaigns", "workspaces"]);
-  });
-
-  it("returns a setup conflict instead of inventing a missing DiscoveryBrief", async () => {
-    const { client } = fakeClient([
-      { data: { id: "campaign-1", workspace_id: "workspace-from-db" }, error: null },
-      { data: { id: "workspace-from-db", owner_id: "owner-1" }, error: null },
-      { data: [], error: null },
-    ]);
-
-    await expect(createApplicationContext({ authenticatedUserId: "owner-1", campaignId: "campaign-1" }, client))
-      .rejects.toMatchObject({ code: "CONFLICT" });
+  it("does not disclose a missing or cross-tenant brief", async () => {
+    const { client } = fakeClient({ data: [], error: null });
+    await expect(createApplicationContext({ authenticatedUserId: "owner-1", discoveryBriefId: "other" }, client))
+      .rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
   it.each(["CIS_RU", "LOCAL_CUSTOM"] as const)(
-    "fails closed for stored %s profiles even when they declare discovery capability",
+    "fails closed for stored %s profiles",
     async profileKey => {
-      const localConfiguration = {
-        ...profileConfig,
-        jurisdictions: [{ countryCode: "RU", subdivisionCode: null }],
-      };
-      const storedProfile = {
-        ...profileRow,
-        profile_key: profileKey,
-        workflow: "DISCOVERY_ONLY",
-        configuration: profileKey === "LOCAL_CUSTOM"
-          ? { ...localConfiguration, category: "technology", geography: "Russia" }
-          : localConfiguration,
-      };
-      const { client } = fakeClient([
-        { data: { id: "campaign-1", workspace_id: "workspace-from-db" }, error: null },
-        { data: { id: "workspace-from-db", owner_id: "owner-1" }, error: null },
-        { data: [setupRow(storedProfile)], error: null },
-      ]);
-
-      await expect(createApplicationContext({ authenticatedUserId: "owner-1", campaignId: "campaign-1" }, client))
+      const configuration = profileKey === "LOCAL_CUSTOM"
+        ? { ...profileConfig, jurisdictions: [{ countryCode: "RU", subdivisionCode: null }], category: "technology", geography: "Russia" }
+        : { ...profileConfig, jurisdictions: [{ countryCode: "RU", subdivisionCode: null }] };
+      const { client } = fakeClient({ data: [contextRow({ profile_key: profileKey, configuration })], error: null });
+      await expect(createApplicationContext({ authenticatedUserId: "owner-1", discoveryBriefId: "brief-1" }, client))
         .rejects.toMatchObject({ code: "POLICY_DENIED" });
     },
   );

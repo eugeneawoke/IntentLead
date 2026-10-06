@@ -5,7 +5,7 @@ import type { ApplicationContext } from "./context";
 
 export const StartOpportunitySearchInputSchema = z.object({
   schemaVersion: z.literal(1),
-  campaignId: z.string().trim().min(1).max(100),
+  discoveryBriefId: z.string().trim().min(1).max(100),
   idempotencyKey: z.string().trim().min(1).max(200).regex(/^[\w.:-]+$/),
 }).strict();
 
@@ -38,10 +38,10 @@ async function enqueueThroughRpc(input: EnqueueDiscoveryJobInput): Promise<strin
 function mapEnqueueError(error: unknown): ApplicationError {
   const message = error instanceof Error ? error.message : String(error);
   if (message.includes("idempotency_conflict")) return new ApplicationError("CONFLICT", "Idempotency key was already used for a different request");
-  if (message.includes("brief_transition_denied") || message.includes("campaign_transition_denied")) {
-    return new ApplicationError("CONFLICT", "Discovery campaign is not ready to run");
+  if (message.includes("brief_transition_denied")) {
+    return new ApplicationError("CONFLICT", "DiscoveryBrief is not ready to run");
   }
-  if (message.includes("forbidden")) return new ApplicationError("NOT_FOUND", "Discovery campaign not found");
+  if (message.includes("forbidden")) return new ApplicationError("NOT_FOUND", "DiscoveryBrief not found");
   if (message.includes("invalid_enqueue_input")) return new ApplicationError("INVALID_INPUT", "Invalid discovery request");
   return new ApplicationError("INTERNAL_ERROR", "Could not accept discovery job", { cause: error });
 }
@@ -56,8 +56,8 @@ export async function startOpportunitySearch(
   }
   const parsed = StartOpportunitySearchInputSchema.safeParse(rawInput);
   if (!parsed.success) throw new ApplicationError("INVALID_INPUT", "Invalid discovery request");
-  if (parsed.data.campaignId !== context.campaignId) {
-    throw new ApplicationError("NOT_FOUND", "Discovery campaign not found");
+  if (parsed.data.discoveryBriefId !== context.discoveryBriefId) {
+    throw new ApplicationError("NOT_FOUND", "DiscoveryBrief not found");
   }
   if (!context.permissions.has("SOURCE_SEARCH") || !context.marketProfile.capabilities.includes("SOURCE_SEARCH")) {
     throw new ApplicationError("POLICY_DENIED", "MarketProfile does not permit source discovery");

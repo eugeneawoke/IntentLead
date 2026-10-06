@@ -15,7 +15,6 @@ const fixedNow = () => new Date("2026-10-06T12:00:00.000Z");
 const context = {
   authenticatedUserId: "user-1",
   workspace: { id: "workspace-1", role: "OWNER" },
-  campaignId: "campaign-1",
   discoveryBriefId: "brief-1",
   traceId: "trace-1",
   permissions: new Set(["SOURCE_SEARCH", "HUMAN_REVIEW"]),

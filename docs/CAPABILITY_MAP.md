@@ -5,9 +5,9 @@
 | Capability | Current state | Target | Priority |
 |---|---|---|---|
 | Workspace authorization | Implemented | One authority boundary for every capability | Core |
-| Offer and ICP definition | Partly stored in legacy campaigns | Native versioned OfferProfile and ICPDefinition | Next |
-| Discovery brief | Implemented with legacy campaign bridge | Native brief without campaign dependency | Next |
-| Durable jobs | Implemented locally | Native Opportunity jobs with recovery and cancellation | Core |
+| Offer and ICP definition | Native versioned create contract and persistence | Add editing/version-history UX after pilot evidence | Core |
+| Discovery brief | Native create/list/context/run/delete authority; no active campaign dependency | Use as the sole workflow authority | Core |
+| Durable jobs | Native DiscoveryBrief enqueue/lifecycle implemented locally | Wire zero-spend handler and preserve recovery/cancellation | Core |
 | Provider registry and budgets | Implemented locally | Capability-based selection and zero-spend pilot mode | Core |
 | Source normalization | Implemented contracts/adapters | Business-wide SourceItem ingestion | Core |
 | Evidence and provenance | Implemented locally | Inspectable evidence for every Opportunity claim | Core |

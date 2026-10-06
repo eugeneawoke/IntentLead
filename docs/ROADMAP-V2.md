@@ -25,7 +25,7 @@ A website, Glook snapshot, map listing, review, public post, job posting or AI-a
 
 This stage establishes versioned domain contracts, evidence provenance, provider registry, market profiles, durable jobs, cost controls, application authorization and human review.
 
-**Current state:** contracts, storage, durable jobs and review foundation are implemented locally. Worker cutover, native brief authority and legacy removal remain in progress. Production deployment and migrations remain outside the authorized scope.
+**Current state:** contracts, native Offer/ICP/DiscoveryBrief authority, storage, durable jobs and review foundation are implemented locally. Worker cutover and legacy schema removal remain in progress. Production deployment and migrations remain outside the authorized scope.
 
 ## Stage 1 — Self-prospecting discovery
 

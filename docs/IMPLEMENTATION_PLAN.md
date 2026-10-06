@@ -46,13 +46,13 @@ The Glook snapshot consumer commits `14097c4` and `3251300` are a dormant option
 
 ## Task C — Native discovery authority
 
-- [ ] Add native OfferProfile and ICPDefinition persistence/contracts if not already present.
-- [ ] Make DiscoveryBrief the authority for context, enqueue, lifecycle and deletion.
-- [ ] Change application context and start commands from `campaignId` to `discoveryBriefId`.
-- [ ] Remove legacy campaign synchronization and add cross-tenant/concurrency/deletion tests.
-- [ ] Keep applied migrations immutable; add new migrations and verify fresh/upgrade paths.
+- [x] Add native OfferProfile and ICPDefinition persistence/contracts (`202610060016_native_discovery_authority.sql`).
+- [x] Make DiscoveryBrief the authority for create/list/context/enqueue/lifecycle/deletion (2026-10-06).
+- [x] Change application context and start commands from `campaignId` to `discoveryBriefId`; retire `/api/campaigns` (2026-10-06).
+- [x] Remove active legacy campaign synchronization and add cross-tenant/concurrency/deletion tests (2026-10-06).
+- [x] Keep applied migrations immutable; add a forward-only migration and verify it against the populated upgrade fixture in disposable PostgreSQL (4/4 Task C integration tests pass).
 
-**Done when:** Opportunity execution does not read or write legacy campaign semantics.
+**Done:** native Opportunity execution does not read or write legacy campaign semantics. Historical bridge objects remain isolated for Task E reconciliation and removal.
 
 ## Task D — Runnable zero-spend self-prospecting
 

@@ -39,7 +39,7 @@ describe("durable job wake endpoint", () => {
 
   it("rejects a malformed wake hint without running work", async () => {
     const wake = vi.fn();
-    const response = await postWake(JSON.stringify({ campaignId: "campaign-1" }), wake);
+    const response = await postWake(JSON.stringify({ discoveryBriefId: "brief-1" }), wake);
 
     expect(response.status).toBe(400);
     expect(wake).not.toHaveBeenCalled();

@@ -1,45 +1,41 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-const mocks = vi.hoisted(() => ({
-  auth: vi.fn(), from: vi.fn(), limit: vi.fn(),
-}));
+const mocks = vi.hoisted(() => ({ auth: vi.fn(), limit: vi.fn(), create: vi.fn() }));
 vi.mock("@/lib/auth/requireUser", () => ({ requireUser: mocks.auth }));
-vi.mock("@/lib/supabase/client", () => ({ getServiceClient: () => ({ from: mocks.from }) }));
 vi.mock("@/lib/ratelimit", () => ({ checkRateLimit: mocks.limit }));
+vi.mock("@/lib/application/discovery-briefs", () => ({
+  createDiscoveryBrief: mocks.create,
+  listDiscoveryBriefs: vi.fn(),
+}));
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.auth.mockResolvedValue({ user: { id: "owner" }, supabase: { from: mocks.from }, response: null });
+  mocks.auth.mockResolvedValue({ user: { id: "owner" }, supabase: {}, response: null });
   mocks.limit.mockResolvedValue(true);
-  const query = {
-    select: vi.fn(() => query), eq: vi.fn(() => query), lte: vi.fn(() => query),
-    insert: vi.fn(() => query),
-    single: vi.fn().mockResolvedValue({ data: { id: "campaign" }, error: null }),
-    then: (resolve: (value: unknown) => unknown) => Promise.resolve({ data: [{ id: "workspace" }], error: null }).then(resolve),
-  };
-  mocks.from.mockReturnValue(query);
+  mocks.create.mockResolvedValue({ discoveryBriefId: "brief-1", created: true });
 });
 
-describe("campaign rate limit", () => {
-  it("waits for an asynchronous denial before any database access", async () => {
-    const { POST } = await import("@/app/api/campaigns/route");
+describe("DiscoveryBrief rate limit", () => {
+  it("waits for an asynchronous denial before persistence", async () => {
+    const { POST } = await import("@/app/api/discovery-briefs/route");
     let decide!: (allowed: boolean) => void;
-    mocks.limit.mockReturnValue(new Promise<boolean>((resolve) => { decide = resolve; }));
-    const request = POST(new NextRequest("http://localhost/api/campaigns", {
-      method: "POST", body: JSON.stringify({ what_selling: "service" }),
+    mocks.limit.mockReturnValue(new Promise<boolean>(resolve => { decide = resolve; }));
+    const request = POST(new NextRequest("http://localhost/api/discovery-briefs", {
+      method: "POST", headers: { "Idempotency-Key": "create-brief-0001" }, body: JSON.stringify({}),
     }));
     await Promise.resolve();
-    expect(mocks.from).not.toHaveBeenCalled();
+    expect(mocks.create).not.toHaveBeenCalled();
     decide(false);
     expect((await request).status).toBe(429);
-    expect(mocks.from).not.toHaveBeenCalled();
+    expect(mocks.create).not.toHaveBeenCalled();
   });
 
-  it("permits an asynchronously allowed campaign", async () => {
-    const { POST } = await import("@/app/api/campaigns/route");
-    expect((await POST(new NextRequest("http://localhost/api/campaigns", {
-      method: "POST", body: JSON.stringify({ what_selling: "service" }),
-    }))).status).toBe(201);
+  it("permits an asynchronously allowed native command", async () => {
+    const { POST } = await import("@/app/api/discovery-briefs/route");
+    const response = await POST(new NextRequest("http://localhost/api/discovery-briefs", {
+      method: "POST", headers: { "Idempotency-Key": "create-brief-0001" }, body: JSON.stringify({}),
+    }));
+    expect(response.status).toBe(201);
   });
 });

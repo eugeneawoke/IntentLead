@@ -24,7 +24,6 @@ const marketProfile = MarketProfileSchema.parse({
 const ownerContext: ApplicationContext = {
   authenticatedUserId: "owner-1",
   workspace: { id: "workspace-1", role: "OWNER" },
-  campaignId: "campaign-1",
   discoveryBriefId: "brief-1",
   traceId: "trace-1",
   permissions: new Set(marketProfile.capabilities),

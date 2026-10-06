@@ -28,7 +28,6 @@ const profile: MarketProfile = {
 const context: ApplicationContext = {
   authenticatedUserId: "owner-1",
   workspace: { id: "workspace-1", role: "OWNER" },
-  campaignId: "campaign-1",
   discoveryBriefId: "brief-1",
   traceId: "trace-1",
   permissions: new Set(profile.capabilities),
@@ -40,7 +39,7 @@ describe("startOpportunitySearch", () => {
   it("rejects client-supplied workspace authority", () => {
     expect(StartOpportunitySearchInputSchema.safeParse({
       schemaVersion: 1,
-      campaignId: "campaign-1",
+      discoveryBriefId: "brief-1",
       idempotencyKey: "request-1",
       workspaceId: "attacker-workspace",
     }).success).toBe(false);
@@ -51,7 +50,7 @@ describe("startOpportunitySearch", () => {
 
     await expect(startOpportunitySearch(context, {
       schemaVersion: 1,
-      campaignId: "campaign-1",
+      discoveryBriefId: "brief-1",
       idempotencyKey: "request-1",
     }, { enqueueDiscoveryJob })).resolves.toEqual({ jobId: "job-1" });
 
@@ -68,7 +67,7 @@ describe("startOpportunitySearch", () => {
 
     await expect(startOpportunitySearch(context, {
       schemaVersion: 1,
-      campaignId: "campaign-1",
+      discoveryBriefId: "brief-1",
       idempotencyKey: "request-1",
     }, { enqueueDiscoveryJob })).rejects.toMatchObject({ code: "CONFLICT" });
   });
@@ -92,7 +91,7 @@ describe("startOpportunitySearch", () => {
 
       await expect(startOpportunitySearch(authorizedContext, {
         schemaVersion: 1,
-        campaignId: "campaign-1",
+        discoveryBriefId: "brief-1",
         idempotencyKey: `profile-${id}`,
       }, { enqueueDiscoveryJob })).rejects.toMatchObject({ code: "POLICY_DENIED" });
       expect(enqueueDiscoveryJob).not.toHaveBeenCalled();
