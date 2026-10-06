@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
 import { beforeAll, describe, expect, it } from "vitest";
-import { asRole, bootstrapTask5Database, insertUsers, sql } from "./task4-db";
+import { insertUsers } from "./task4-db";
+import { asRole, bootstrapLatestDatabase, sql } from "./task8-db";
 import { candidateExternalStepKey } from "../../worker/workflows/self-prospecting-helpers";
 
 const owner = randomUUID();
@@ -12,7 +12,7 @@ const marketId = randomUUID();
 const briefId = randomUUID();
 const workerId = "task7-fixture-worker";
 const allowed = ["SOURCE_SEARCH", "WEB_FETCH", "COMPANY_RESOLUTION", "OPPORTUNITY_ASSESSMENT", "HUMAN_REVIEW"];
-const disabled = ["PEOPLE_SEARCH", "CONTACT_ENRICHMENT", "EMAIL_FIND", "EMAIL_VERIFY", "DRAFT_GENERATION", "OUTREACH_READY", "OUTREACH_SEND", "OUTCOME_RECORDING", "PACKAGE_VERIFIED"];
+const disabled: string[] = [];
 const now = "2026-10-05T12:00:00.000Z";
 
 function quote(value: unknown): string {
@@ -94,18 +94,6 @@ function candidateSlice(candidateKey: string, assessed: boolean, sourceExternalI
   };
 }
 
-async function installTask7Migration(): Promise<void> {
-  await bootstrapTask5Database();
-  if (await sql("SELECT to_regclass('public.intentlead_job_candidate_results') IS NULL") === "t") {
-    const initial = await readFile(new URL("../../supabase/migrations/202610050003_task7_self_prospecting.sql", import.meta.url), "utf8");
-    await sql(initial, "intentlead-task7-migration");
-  }
-  for (const name of ["202610050004_task7_persistence_hardening.sql", "202610050005_task7_candidate_deletion_redaction.sql", "202610050006_task7_provider_run_deletion_scrub.sql"]) {
-    const upgrade = await readFile(new URL(`../../supabase/migrations/${name}`, import.meta.url), "utf8");
-    await sql(upgrade, "intentlead-task7-review-fixes");
-  }
-}
-
 async function prepareJob(): Promise<{ jobId: string; token: string }> {
   await insertUsers(owner);
   await sql(`
@@ -114,8 +102,8 @@ async function prepareJob(): Promise<{ jobId: string; token: string }> {
     INSERT INTO public.intentlead_icp_definitions(id,workspace_id,name,definition) VALUES ('${icpId}','${workspaceId}','Fixture ICP','{}');
     INSERT INTO public.intentlead_market_profiles(id,workspace_id,profile_key,workflow,configuration,capabilities,disabled_capabilities)
       VALUES ('${marketId}','${workspaceId}','EN_DISCOVERY_ONLY','DISCOVERY_ONLY',
-        '{"regions":[],"languages":["en"],"legalPolicyId":"legal-v1","retentionPolicyId":"retention-v1","outreachPolicyId":null,"outreachChannels":[],"defaultCurrency":"USD","timezone":"UTC"}',
-        ARRAY[${allowed.map(quote).join(",")}],ARRAY[${disabled.map(quote).join(",")}]);
+        '{"regions":[],"languages":["en"],"legalPolicyId":"legal-v1","retentionPolicyId":"retention-v1","defaultCurrency":"USD","timezone":"UTC"}',
+        ARRAY[${allowed.map(quote).join(",")}]::text[],ARRAY[${disabled.map(quote).join(",")}]::text[]);
     INSERT INTO public.intentlead_discovery_briefs(id,workspace_id,offer_profile_id,icp_definition_id,market_profile_id,objective,criteria)
       VALUES ('${briefId}','${workspaceId}','${offerId}','${icpId}','${marketId}','Find evidence-backed opportunities','{}');
   `);
@@ -139,10 +127,10 @@ async function prepareAdditionalJob(label: string): Promise<{ jobId: string; tok
 }
 
 beforeAll(async () => {
-  await installTask7Migration();
+  await bootstrapLatestDatabase();
 }, 120_000);
 
-describe("Task 7 lease-bound PostgreSQL persistence", () => {
+describe("lease-bound self-prospecting persistence", () => {
   it("persists review and insufficient candidates idempotently without downstream records", async () => {
     const { jobId, token } = await prepareJob();
     const review = candidateSlice("review-candidate", true);
@@ -156,21 +144,100 @@ describe("Task 7 lease-bound PostgreSQL persistence", () => {
     expect(await sql(`SELECT string_agg(state, ',' ORDER BY state) FROM public.intentlead_opportunities WHERE workspace_id='${workspaceId}'`))
       .toBe("HUMAN_REVIEW,INSUFFICIENT_EVIDENCE");
     await expect(sql(asRole("service_role", `SELECT has_function_privilege('authenticated','public.intentlead_persist_self_prospecting_candidate(uuid,text,uuid,text,jsonb)','EXECUTE')`))).resolves.toBe("f");
+    await expect(sql(`SELECT to_regprocedure('public.intentlead_task7_claim_supported(text,jsonb,uuid[])') IS NULL`)).resolves.toBe("t");
+    await expect(sql(`SELECT to_regprocedure('public.intentlead_claim_supported(text,jsonb,uuid[])') IS NOT NULL`)).resolves.toBe("t");
     await expect(sql(`SELECT count(*) FROM public.intentlead_job_candidate_results WHERE workspace_id='${workspaceId}'`)).resolves.toBe("2");
     await expect(sql(`SELECT count(*) FROM public.intentlead_provider_runs WHERE job_id='${jobId}'`)).resolves.toBe("4");
     await expect(sql(`SELECT count(*) FROM public.intentlead_source_items WHERE workspace_id='${workspaceId}'`)).resolves.toBe("3");
     await expect(sql(`SELECT count(*) FROM public.intentlead_evidence_items WHERE workspace_id='${workspaceId}'`)).resolves.toBe("3");
     await expect(sql(`SELECT count(*) FROM public.intentlead_opportunity_assessments WHERE workspace_id='${workspaceId}'`)).resolves.toBe("1");
-    await expect(sql(`SELECT count(*) FROM public.intentlead_contact_points WHERE workspace_id='${workspaceId}'`)).resolves.toBe("0");
-    await expect(sql(`SELECT count(*) FROM public.intentlead_outreach_drafts WHERE workspace_id='${workspaceId}'`)).resolves.toBe("0");
     await expect(sql(`SELECT count(*) FROM public.intentlead_cost_events WHERE workspace_id='${workspaceId}'`)).resolves.toBe("0");
-    await expect(sql(`SELECT count(*) FROM public.leads l JOIN public.campaigns c ON c.id=l.campaign_id WHERE c.workspace_id='${workspaceId}'`)).resolves.toBe("0");
+    await expect(sql(`SELECT count(*) FROM pg_class WHERE relnamespace='public'::regnamespace
+      AND relname=ANY(ARRAY['intentlead_contact_points','intentlead_outreach_drafts','leads','campaigns'])`))
+      .resolves.toBe("0");
     const crossCandidate = candidateSlice("cross-candidate", false);
     (crossCandidate.opportunity as { evidenceIds: string[] }).evidenceIds = [(review.evidenceItems[0] as { id: string }).id];
-    await expect(sql(asRole("service_role", `SELECT ${rpc(crossCandidate)}`))).rejects.toThrow();
+    await expect(sql(asRole("service_role", `SELECT ${rpc(crossCandidate)}`)))
+      .rejects.toThrow(/candidate_evidence_cross_slice_reference/);
+
+    const extraKey = { ...candidateSlice("extra-key", false), unexpected: true };
+    await expect(sql(asRole("service_role", `SELECT ${rpc(extraKey)}`)))
+      .rejects.toThrow(/invalid_candidate_shape/);
+
+    const duplicateRun = candidateSlice("duplicate-provider-run", true);
+    const duplicateRunId = duplicateRun.providerRuns[0]!.id;
+    duplicateRun.providerRuns[1] = { ...duplicateRun.providerRuns[1], id: duplicateRunId };
+    (duplicateRun.sourceItems[1] as { provenance: { providerRunId: string } }).provenance.providerRunId = duplicateRunId;
+    (duplicateRun.evidenceItems[1] as { provenance: { providerRunId: string } }).provenance.providerRunId = duplicateRunId;
+    await expect(sql(asRole("service_role", `SELECT ${rpc(duplicateRun)}`)))
+      .rejects.toThrow(/duplicate_candidate_provider_run/);
+
+    const runIdentityConflict = candidateSlice("provider-run-identity-conflict", true);
+    runIdentityConflict.providerRuns[0] = {
+      ...runIdentityConflict.providerRuns[0],
+      id: review.providerRuns[0]!.id,
+      providerVersion: "contradictory-version",
+    };
+    await expect(sql(asRole("service_role", `SELECT ${rpc(runIdentityConflict)}`)))
+      .rejects.toThrow(/provider_run_identity_conflict/);
+
+    const providerCapabilityMismatch = candidateSlice("provider-capability-mismatch", true);
+    providerCapabilityMismatch.providerRuns[0] = {
+      ...providerCapabilityMismatch.providerRuns[0], capability: "COMPANY_RESOLUTION",
+    };
+    await expect(sql(asRole("service_role", `SELECT ${rpc(providerCapabilityMismatch)}`)))
+      .rejects.toThrow(/invalid_candidate_provider_run/);
+
+    const failedAssessmentRun = candidateSlice("failed-assessment-run", true);
+    failedAssessmentRun.providerRuns[2] = { ...failedAssessmentRun.providerRuns[2], status: "FAILED" };
+    await expect(sql(asRole("service_role", `SELECT ${rpc(failedAssessmentRun)}`)))
+      .rejects.toThrow(/candidate_assessment_run_missing/);
+
+    const unsupportedClaim = candidateSlice("unsupported-claim", true);
+    unsupportedClaim.groundedClaims = [{
+      text: "Invented operational claim",
+      evidenceIds: [(unsupportedClaim.evidenceItems[0] as { id: string }).id],
+    }];
+    await expect(sql(asRole("service_role", `SELECT ${rpc(unsupportedClaim)}`)))
+      .rejects.toThrow(/unsupported_grounded_claim/);
+
+    const unsupportedProblem = candidateSlice("unsupported-problem", true);
+    (unsupportedProblem.assessment as Record<string, unknown>).problemStatement = "Invented problem statement";
+    await expect(sql(asRole("service_role", `SELECT ${rpc(unsupportedProblem)}`)))
+      .rejects.toThrow(/unsupported_problem_statement/);
+
+    const contradictoryDecision = candidateSlice("contradictory-decision", true);
+    contradictoryDecision.modelDecision = "REJECT";
+    await expect(sql(asRole("service_role", `SELECT ${rpc(contradictoryDecision)}`)))
+      .rejects.toThrow(/invalid_candidate_assessment/);
+
+    const nonRejectBypass = candidateSlice("non-reject-bypass", true);
+    (nonRejectBypass.opportunity as { state: string }).state = "MODEL_QUALIFIED";
+    await expect(sql(asRole("service_role", `SELECT ${rpc(nonRejectBypass)}`)))
+      .rejects.toThrow(/invalid_candidate_assessment/);
+
+    const mismatchedSourceRun = candidateSlice("mismatched-source-run", true);
+    (mismatchedSourceRun.sourceItems[0] as { provenance: { providerRunId: string } }).provenance.providerRunId =
+      mismatchedSourceRun.providerRuns[1]!.id;
+    await expect(sql(asRole("service_role", `SELECT ${rpc(mismatchedSourceRun)}`)))
+      .rejects.toThrow(/invalid_candidate_source_provenance/);
+
     const forgedCompany = candidateSlice("arbitrary-company", true);
     forgedCompany.company = { ...(forgedCompany.company as Record<string, unknown>), canonicalName: "Attacker Incorporated", domain: "attacker.example" };
     await expect(sql(asRole("service_role", `SELECT ${rpc(forgedCompany)}`))).rejects.toThrow(/company.*evidence|company.*provenance/i);
+
+    const domainConflict = candidateSlice("company-domain-conflict", true);
+    domainConflict.company = {
+      ...(domainConflict.company as Record<string, unknown>), canonicalName: "Different Example",
+    };
+    const companyEvidence = domainConflict.evidenceItems[1] as { excerpt: string; structuredFacts: Record<string, unknown> };
+    companyEvidence.excerpt = "Different Example operations. Different Example describes vendor operations.";
+    companyEvidence.structuredFacts = { companyName: "Different Example", companyDomain: "example.com" };
+    const companySource = domainConflict.sourceItems[1] as { content: string; normalizedFacts: Record<string, unknown> };
+    companySource.content = companyEvidence.excerpt;
+    companySource.normalizedFacts = companyEvidence.structuredFacts;
+    await expect(sql(asRole("service_role", `SELECT ${rpc(domainConflict)}`)))
+      .rejects.toThrow(/company_domain_identity_conflict/);
     expect(await sql(`SELECT count(*) FROM public.intentlead_opportunities WHERE workspace_id='${workspaceId}'`)).toBe("2");
     expect(await sql(`SELECT count(*) FROM public.intentlead_job_candidate_results WHERE workspace_id='${workspaceId}'`)).toBe("2");
     expect(incompleteId).not.toBe(reviewId);

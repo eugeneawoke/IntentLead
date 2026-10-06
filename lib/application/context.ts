@@ -65,8 +65,6 @@ export async function createApplicationContext(
     disabledCapabilities: row.disabled_capabilities,
     legalPolicyId: config.legalPolicyId,
     retentionPolicyId: config.retentionPolicyId,
-    outreachPolicyId: config.outreachPolicyId ?? null,
-    outreachChannels: config.outreachChannels ?? [],
     defaultCurrency: config.defaultCurrency,
     timezone: config.timezone,
     ...(row.profile_key === "LOCAL_CUSTOM" ? { category: config.category, geography: config.geography } : {}),

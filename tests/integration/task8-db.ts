@@ -24,8 +24,8 @@ function dollarQuoted(value: string): string {
   return `$intentlead_migration$${value}$intentlead_migration$`;
 }
 
-export async function bootstrapTask8Database(): Promise<void> {
-  await bootstrapTask5Database();
+export async function bootstrapTask8Database(populateLegacyBaseline = true): Promise<void> {
+  await bootstrapTask5Database(populateLegacyBaseline);
   for (const [name, missingCondition] of migrations) {
     const contents = await readFile(new URL(`../../supabase/migrations/${name}`, import.meta.url), "utf8");
     await sql(`
@@ -44,6 +44,16 @@ export async function bootstrapTask8Database(): Promise<void> {
 export async function applyTaskDMigration(): Promise<void> {
   const contents = await readFile(new URL("../../supabase/migrations/202610060017_fixture_self_prospecting.sql", import.meta.url), "utf8");
   await sql(contents, "intentlead-taskd-migration");
+}
+
+export async function applyTaskEMigration(): Promise<void> {
+  const contents = await readFile(new URL("../../supabase/migrations/202610060018_remove_legacy_schema.sql", import.meta.url), "utf8");
+  await sql(contents, "intentlead-taske-migration");
+}
+
+export async function bootstrapLatestDatabase(): Promise<void> {
+  await bootstrapTask8Database(false);
+  await applyTaskEMigration();
 }
 
 export { asRole, sql };

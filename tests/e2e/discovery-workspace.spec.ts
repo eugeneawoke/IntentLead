@@ -89,7 +89,7 @@ async function installApi(page: Page) {
     if (request.method() === "POST" && url.pathname === `/api/opportunities/${opportunityId}/review`) {
       reviewed = true;
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: {
-        opportunityId, state: "HUMAN_REVIEW", decision: "ACCEPTED", reason: "RELEVANT", reviewedAt: now, replayed: false,
+        opportunityId, state: "ACCEPTED", decision: "ACCEPTED", reason: "RELEVANT", reviewedAt: now, replayed: false,
       } }) });
     }
     return route.fulfill({ status: 404, body: "not found" });

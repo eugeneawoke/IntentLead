@@ -65,17 +65,17 @@ function expectFailure<T>(result: ProviderExecutionResult<T>): asserts result is
 
 describe("provider registry policy", () => {
   it("rejects a profile-disabled capability before selecting a provider", () => {
-    const request = selectionRequest([], { capability: "EMAIL_FIND" });
+    const request = selectionRequest([], { capability: "WEB_FETCH" });
     expect(() => selectProvider(request)).toThrowError(expect.objectContaining({
       capabilityError: expect.objectContaining({ code: "POLICY_DENIED" }),
     }));
   });
 
-  it("rejects every non-discovery capability under EN_DISCOVERY_ONLY", async () => {
+  it("rejects a disabled non-provider discovery capability before execution", async () => {
     let calls = 0;
     const descriptor = providerDescriptor("reddit", "SOURCE_SEARCH");
     const result = await executeProviderWithFallback(
-      selectionRequest([descriptor], { capability: "PACKAGE_VERIFIED" }),
+      selectionRequest([descriptor], { capability: "WEB_FETCH" }),
       async () => { calls++; return success("reddit"); },
     );
 

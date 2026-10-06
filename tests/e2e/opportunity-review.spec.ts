@@ -53,7 +53,7 @@ async function installFixtureApi(page: Page) {
     }
     if (request.method() === "POST" && url.pathname.endsWith("/review")) {
       const body = request.postDataJSON() as { decision: "ACCEPTED" | "REJECTED" | "NEEDS_RESEARCH"; reason: string };
-      const state: FixtureRecord["state"] = body.decision === "ACCEPTED" ? "HUMAN_REVIEW" : body.decision;
+      const state: FixtureRecord["state"] = body.decision;
       const updated = { ...record, state, latestReview: { decision: body.decision, reviewedAt: capturedAt }, updatedAt: capturedAt };
       records.set(record.id, updated);
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: { opportunityId: record.id, state, decision: body.decision, reason: body.reason, reviewedAt: capturedAt, replayed: false } }) });

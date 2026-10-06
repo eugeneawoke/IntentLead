@@ -3,7 +3,7 @@ import { createApplicationContext, type ApplicationSupabaseClient } from "@/lib/
 
 const profileConfig = {
   jurisdictions: [], regions: [], languages: ["en"], legalPolicyId: "legal-v1",
-  retentionPolicyId: "retention-v1", outreachPolicyId: null, outreachChannels: [],
+  retentionPolicyId: "retention-v1",
   defaultCurrency: "USD", timezone: "UTC",
 };
 
@@ -12,7 +12,7 @@ function contextRow(overrides: Record<string, unknown> = {}) {
     discovery_brief_id: "brief-1", workspace_id: "workspace-from-db",
     profile_key: "EN_DISCOVERY_ONLY", workflow: "DISCOVERY_ONLY", configuration: profileConfig,
     capabilities: ["SOURCE_SEARCH", "WEB_FETCH", "COMPANY_RESOLUTION", "OPPORTUNITY_ASSESSMENT", "HUMAN_REVIEW"],
-    disabled_capabilities: ["PEOPLE_SEARCH", "CONTACT_ENRICHMENT", "EMAIL_FIND", "EMAIL_VERIFY", "DRAFT_GENERATION", "OUTREACH_READY", "OUTREACH_SEND", "OUTCOME_RECORDING", "PACKAGE_VERIFIED"],
+    disabled_capabilities: ["WEB_FETCH"],
     ...overrides,
   };
 }
@@ -32,7 +32,7 @@ describe("createApplicationContext", () => {
     expect(context.workspace).toEqual({ id: "workspace-from-db", role: "OWNER" });
     expect(context.discoveryBriefId).toBe("brief-1");
     expect(context.permissions.has("SOURCE_SEARCH")).toBe(true);
-    expect(context.permissions.has("CONTACT_ENRICHMENT")).toBe(false);
+    expect(context.permissions.has("WEB_FETCH")).toBe(false);
     expect(context.budget).toEqual({ currency: "USD", maxTotalCost: 0, maxProviderCalls: 0 });
     expect(rpc).toHaveBeenCalledWith("intentlead_discovery_context", { p_discovery_brief_id: "brief-1" });
   });

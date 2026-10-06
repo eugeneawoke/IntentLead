@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { beforeAll, describe, expect, it } from "vitest";
-import { bootstrapTask8Database, asRole, sql } from "./task8-db";
+import { bootstrapLatestDatabase, asRole, sql } from "./task8-db";
 import { insertUsers } from "./task4-db";
 
 const owner = randomUUID();
@@ -29,7 +29,7 @@ async function create(userId: string, key: string, value: unknown = command): Pr
 }
 
 beforeAll(async () => {
-  await bootstrapTask8Database();
+  await bootstrapLatestDatabase();
   await insertUsers(owner, outsider);
 }, 30_000);
 
@@ -41,10 +41,10 @@ describe("native DiscoveryBrief authority", () => {
     expect(briefIds.size).toBe(1);
     const briefId = String(results[0].discoveryBriefId);
     const workspaceId = String(results[0].workspaceId);
-    expect(await sql(`SELECT count(*) FROM public.intentlead_discovery_briefs WHERE id='${briefId}' AND legacy_campaign_id IS NULL`)).toBe("1");
+    expect(await sql(`SELECT count(*) FROM public.intentlead_discovery_briefs WHERE id='${briefId}'`)).toBe("1");
     expect(await sql(`SELECT count(*) FROM public.intentlead_offer_profiles WHERE workspace_id='${workspaceId}' AND name='Native offer'`)).toBe("1");
     expect(await sql(`SELECT count(*) FROM public.intentlead_icp_definitions WHERE workspace_id='${workspaceId}' AND name='Native ICP'`)).toBe("1");
-    expect(await sql(`SELECT count(*) FROM public.campaigns WHERE workspace_id='${workspaceId}'`)).toBe("0");
+    expect(await sql(`SELECT to_regclass('public.campaigns') IS NULL`)).toBe("t");
     await expect(create(owner, key, { ...command, objective: "Different objective" })).rejects.toThrow(/idempotency_conflict/);
   }, 20_000);
 
@@ -102,13 +102,9 @@ describe("native DiscoveryBrief authority", () => {
       .rejects.toThrow(/invalid_discovery_command/);
   });
 
-  it("updates and deletes the native brief without mutating an unrelated legacy campaign", async () => {
+  it("updates and deletes the native brief through native authority only", async () => {
     const result = await create(owner, `native-lifecycle-${randomUUID()}`);
     const briefId = String(result.discoveryBriefId);
-    const workspaceId = String(result.workspaceId);
-    const campaignId = randomUUID();
-    await sql(`INSERT INTO public.campaigns(id,workspace_id,entry_mode,what_selling,icp,pain,status)
-      VALUES ('${campaignId}','${workspaceId}','cold','legacy offer','legacy icp','legacy pain','draft')`);
     const jobId = await sql(asRole("service_role", `SELECT public.intentlead_enqueue_discovery_job(
       '${briefId}','${owner}','native-lifecycle-run-${randomUUID()}','{}'
     )`));
@@ -119,7 +115,6 @@ describe("native DiscoveryBrief authority", () => {
       '${jobId}','native-lifecycle-worker','${lease.split("|")[1]}','COMPLETED','{"outcome":"fixture"}',NULL
     )`))).toBe("t");
     expect(await sql(`SELECT state FROM public.intentlead_discovery_briefs WHERE id='${briefId}'`)).toBe("COMPLETED");
-    expect(await sql(`SELECT status FROM public.campaigns WHERE id='${campaignId}'`)).toBe("draft");
     expect(await sql(asRole("service_role", `SELECT public.intentlead_delete_discovery_brief('${briefId}','${owner}','owner_requested')`))).toBe("t");
     expect(await sql(`SELECT state FROM public.intentlead_discovery_briefs WHERE id='${briefId}'`)).toBe("CANCELLED");
     expect(await sql(`SELECT deleted_at IS NOT NULL FROM public.intentlead_discovery_briefs WHERE id='${briefId}'`)).toBe("t");
@@ -132,6 +127,8 @@ describe("native DiscoveryBrief authority", () => {
       FROM public.intentlead_icp_definitions WHERE id='${result.icpDefinitionId}'`)).toBe("t");
     expect(await sql(`SELECT configuration#>'{jurisdictions}'='[]'::jsonb
       FROM public.intentlead_market_profiles WHERE id='${result.marketProfileId}'`)).toBe("t");
-    expect(await sql(`SELECT status || '|' || what_selling FROM public.campaigns WHERE id='${campaignId}'`)).toBe("draft|legacy offer");
+    expect(await sql(`SELECT count(*) FROM information_schema.columns
+      WHERE table_schema='public' AND table_name='intentlead_discovery_briefs'
+        AND column_name='legacy_campaign_id'`)).toBe("0");
   });
 });

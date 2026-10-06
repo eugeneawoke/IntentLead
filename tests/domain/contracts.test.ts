@@ -3,23 +3,18 @@ import { z } from "zod";
 import { SourceItemSchema, EvidenceItemSchema } from "../../lib/domain/schemas/evidence";
 import { OpportunitySchema, OpportunityAssessmentSchema, SignalSchema } from "../../lib/domain/schemas/opportunity";
 import { JobSchema, CapabilityErrorSchema } from "../../lib/domain/schemas/job";
+import { CapabilitySchema } from "../../lib/domain/schemas/common";
 import { MarketProfileSchema, DiscoveryBriefSchema } from "../../lib/domain/schemas/market-profile";
-import { PersonSchema, BuyerCandidateSchema, ContactPointSchema, ContactVerificationSchema } from "../../lib/domain/schemas/person-contact";
-import { ReviewDecisionSchema, OutcomeSchema } from "../../lib/domain/schemas/review-outcome";
-import { SuppressionEntrySchema, ArtifactMetadataSchema } from "../../lib/domain/schemas/governance";
-import { VerificationPolicySchema, PackageVerificationResultSchema } from "../../lib/domain/schemas/verification-policy";
+import { ReviewDecisionSchema } from "../../lib/domain/schemas/review-outcome";
+import { ArtifactMetadataSchema } from "../../lib/domain/schemas/governance";
 import * as f from "./contract-fixtures";
 
 const scopedContracts: [string, z.ZodTypeAny, object][] = [
   ["SourceItem", SourceItemSchema, f.sourceItem], ["EvidenceItem", EvidenceItemSchema, f.evidence],
   ["OpportunityAssessment", OpportunityAssessmentSchema, f.assessment], ["Opportunity", OpportunitySchema, f.opportunity],
   ["Job", JobSchema, f.job], ["MarketProfile", MarketProfileSchema, f.marketProfile],
-  ["DiscoveryBrief", DiscoveryBriefSchema, f.discoveryBrief], ["Person", PersonSchema, f.person],
-  ["BuyerCandidate", BuyerCandidateSchema, f.buyer], ["ContactPoint", ContactPointSchema, f.contact],
-  ["ContactVerification", ContactVerificationSchema, f.contactVerification], ["ReviewDecision", ReviewDecisionSchema, f.review],
-  ["Outcome", OutcomeSchema, f.outcome], ["SuppressionEntry", SuppressionEntrySchema, f.suppression],
-  ["ArtifactMetadata", ArtifactMetadataSchema, f.artifact], ["VerificationPolicy", VerificationPolicySchema, f.verificationPolicy],
-  ["PackageVerificationResult", PackageVerificationResultSchema, f.verificationResult],
+  ["DiscoveryBrief", DiscoveryBriefSchema, f.discoveryBrief], ["ReviewDecision", ReviewDecisionSchema, f.review],
+  ["ArtifactMetadata", ArtifactMetadataSchema, f.artifact],
 ];
 
 describe.each(scopedContracts)("%s contract", (_name, schema, value) => {
@@ -35,7 +30,7 @@ describe.each(scopedContracts)("%s contract", (_name, schema, value) => {
 
 describe("evidence, signal semantics and assessment", () => {
   it.each([[], undefined, [""], ["  "]])("requires non-empty evidence references (%j)", evidenceIds => {
-    for (const [schema, value] of [[OpportunitySchema, f.opportunity], [OpportunityAssessmentSchema, f.assessment], [BuyerCandidateSchema, f.buyer], [PersonSchema, f.person]] as const) {
+    for (const [schema, value] of [[OpportunitySchema, f.opportunity], [OpportunityAssessmentSchema, f.assessment]] as const) {
       expect(schema.safeParse({ ...value, evidenceIds }).success).toBe(false);
     }
   });
@@ -83,29 +78,18 @@ describe("evidence, signal semantics and assessment", () => {
 });
 
 describe("market and identity boundaries", () => {
-  it.each(f.restrictedCapabilities)("discovery cannot enable %s", capability => {
-    expect(MarketProfileSchema.safeParse({ ...f.marketProfile, capabilities: [capability] }).success).toBe(false);
-    expect(JobSchema.safeParse({ ...f.job, capability }).success).toBe(false);
+  it.each(["PEOPLE_SEARCH", "CONTACT_ENRICHMENT", "EMAIL_FIND", "OUTREACH_SEND", "PACKAGE_VERIFIED"])("legacy capability %s no longer exists", capability => {
+    expect(CapabilitySchema.safeParse(capability).success).toBe(false);
   });
-  it("requires explicit discovery denies and disallows outreach channels", () => {
-    expect(MarketProfileSchema.safeParse({ ...f.marketProfile, disabledCapabilities: [] }).success).toBe(false);
-    expect(MarketProfileSchema.safeParse({ ...f.marketProfile, outreachChannels: ["email"] }).success).toBe(false);
+  it("allows only discovery workflow fields", () => {
     expect(MarketProfileSchema.safeParse({ ...f.marketProfile, workflow: "ASSISTED_OUTREACH" }).success).toBe(false);
-    expect(OutcomeSchema.safeParse({ ...f.outcome, marketProfileId: "EN_DISCOVERY_ONLY" }).success).toBe(false);
+    expect(MarketProfileSchema.safeParse({ ...f.marketProfile, outreachChannels: ["email"] }).success).toBe(false);
     expect(OpportunitySchema.safeParse({ ...f.opportunity, state: "OUTREACH_READY" }).success).toBe(false);
   });
-  it("requires local geography/category and jurisdiction for assisted outreach", () => {
+  it("requires local geography/category and jurisdiction for regional discovery", () => {
     expect(MarketProfileSchema.safeParse({ ...f.marketProfile, id: "LOCAL_CUSTOM" }).success).toBe(false);
     const local = { ...f.marketProfile, id: "LOCAL_CUSTOM", jurisdictions: [f.jurisdiction], category: "Dentists", geography: "Boston" };
     expect(MarketProfileSchema.safeParse(local).success).toBe(true);
-    expect(MarketProfileSchema.safeParse({ ...local, workflow: "ASSISTED_OUTREACH", jurisdictions: [], outreachPolicyId: "outreach-1" }).success).toBe(false);
-  });
-  it("validates contact values independently of verification", () => {
-    expect(ContactPointSchema.safeParse({ ...f.contact, value: "not-an-email" }).success).toBe(false);
-    expect(ContactPointSchema.safeParse({ ...f.contact, personId: null, companyId: null }).success).toBe(false);
-    expect(ContactPointSchema.safeParse({ ...f.contact, verified: true }).success).toBe(false);
-    expect(ContactVerificationSchema.safeParse({ ...f.contactVerification, status: "deliverable" }).success).toBe(false);
-    expect(ContactVerificationSchema.safeParse({ ...f.contactVerification, expiresAt: "2020-01-01T00:00:00Z" }).success).toBe(false);
   });
   it("requires notes for the human OTHER reason", () => {
     expect(ReviewDecisionSchema.safeParse({ ...f.review, decision: "REJECTED", reason: "OTHER" }).success).toBe(false);
@@ -145,29 +129,6 @@ describe("durable jobs and structured capability errors", () => {
   });
 });
 
-describe("verification policy and deterministic package checks", () => {
-  it.each(["evidence", "company", "buyer", "contact", "groundedDraft", "suppression", "marketWorkflow"])("requires the %s check", key => {
-    expect(VerificationPolicySchema.safeParse({ ...f.verificationPolicy, checks: { ...f.verificationPolicy.checks, [key]: undefined } }).success).toBe(false);
-    expect(PackageVerificationResultSchema.safeParse({ ...f.verificationResult, checks: { ...f.verificationResult.checks, [key]: undefined } }).success).toBe(false);
-    expect(PackageVerificationResultSchema.safeParse({ ...f.verificationResult, checks: { ...f.verificationResult.checks, [key]: { ...f.passedCheck, status: "FAIL" } } }).success).toBe(false);
-  });
-  it("requires a policy version and a failed check for failure", () => {
-    expect(VerificationPolicySchema.safeParse({ ...f.verificationPolicy, version: 0 }).success).toBe(false);
-    expect(PackageVerificationResultSchema.safeParse({ ...f.verificationResult, policyVersion: undefined }).success).toBe(false);
-    expect(PackageVerificationResultSchema.safeParse({ ...f.verificationResult, status: "FAILED" }).success).toBe(false);
-    expect(PackageVerificationResultSchema.safeParse({ ...f.verificationResult, status: "FAILED", checks: { ...f.verificationResult.checks, marketWorkflow: { ...f.passedCheck, status: "FAIL" } } }).success).toBe(true);
-  });
-  it("requires evidence references in passed package checks", () => {
-    expect(PackageVerificationResultSchema.safeParse({ ...f.verificationResult, checks: { ...f.verificationResult.checks, evidence: { ...f.passedCheck, referenceIds: [] } } }).success).toBe(false);
-  });
-  it("discovery cannot enable or pass package verification", () => {
-    expect(VerificationPolicySchema.safeParse({ ...f.verificationPolicy, packageVerifiedAllowed: true }).success).toBe(false);
-    expect(PackageVerificationResultSchema.safeParse({ ...f.verificationResult, marketProfileId: "EN_DISCOVERY_ONLY" }).success).toBe(false);
-    expect(PackageVerificationResultSchema.safeParse({ ...f.verificationResult, workflow: "DISCOVERY_ONLY" }).success).toBe(false);
-  });
-  it("never substitutes model/human decisions for checks or charging", () => {
-    expect(PackageVerificationResultSchema.safeParse({ ...f.verificationResult, modelDecision: "QUALIFY" }).success).toBe(false);
-    expect(PackageVerificationResultSchema.safeParse({ ...f.verificationResult, humanDecision: "ACCEPTED" }).success).toBe(false);
-    expect(OpportunityAssessmentSchema.safeParse({ ...f.assessment, chargeCredits: true }).success).toBe(false);
-  });
+it("assessment never carries billing side effects", () => {
+  expect(OpportunityAssessmentSchema.safeParse({ ...f.assessment, chargeCredits: true }).success).toBe(false);
 });

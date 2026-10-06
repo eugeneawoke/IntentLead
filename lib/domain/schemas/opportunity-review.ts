@@ -38,7 +38,7 @@ export const OpportunityReviewCommandSchema = z.discriminatedUnion("decision", [
   }
 });
 
-export const ReviewOpportunityStateSchema = z.enum(["HUMAN_REVIEW", "REJECTED", "NEEDS_RESEARCH"]);
+export const ReviewOpportunityStateSchema = z.enum(["HUMAN_REVIEW", "ACCEPTED", "REJECTED", "NEEDS_RESEARCH"]);
 
 const ReviewCompanySchema = z.object({
   name: z.string().trim().min(1).max(253),

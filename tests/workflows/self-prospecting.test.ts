@@ -282,10 +282,9 @@ describe("Task 7 self-prospecting workflow", () => {
     expect(() => validateAssessmentGrounding({ ...qualifiedAssessment, evidenceIds: ["unknown-evidence"] }, evidence)).toThrow();
   });
 
-  it("denies every post-discovery capability before provider selection even after ACCEPT", () => {
-    for (const capability of ["PEOPLE_SEARCH", "CONTACT_ENRICHMENT", "EMAIL_FIND", "EMAIL_VERIFY", "DRAFT_GENERATION", "OUTREACH_READY", "OUTREACH_SEND", "OUTCOME_RECORDING", "PACKAGE_VERIFIED"] as const) {
-      expect(authorizeSelfProspectingCapability(fixtureProfile, capability)).toMatchObject({ allowed: false });
-    }
+  it("denies capabilities disabled by the active discovery profile", () => {
+    expect(authorizeSelfProspectingCapability({ ...fixtureProfile, capabilities: fixtureProfile.capabilities.filter(item => item !== "WEB_FETCH"), disabledCapabilities: ["WEB_FETCH"] }, "WEB_FETCH"))
+      .toMatchObject({ allowed: false, reason: "CAPABILITY_DISABLED" });
     expect(authorizeSelfProspectingCapability(fixtureProfile, "HUMAN_REVIEW")).toMatchObject({ allowed: true });
   });
 });

@@ -31,15 +31,11 @@ export const opportunity = {
   state: "HUMAN_REVIEW", evidenceIds: ["evidence-1"], assessmentId: "assessment-1",
   createdAt: timestamp, updatedAt: timestamp,
 };
-export const restrictedCapabilities = [
-  "PEOPLE_SEARCH", "CONTACT_ENRICHMENT", "EMAIL_FIND", "EMAIL_VERIFY",
-  "DRAFT_GENERATION", "OUTREACH_READY", "OUTREACH_SEND", "OUTCOME_RECORDING", "PACKAGE_VERIFIED",
-];
 export const marketProfile = {
   ...record, id: "EN_DISCOVERY_ONLY", workflow: "DISCOVERY_ONLY", jurisdictions: [],
   regions: [], languages: ["en"], capabilities: ["SOURCE_SEARCH", "HUMAN_REVIEW"],
-  disabledCapabilities: restrictedCapabilities, legalPolicyId: "research-policy-1",
-  retentionPolicyId: "retention-1", outreachPolicyId: null, outreachChannels: [],
+  disabledCapabilities: ["WEB_FETCH"], legalPolicyId: "research-policy-1",
+  retentionPolicyId: "retention-1",
   defaultCurrency: "USD", timezone: "Europe/Minsk",
 };
 export const discoveryBrief = {
@@ -49,37 +45,9 @@ export const discoveryBrief = {
   exclusions: ["Student projects"], limits: { maxSourceItems: 100, maxOpportunities: 20 },
   createdAt: timestamp,
 };
-export const person = {
-  ...record, fullName: "Sample Person", companyId: "company-1", role: "Operations lead",
-  jurisdiction, evidenceIds: ["evidence-1"], confidence: 0.9, resolvedAt: timestamp,
-};
-export const buyer = {
-  ...record, opportunityId: "opportunity-1", companyId: "company-1", personId: null,
-  role: "Operations lead", hypothesis: "This role may own the manual process.",
-  evidenceIds: ["evidence-1"], confidence: 0.6, relevance: 0.8, createdAt: timestamp,
-};
-export const contact = {
-  ...record, personId: "person-1", companyId: "company-1", channel: "email",
-  value: "sample@example.com", jurisdiction, evidenceIds: ["evidence-1"],
-  capturedAt: timestamp, latestVerificationId: null,
-};
-export const contactVerification = {
-  ...record, contactPointId: "contact-1", status: "VALID", checkedAt: timestamp,
-  expiresAt: "2026-11-04T10:00:00Z", verificationMethod: "mailbox_verification",
-  confidence: 0.9, evidenceIds: ["evidence-1"],
-};
 export const review = {
   ...record, opportunityId: "opportunity-1", reviewerId: "user-1", reviewedAt: timestamp,
   decision: "ACCEPTED", reason: "RELEVANT", note: null,
-};
-export const outcome = {
-  ...record, opportunityId: "opportunity-1", recordedBy: "user-1",
-  occurredAt: timestamp, marketProfileId: "LOCAL_CUSTOM", type: "CONTACTED",
-  contactPointId: "contact-1", channel: "email",
-};
-export const suppression = {
-  ...record, identifierType: "EMAIL", identifierHash: hash, reason: "OPT_OUT",
-  policyId: "suppression-1", createdAt: timestamp, retainUntil: null,
 };
 export const artifact = {
   ...record, sourceItemId: "source-1", contentHash: hash, storageReference: "objects/evidence-1",
@@ -94,26 +62,4 @@ export const job = {
   ...record, capability: "SOURCE_SEARCH", marketProfileId: "EN_DISCOVERY_ONLY",
   discoveryBriefId: "brief-1", idempotencyKey: "search-1", traceId: "trace-1",
   attempt: 0, maxAttempts: 3, createdAt: timestamp, updatedAt: timestamp, state: "QUEUED",
-};
-export const verificationPolicy = {
-  ...record, version: 1, marketProfileId: "EN_DISCOVERY_ONLY", workflow: "DISCOVERY_ONLY",
-  jurisdictions: [], packageVerifiedAllowed: false,
-  checks: {
-    evidence: { minItems: 1, minStrength: 0.8, maxAgeDays: 30 },
-    company: { minConfidence: 0.9 }, buyer: { minConfidence: 0.7, minRelevance: 0.8 },
-    contact: { acceptedStatuses: ["VALID"], maxAgeDays: 7 },
-    groundedDraft: { requireEvidenceForEveryClaim: true },
-    suppression: { mustBeClear: true },
-    marketWorkflow: { requireEnabledCapabilities: ["PACKAGE_VERIFIED", "CONTACT_ENRICHMENT", "EMAIL_VERIFY", "DRAFT_GENERATION", "OUTREACH_READY"] },
-  },
-};
-export const passedCheck = { status: "PASS", reason: "Requirement satisfied", referenceIds: ["record-1"] };
-export const verificationResult = {
-  ...record, policyId: "policy-1", policyVersion: 1, packageId: "package-1",
-  opportunityId: "opportunity-1", marketProfileId: "LOCAL_CUSTOM", workflow: "ASSISTED_OUTREACH",
-  evaluatedAt: timestamp, status: "PASSED",
-  checks: {
-    evidence: passedCheck, company: passedCheck, buyer: passedCheck, contact: passedCheck,
-    groundedDraft: passedCheck, suppression: passedCheck, marketWorkflow: passedCheck,
-  },
 };

@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import { beforeAll, describe, expect, it } from "vitest";
 import { createSupabaseJobRepository, type JobDatabaseClient } from "@/worker/jobs/repository";
 import { createJobWorker } from "@/worker/jobs/worker";
-import { asRole, bootstrapTask5Database, insertUsers, sql } from "./task4-db";
+import { insertUsers } from "./task4-db";
+import { asRole, bootstrapLatestDatabase, sql } from "./task8-db";
 
 const owner = randomUUID();
 const workspaceId = randomUUID();
@@ -12,10 +13,10 @@ const marketId = randomUUID();
 
 const config = {
   regions: [], languages: ["en"], legalPolicyId: "legal-v1", retentionPolicyId: "retention-v1",
-  outreachPolicyId: null, outreachChannels: [], defaultCurrency: "USD", timezone: "UTC",
+  defaultCurrency: "USD", timezone: "UTC",
 };
 const capabilities = ["SOURCE_SEARCH", "WEB_FETCH", "COMPANY_RESOLUTION", "OPPORTUNITY_ASSESSMENT", "HUMAN_REVIEW"];
-const disabled = ["PEOPLE_SEARCH", "CONTACT_ENRICHMENT", "EMAIL_FIND", "EMAIL_VERIFY", "DRAFT_GENERATION", "OUTREACH_READY", "OUTREACH_SEND", "OUTCOME_RECORDING", "PACKAGE_VERIFIED"];
+const disabled: string[] = [];
 
 function quote(value: unknown): string {
   return `'${String(value).replaceAll("'", "''")}'`;
@@ -87,18 +88,15 @@ function psqlJobClient(): JobDatabaseClient {
   } as unknown as JobDatabaseClient;
 }
 
-async function makeBrief(key: string): Promise<{ briefId: string; campaignId: string }> {
+async function makeBrief(key: string): Promise<{ briefId: string }> {
   const briefId = randomUUID();
-  const campaignId = randomUUID();
   await sql(`
-    INSERT INTO public.campaigns (id,workspace_id,entry_mode,what_selling,icp,pain,status)
-    VALUES ('${campaignId}','${workspaceId}','cold','offer','icp','pain','draft');
     INSERT INTO public.intentlead_discovery_briefs
-      (id,workspace_id,offer_profile_id,icp_definition_id,market_profile_id,legacy_campaign_id,objective,criteria)
-    VALUES ('${briefId}','${workspaceId}','${offerId}','${icpId}','${marketId}','${campaignId}','Find opportunities','{}');
+      (id,workspace_id,offer_profile_id,icp_definition_id,market_profile_id,objective,criteria)
+    VALUES ('${briefId}','${workspaceId}','${offerId}','${icpId}','${marketId}','Find opportunities','{}');
     SELECT public.intentlead_enqueue_discovery_job('${briefId}','${owner}','${key}','{}');
   `);
-  return { briefId, campaignId };
+  return { briefId };
 }
 
 async function waitFor(assertion: () => void | Promise<void>): Promise<void> {
@@ -110,7 +108,7 @@ async function waitFor(assertion: () => void | Promise<void>): Promise<void> {
 }
 
 beforeAll(async () => {
-  await bootstrapTask5Database();
+  await bootstrapLatestDatabase();
   await insertUsers(owner);
   await sql(`
     INSERT INTO public.workspaces(id,owner_id,name) VALUES ('${workspaceId}','${owner}','Task 5 recovery');
@@ -120,7 +118,7 @@ beforeAll(async () => {
       VALUES ('${icpId}','${workspaceId}','Task 5 ICP','{}');
     INSERT INTO public.intentlead_market_profiles(id,workspace_id,profile_key,workflow,configuration,capabilities,disabled_capabilities)
       VALUES ('${marketId}','${workspaceId}','EN_DISCOVERY_ONLY','DISCOVERY_ONLY','${JSON.stringify(config)}',
-        ARRAY[${capabilities.map(quote).join(",")}],ARRAY[${disabled.map(quote).join(",")}]);
+        ARRAY[${capabilities.map(quote).join(",")}]::text[],ARRAY[${disabled.map(quote).join(",")}]::text[]);
   `);
 }, 30_000);
 
@@ -131,30 +129,25 @@ describe("Task 5 real PostgreSQL job recovery", () => {
     )`)).toBe("f");
   });
 
-  it("does not let service_role directly mutate linked terminal state", async () => {
+  it("does not let service_role directly mutate brief terminal state", async () => {
     const briefId = randomUUID();
-    const campaignId = randomUUID();
     await sql(`
-      INSERT INTO public.campaigns (id,workspace_id,entry_mode,what_selling,icp,pain,status)
-      VALUES ('${campaignId}','${workspaceId}','cold','offer','icp','pain','running');
       INSERT INTO public.intentlead_discovery_briefs
-        (id,workspace_id,offer_profile_id,icp_definition_id,market_profile_id,legacy_campaign_id,objective,criteria,state)
-      VALUES ('${briefId}','${workspaceId}','${offerId}','${icpId}','${marketId}','${campaignId}',
+        (id,workspace_id,offer_profile_id,icp_definition_id,market_profile_id,objective,criteria,state)
+      VALUES ('${briefId}','${workspaceId}','${offerId}','${icpId}','${marketId}',
         'Find opportunities','{}','QUEUED');
     `);
     expect(await sql(`SELECT state FROM public.intentlead_discovery_briefs WHERE id='${briefId}'`)).toBe("QUEUED");
-    expect(await sql(`SELECT status FROM public.campaigns WHERE id='${campaignId}'`)).toBe("running");
 
     await expect(sql(asRole("service_role", `SELECT public.intentlead_sync_job_terminal_state(
       '${workspaceId}', '${briefId}', 'COMPLETED'
     )`))).rejects.toThrow(/permission denied/i);
 
     expect(await sql(`SELECT state FROM public.intentlead_discovery_briefs WHERE id='${briefId}'`)).toBe("QUEUED");
-    expect(await sql(`SELECT status FROM public.campaigns WHERE id='${campaignId}'`)).toBe("running");
   });
 
   it("recovers a crashed worker lease and enforces exact heartbeat/checkpoint/completion tokens", async () => {
-    const { briefId, campaignId } = await makeBrief(`recovery-${randomUUID()}`);
+    const { briefId } = await makeBrief(`recovery-${randomUUID()}`);
     const jobId = await sql(`SELECT id FROM public.intentlead_jobs WHERE discovery_brief_id='${briefId}'`);
     const repository = createSupabaseJobRepository(psqlJobClient());
     const first = await repository.leaseNextJob("crashed-worker", 5);
@@ -180,11 +173,10 @@ describe("Task 5 real PostgreSQL job recovery", () => {
     expect(await repository.complete(completedLease, "COMPLETED", { opportunityIds: [] }, null)).toBe(true);
     expect(await sql(`SELECT state FROM public.intentlead_jobs WHERE id='${jobId}'`)).toBe("COMPLETED");
     expect(await sql(`SELECT state FROM public.intentlead_discovery_briefs WHERE id='${briefId}'`)).toBe("COMPLETED");
-    expect(await sql(`SELECT status FROM public.campaigns WHERE id='${campaignId}'`)).toBe("done");
   }, 20_000);
 
-  it("maps permanent job failure to FAILED brief and error campaign state", async () => {
-    const { briefId, campaignId } = await makeBrief(`failure-${randomUUID()}`);
+  it("maps permanent job failure to FAILED brief state", async () => {
+    const { briefId } = await makeBrief(`failure-${randomUUID()}`);
     const jobId = await sql(`SELECT id FROM public.intentlead_jobs WHERE discovery_brief_id='${briefId}'`);
     const repository = createSupabaseJobRepository(psqlJobClient());
     const job = await repository.leaseNextJob("permanent-failure-worker", 30);
@@ -201,11 +193,10 @@ describe("Task 5 real PostgreSQL job recovery", () => {
     expect(await repository.complete(lease, "FAILED", null, error)).toBe(true);
     expect(await sql(`SELECT state FROM public.intentlead_jobs WHERE id='${jobId}'`)).toBe("FAILED");
     expect(await sql(`SELECT state FROM public.intentlead_discovery_briefs WHERE id='${briefId}'`)).toBe("FAILED");
-    expect(await sql(`SELECT status FROM public.campaigns WHERE id='${campaignId}'`)).toBe("error");
   }, 20_000);
 
-  it("maps partial completion to COMPLETED brief and done campaign state", async () => {
-    const { briefId, campaignId } = await makeBrief(`partial-${randomUUID()}`);
+  it("maps partial completion to COMPLETED brief state", async () => {
+    const { briefId } = await makeBrief(`partial-${randomUUID()}`);
     const jobId = await sql(`SELECT id FROM public.intentlead_jobs WHERE discovery_brief_id='${briefId}'`);
     const repository = createSupabaseJobRepository(psqlJobClient());
     const job = await repository.leaseNextJob("partial-worker", 30);
@@ -222,11 +213,10 @@ describe("Task 5 real PostgreSQL job recovery", () => {
     }, "PARTIAL", { partial: true }, error)).toBe(true);
     expect(await sql(`SELECT state FROM public.intentlead_jobs WHERE id='${jobId}'`)).toBe("PARTIAL");
     expect(await sql(`SELECT state FROM public.intentlead_discovery_briefs WHERE id='${briefId}'`)).toBe("COMPLETED");
-    expect(await sql(`SELECT status FROM public.campaigns WHERE id='${campaignId}'`)).toBe("done");
   }, 20_000);
 
-  it("dead-letters an expired final attempt and synchronizes linked brief/campaign", async () => {
-    const { briefId, campaignId } = await makeBrief(`final-attempt-${randomUUID()}`);
+  it("dead-letters an expired final attempt and synchronizes the linked brief", async () => {
+    const { briefId } = await makeBrief(`final-attempt-${randomUUID()}`);
     const jobId = await sql(`SELECT id FROM public.intentlead_jobs WHERE discovery_brief_id='${briefId}'`);
     await sql(`UPDATE public.intentlead_jobs SET attempt=max_attempts-1 WHERE id='${jobId}'`);
     const repository = createSupabaseJobRepository(psqlJobClient());
@@ -240,11 +230,10 @@ describe("Task 5 real PostgreSQL job recovery", () => {
     expect(await sql(`SELECT error->>'message' FROM public.intentlead_jobs WHERE id='${jobId}'`))
       .toBe("Lease expired after retry budget exhausted");
     expect(await sql(`SELECT state FROM public.intentlead_discovery_briefs WHERE id='${briefId}'`)).toBe("FAILED");
-    expect(await sql(`SELECT status FROM public.campaigns WHERE id='${campaignId}'`)).toBe("error");
   }, 20_000);
 
   it("observes relational cancellation during an injected call and starts no later operation", async () => {
-    const { briefId, campaignId } = await makeBrief(`cancel-${randomUUID()}`);
+    const { briefId } = await makeBrief(`cancel-${randomUUID()}`);
     const jobId = await sql(`SELECT id FROM public.intentlead_jobs WHERE discovery_brief_id='${briefId}'`);
     const repository = createSupabaseJobRepository(psqlJobClient());
     let cancellationChecks = 0;
@@ -281,7 +270,6 @@ describe("Task 5 real PostgreSQL job recovery", () => {
     expect(await repository.isCancelled(jobId)).toBe(true);
     expect(await sql(`SELECT state FROM public.intentlead_jobs WHERE id='${jobId}'`)).toBe("CANCELLED");
     expect(await sql(`SELECT state FROM public.intentlead_discovery_briefs WHERE id='${briefId}'`)).toBe("CANCELLED");
-    expect(await sql(`SELECT status FROM public.campaigns WHERE id='${campaignId}'`)).toBe("error");
     await waitFor(() => expect(cancellationChecks).toBeGreaterThan(2));
     await waitFor(() => expect(aborted).toBe(true));
     await worker.shutdown();
@@ -292,7 +280,7 @@ describe("Task 5 real PostgreSQL job recovery", () => {
   }, 20_000);
 
   it("does not let completion regress a brief while owner deletion holds its workspace lock", async () => {
-    const { briefId, campaignId } = await makeBrief(`delete-race-${randomUUID()}`);
+    const { briefId } = await makeBrief(`delete-race-${randomUUID()}`);
     const jobId = await sql(`SELECT id FROM public.intentlead_jobs WHERE discovery_brief_id='${briefId}'`);
     const repository = createSupabaseJobRepository(psqlJobClient());
     const job = await repository.leaseNextJob("delete-race-worker", 30);
@@ -315,6 +303,5 @@ describe("Task 5 real PostgreSQL job recovery", () => {
 
     expect(await sql(`SELECT state FROM public.intentlead_jobs WHERE id='${jobId}'`)).toBe("CANCELLED");
     expect(await sql(`SELECT state FROM public.intentlead_discovery_briefs WHERE id='${briefId}'`)).toBe("CANCELLED");
-    expect(await sql(`SELECT status FROM public.campaigns WHERE id='${campaignId}'`)).toBe("error");
   }, 20_000);
 });

@@ -20,17 +20,11 @@ export const ScopedRecordShape = {
 };
 
 export const MarketProfileIdSchema = z.enum(["EN_DISCOVERY_ONLY", "CIS_RU", "LOCAL_CUSTOM"]);
-export const WorkflowSchema = z.enum(["DISCOVERY_ONLY", "ASSISTED_OUTREACH"]);
-export const ChannelSchema = z.enum(["email", "profile", "phone"]);
+export const WorkflowSchema = z.literal("DISCOVERY_ONLY");
 export const CapabilitySchema = z.enum([
   "SOURCE_SEARCH", "WEB_FETCH", "COMPANY_RESOLUTION", "OPPORTUNITY_ASSESSMENT", "HUMAN_REVIEW",
-  "PEOPLE_SEARCH", "CONTACT_ENRICHMENT", "EMAIL_FIND", "EMAIL_VERIFY", "DRAFT_GENERATION",
-  "OUTREACH_READY", "OUTREACH_SEND", "OUTCOME_RECORDING", "PACKAGE_VERIFIED",
 ]);
-export const DiscoveryCapabilitySchema = CapabilitySchema.extract([
-  "SOURCE_SEARCH", "WEB_FETCH", "COMPANY_RESOLUTION", "OPPORTUNITY_ASSESSMENT", "HUMAN_REVIEW",
-]);
-export const RestrictedCapabilitySchema = CapabilitySchema.exclude(DiscoveryCapabilitySchema.options);
+export const DiscoveryCapabilitySchema = CapabilitySchema;
 export const SignalFamilySchema = z.enum([
   "EXPRESSED_INTENT", "BUSINESS_EVENT", "DETECTED_PROBLEM", "MARKET_OBSERVATION",
 ]);

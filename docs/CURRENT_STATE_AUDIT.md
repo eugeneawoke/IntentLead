@@ -1,6 +1,6 @@
 # Current state audit
 
-**Verified:** 2026-10-06 on branch `codex/opportunity-core` after the Task C native-authority implementation.
+**Verified:** 2026-10-06 on branch `codex/opportunity-core` after the local Task E schema cleanup.
 
 This document reports current local code, not planned scope and not production state.
 
@@ -30,16 +30,16 @@ No active UI, API or worker route provides:
 | Glook | Versioned snapshot consumer exists with contract tests; no active route or direct table read | Keep dormant and optional |
 | Legacy lead runtime | Pipeline, provider wrappers, API/export, cards and message code removed | Keep absent |
 | Legacy public runtime | Pricing, compare, chat, RAG and anonymous campaign-transfer surfaces removed | Keep absent |
-| Database bridge | Applied historical campaign/lead/contact/draft/chat-credit objects remain in migrations and compatibility tests | Remove through forward migration in Task E |
+| Database schema | Forward migration removes campaign/lead/contact/draft/message/chat/package/credit storage and compatibility RPCs | Keep production migration outside the authorized scope |
 
 ## Current execution gap
 
-The worker now injects `createSelfProspectingHandler` only when `SELF_PROSPECTING_MODE=fixture`. That mode exercises a synthetic deterministic contract with zero provider requests and cost; it is not the recorded authorized dogfood sample. `disabled` remains the default and unknown modes fail startup. OfferProfile, ICPDefinition and DiscoveryBrief are native authority. Historical campaign-linked database objects are not reachable through the active API but remain local schema debt.
+The worker now injects `createSelfProspectingHandler` only when `SELF_PROSPECTING_MODE=fixture`. That mode exercises a synthetic deterministic contract with zero provider requests and cost; it is not the recorded authorized dogfood sample. `disabled` remains the default and unknown modes fail startup. OfferProfile, ICPDefinition and DiscoveryBrief are native authority. The Task E forward migration removes the historical campaign-linked graph, verified-contact/credit semantics and callable compatibility helpers; only migration history retains their definitions.
 
 The critical sequence is therefore:
 
-1. remove the legacy schema bridge through additive migrations;
-2. run the controlled dogfood quality gate.
+1. run the controlled dogfood quality gate on separately authorized recorded evidence;
+2. measure Opportunity quality before enabling any live provider mode.
 
 ## Quality evidence for the reset
 
@@ -51,5 +51,6 @@ The critical sequence is therefore:
 - Task D full application verification passes: both typechecks, lint with zero errors (nine pre-existing `fluid-glass.tsx` warnings), 539 unit tests and the production build. The complete browser suite passes 16/16, including create → queue → Opportunity detail/evidence → human review.
 - The repository-wide PostgreSQL command passes 88/88 across 11 integration files. `scripts/run-integration-tests.mjs` creates and removes a validated local `intentlead_test_*` database per file, so historical migration-stage fixtures cannot leak rows or schema into later suites.
 - The synthetic Task D fixture persisted one reviewable Opportunity with two source/evidence records, three zero-request/zero-cost provider-shaped runs, stable same-job replay, distinct cross-job identities, outsider non-disclosure and one human review. No personal, contact, draft or message row was created. It is explicitly not the authorized recorded-evidence sample required by Task F.
+- Task E focused integration evidence covers clean/populated upgrade, historical-state reconciliation, migration reapplication, RLS, deletion, durable leases/recovery, fixture persistence, review concurrency and worker nonce replay protection. After independent review, the final 17 blocker-regression assertions pass for upgrade states, accepted-review visibility and strict provider/source/evidence/grounded-claim persistence. The migration is forward-only; rollback is a database restore, not recreation of the retired graph.
 
 No production deployment, production migration, real-source run, real sending or paid API call was performed.

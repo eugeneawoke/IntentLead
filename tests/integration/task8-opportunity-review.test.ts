@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
 import { beforeAll, describe, expect, it } from "vitest";
-import { asRole, bootstrapTask8Database, sql } from "./task8-db";
+import { asRole, bootstrapLatestDatabase, sql } from "./task8-db";
 import { insertUsers } from "./task4-db";
 
 const enabled = Boolean(process.env.INTENTLEAD_TEST_DATABASE_URL);
@@ -11,22 +10,17 @@ const outsider = randomUUID();
 const workspace = randomUUID();
 const profile = randomUUID();
 const brief = randomUUID();
-const legacyCampaign = randomUUID();
-const multiBriefCampaign = randomUUID();
-const nonPilotCampaign = randomUUID();
-const contextCampaign = randomUUID();
-const contextBrief = randomUUID();
 const offer = randomUUID();
 const icp = randomUUID();
 const company = randomUUID();
 const opportunities = [randomUUID(), randomUUID(), randomUUID(), randomUUID()];
 const signal = JSON.stringify({ family: "DETECTED_PROBLEM", subtype: "market_presence" });
 const reviewCapability = "ARRAY['SOURCE_SEARCH','COMPANY_RESOLUTION','OPPORTUNITY_ASSESSMENT','HUMAN_REVIEW']::text[]";
-const deniedCapabilities = "ARRAY['PEOPLE_SEARCH','CONTACT_ENRICHMENT','EMAIL_FIND','EMAIL_VERIFY','DRAFT_GENERATION','OUTREACH_READY','OUTREACH_SEND','OUTCOME_RECORDING','PACKAGE_VERIFIED']::text[]";
+const deniedCapabilities = "ARRAY[]::text[]";
 
 async function createFixture(): Promise<void> {
   await sql(`
-    INSERT INTO public.workspaces (id,owner_id,name,credits_remaining) VALUES ('${workspace}','${owner}','Task 8 review fixture',10);
+    INSERT INTO public.workspaces (id,owner_id,name) VALUES ('${workspace}','${owner}','Task 8 review fixture');
     INSERT INTO public.workspace_members (workspace_id,user_id,role) VALUES ('${workspace}','${member}','member');
     INSERT INTO public.intentlead_market_profiles
       (id,workspace_id,profile_key,workflow,configuration,capabilities,disabled_capabilities)
@@ -35,34 +29,9 @@ async function createFixture(): Promise<void> {
       VALUES ('${offer}','${workspace}','Fixture offer','{}');
     INSERT INTO public.intentlead_icp_definitions (id,workspace_id,name,definition)
       VALUES ('${icp}','${workspace}','Fixture ICP','{}');
-    INSERT INTO public.campaigns (id,workspace_id,entry_mode,what_selling,icp,pain)
-      VALUES ('${legacyCampaign}','${workspace}','cold','Fixture offer','Fixture ICP','Fixture pain'),
-        ('${multiBriefCampaign}','${workspace}','cold','Fixture offer','Fixture ICP','Fixture pain'),
-        ('${nonPilotCampaign}','${workspace}','cold','Fixture offer','Fixture ICP','Fixture pain'),
-        ('${contextCampaign}','${workspace}','cold','Fixture offer','Fixture ICP','Fixture pain');
     INSERT INTO public.intentlead_discovery_briefs
-      (id,workspace_id,offer_profile_id,icp_definition_id,market_profile_id,legacy_campaign_id,objective,criteria)
-      VALUES ('${brief}','${workspace}','${offer}','${icp}','${profile}',NULL,'Fixture discovery','{}'),
-        ('${contextBrief}','${workspace}','${offer}','${icp}','${profile}','${contextCampaign}','Legacy setup compatibility fixture','{}');
-    INSERT INTO public.intentlead_market_profiles
-      (id,workspace_id,profile_key,workflow,configuration,capabilities,disabled_capabilities)
-      VALUES ('${randomUUID()}','${workspace}','CIS_RU','ASSISTED_OUTREACH','{}',ARRAY['HUMAN_REVIEW'],ARRAY[]::text[]),
-        ('${randomUUID()}','${workspace}','LOCAL_CUSTOM','DISCOVERY_ONLY','{}',ARRAY['HUMAN_REVIEW'],ARRAY[]::text[]);
-    INSERT INTO public.intentlead_discovery_briefs
-      (workspace_id,offer_profile_id,icp_definition_id,market_profile_id,legacy_campaign_id,objective,criteria)
-      SELECT '${workspace}','${offer}','${icp}',m.id,'${multiBriefCampaign}','Non-pilot linked brief','{}'
-      FROM public.intentlead_market_profiles m WHERE m.workspace_id='${workspace}' AND m.profile_key='CIS_RU';
-    INSERT INTO public.intentlead_discovery_briefs
-      (workspace_id,offer_profile_id,icp_definition_id,market_profile_id,legacy_campaign_id,objective,criteria)
-      SELECT '${workspace}','${offer}','${icp}',m.id,'${multiBriefCampaign}','Non-pilot linked brief','{}'
-      FROM public.intentlead_market_profiles m WHERE m.workspace_id='${workspace}' AND m.profile_key='LOCAL_CUSTOM';
-    INSERT INTO public.intentlead_discovery_briefs
-      (workspace_id,offer_profile_id,icp_definition_id,market_profile_id,legacy_campaign_id,objective,criteria)
-      VALUES ('${workspace}','${offer}','${icp}','${profile}','${multiBriefCampaign}','Third linked discovery brief','{}');
-    INSERT INTO public.intentlead_discovery_briefs
-      (workspace_id,offer_profile_id,icp_definition_id,market_profile_id,legacy_campaign_id,objective,criteria)
-      SELECT '${workspace}','${offer}','${icp}',m.id,'${nonPilotCampaign}','Non-pilot brief','{}'
-      FROM public.intentlead_market_profiles m WHERE m.workspace_id='${workspace}' AND m.profile_key='CIS_RU';
+      (id,workspace_id,offer_profile_id,icp_definition_id,market_profile_id,objective,criteria)
+      VALUES ('${brief}','${workspace}','${offer}','${icp}','${profile}','Fixture discovery','{}');
     INSERT INTO public.intentlead_companies (id,workspace_id,canonical_name,domain,confidence)
       VALUES ('${company}','${workspace}','Fixture Company','fixture.example',.95);
   `);
@@ -110,7 +79,7 @@ function rpc(userId: string, id: string, decision: string, reason: string, key: 
 
 describe.skipIf(!enabled)("Task 8 disposable PostgreSQL review boundary", () => {
   beforeAll(async () => {
-    await bootstrapTask8Database();
+    await bootstrapLatestDatabase();
     await insertUsers(owner, member, outsider);
     await createFixture();
   }, 60_000);
@@ -132,19 +101,14 @@ describe.skipIf(!enabled)("Task 8 disposable PostgreSQL review boundary", () => 
     expect(await sql(asRole("authenticated", `SELECT coalesce(public.intentlead_get_opportunity_for_review('${opportunities[0]}')::text,'null')`, outsider))).toBe("null");
   });
 
-  it("revokes every direct IntentLead Data API read while preserving legacy leads and narrow setup RPCs", async () => {
+  it("revokes direct IntentLead Data API reads and removes retired schema boundaries", async () => {
     expect(await sql(`SELECT count(*) FROM information_schema.tables t
       WHERE t.table_schema='public' AND t.table_name LIKE 'intentlead_%'
         AND has_table_privilege('authenticated',format('%I.%I',t.table_schema,t.table_name),'SELECT')`)).toBe("0");
-    expect(await sql(`SELECT has_table_privilege('authenticated','public.leads','SELECT')`)).toBe("t");
     expect(await sql(`SELECT has_table_privilege('service_role','public.intentlead_jobs','SELECT')`)).toBe("t");
-    const setup = JSON.parse(await sql(asRole("authenticated", `SELECT coalesce(jsonb_agg(to_jsonb(s)),'[]'::jsonb)
-      FROM public.intentlead_discovery_setup_for_campaign('${contextCampaign}') s`, owner))) as Array<{ discovery_brief_id: string }>;
-    expect(setup).toHaveLength(1);
-    expect(setup[0].discovery_brief_id).toBe(contextBrief);
-    expect(await sql(asRole("authenticated", `SELECT count(*) FROM public.intentlead_discovery_setup_for_campaign('${contextCampaign}')`, member))).toBe("0");
-    await expect(sql(asRole("authenticated", `SELECT count(*) FROM public.intentlead_people`, member)))
-      .rejects.toThrow(/permission denied/);
+    expect(await sql(`SELECT count(*) FROM pg_class WHERE relnamespace='public'::regnamespace
+      AND relname=ANY(ARRAY['leads','intentlead_people','intentlead_contact_points'])`)).toBe("0");
+    expect(await sql(`SELECT to_regprocedure('public.intentlead_discovery_setup_for_campaign(uuid)') IS NULL`)).toBe("t");
   });
 
   it("omits unsafe person-like evidence and assessment text from the strict review projection", async () => {
@@ -213,7 +177,6 @@ describe.skipIf(!enabled)("Task 8 disposable PostgreSQL review boundary", () => 
       const projected = await project(sourceUrl);
       expect(projected.sourceUrl).toBe(expected); if (sourceUrl.includes("token=")) expect(projected.raw).not.toMatch(/token=secret|alice%40|#/);
     }
-    await sql(await readFile(new URL("../../supabase/migrations/202610060015_task8_dns_host_policy.sql", import.meta.url), "utf8"), "task8-source-url-migration-reapply");
     expect(await sql(`SELECT count(*)=5 FROM pg_proc p WHERE p.oid IN ('public.intentlead_review_source_url_path_is_safe(text)'::regprocedure,'public.intentlead_review_source_url_host_is_safe(text)'::regprocedure,'public.intentlead_review_source_url_domain_is_allowed(text)'::regprocedure,'public.intentlead_sanitize_review_source_url(text)'::regprocedure,'public.intentlead_build_opportunity_review_dto(uuid,boolean)'::regprocedure) AND 'search_path=pg_catalog, public'=ANY(p.proconfig) AND NOT has_function_privilege('authenticated',p.oid,'EXECUTE') AND NOT has_function_privilege('anon',p.oid,'EXECUTE') AND NOT has_function_privilege('service_role',p.oid,'EXECUTE')`)).toBe("t");
     expect(await sql(`SELECT has_function_privilege('authenticated','public.intentlead_get_opportunity_for_review(uuid)','EXECUTE')`)).toBe("t"); expect((await project("HTTPS://EXAMPLE.COM/research?campaign=private#section")).sourceUrl).toBe("https://example.com/research");
     expect(await sql(asRole("authenticated", `SELECT coalesce(public.intentlead_get_opportunity_for_review('${opportunities[0]}')::text,'null')`, outsider))).toBe("null");
@@ -225,11 +188,6 @@ describe.skipIf(!enabled)("Task 8 disposable PostgreSQL review boundary", () => 
   ])("rejects protocol-less domain paths in direct SQL review notes: %s", async note => {
     await expect(sql(rpc(member, opportunities[3], "NEEDS_RESEARCH", "OTHER", `task8-url-note-${randomUUID()}`, note)))
       .rejects.toThrow(/invalid_review_note/);
-  });
-  it("denies a pilot linked after two earlier briefs and leaves outsider/non-pilot behavior unchanged", async () => {
-    expect(await sql(asRole("authenticated", `SELECT public.intentlead_legacy_campaign_is_discovery_only('${multiBriefCampaign}')`, member))).toBe("t");
-    expect(await sql(asRole("authenticated", `SELECT public.intentlead_legacy_campaign_is_discovery_only('${multiBriefCampaign}')`, outsider))).toBe("f");
-    expect(await sql(asRole("authenticated", `SELECT public.intentlead_legacy_campaign_is_discovery_only('${nonPilotCampaign}')`, member))).toBe("f");
   });
   it("limits direct review insertion and RPC execution to authenticated members", async () => {
     expect(await sql(`SELECT has_table_privilege('authenticated','public.intentlead_human_reviews','INSERT')`)).toBe("f");
@@ -251,35 +209,25 @@ describe.skipIf(!enabled)("Task 8 disposable PostgreSQL review boundary", () => 
     ]);
     const replayed = results.map(value => JSON.parse(value).replayed).sort();
     expect(replayed).toEqual([false, true]);
-    expect(await sql(`SELECT state FROM public.intentlead_opportunities WHERE id='${opportunities[0]}'`)).toBe("HUMAN_REVIEW");
+    expect(await sql(`SELECT state FROM public.intentlead_opportunities WHERE id='${opportunities[0]}'`)).toBe("ACCEPTED");
+    const acceptedDetail = JSON.parse(await sql(asRole("authenticated", `SELECT public.intentlead_get_opportunity_for_review('${opportunities[0]}')`, member))) as { id: string; state: string };
+    expect(acceptedDetail).toMatchObject({ id: opportunities[0], state: "ACCEPTED" });
+    const acceptedList = JSON.parse(await sql(asRole("authenticated", `SELECT public.intentlead_list_opportunities_for_review(50,NULL,NULL)`, member))) as { rows: Array<{ id: string; state: string }> };
+    expect(acceptedList.rows).toContainEqual(expect.objectContaining({ id: opportunities[0], state: "ACCEPTED" }));
     expect(Number(await sql(`SELECT count(*) FROM public.intentlead_human_reviews WHERE opportunity_id='${opportunities[0]}' AND tombstoned_at IS NULL`))).toBe(1);
     const before = JSON.parse(results[0]);
     const replay = JSON.parse(await sql(rpc(member, opportunities[0], "ACCEPTED", "RELEVANT", key)));
-    expect(replay).toMatchObject({ replayed: true, reviewedAt: before.reviewedAt, state: "HUMAN_REVIEW" });
+    expect(replay).toMatchObject({ replayed: true, reviewedAt: before.reviewedAt, state: "ACCEPTED" });
     await expect(sql(rpc(member, opportunities[0], "ACCEPTED", "RELEVANT", key, "changed note"))).rejects.toThrow(/idempotency_conflict/);
     await expect(sql(rpc(member, opportunities[0], "REJECTED", "WEAK_SIGNAL", "second-decision-0001"))).rejects.toThrow(/stale_opportunity/);
   });
-  it("records reject/research deterministically and leaves all downstream and credit rows unchanged", async () => {
-    const before = JSON.parse(await sql(`SELECT jsonb_build_object(
-      'credits',(SELECT credits_remaining FROM public.workspaces WHERE id='${workspace}'),
-      'contacts',(SELECT count(*) FROM public.intentlead_contact_points WHERE workspace_id='${workspace}'),
-      'drafts',(SELECT count(*) FROM public.intentlead_outreach_drafts WHERE workspace_id='${workspace}'),
-      'outcomes',(SELECT count(*) FROM public.intentlead_outcomes WHERE workspace_id='${workspace}'),
-      'packages',(SELECT count(*) FROM public.intentlead_verified_packages WHERE workspace_id='${workspace}'),
-      'costEvents',(SELECT count(*) FROM public.intentlead_cost_events WHERE workspace_id='${workspace}')
-    )`));
+  it("records reject/research deterministically without creating provider cost events", async () => {
+    const before = await sql(`SELECT count(*) FROM public.intentlead_cost_events WHERE workspace_id='${workspace}'`);
     const rejected = JSON.parse(await sql(rpc(member, opportunities[1], "REJECTED", "WEAK_SIGNAL", "task8-reject-key-001")));
     const research = JSON.parse(await sql(rpc(owner, opportunities[2], "NEEDS_RESEARCH", "OTHER", "task8-research-key-01", "Need another source")));
     expect(rejected.state).toBe("REJECTED");
     expect(research.state).toBe("NEEDS_RESEARCH");
-    const after = JSON.parse(await sql(`SELECT jsonb_build_object(
-      'credits',(SELECT credits_remaining FROM public.workspaces WHERE id='${workspace}'),
-      'contacts',(SELECT count(*) FROM public.intentlead_contact_points WHERE workspace_id='${workspace}'),
-      'drafts',(SELECT count(*) FROM public.intentlead_outreach_drafts WHERE workspace_id='${workspace}'),
-      'outcomes',(SELECT count(*) FROM public.intentlead_outcomes WHERE workspace_id='${workspace}'),
-      'packages',(SELECT count(*) FROM public.intentlead_verified_packages WHERE workspace_id='${workspace}'),
-      'costEvents',(SELECT count(*) FROM public.intentlead_cost_events WHERE workspace_id='${workspace}')
-    )`));
+    const after = await sql(`SELECT count(*) FROM public.intentlead_cost_events WHERE workspace_id='${workspace}'`);
     expect(after).toEqual(before);
   });
 

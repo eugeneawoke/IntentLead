@@ -47,7 +47,7 @@ describe("normalized version 1 fact vocabulary", () => {
 });
 
 describe("state-dependent Opportunity snapshots", () => {
-  it.each(["DISCOVERED", "ENRICHING", "INSUFFICIENT_EVIDENCE"])("allows unresolved early state %s", state => {
+  it.each(["DISCOVERED", "EVIDENCE_PENDING", "INSUFFICIENT_EVIDENCE"])("allows unresolved early state %s", state => {
     expect(OpportunitySchema.safeParse({ ...f.opportunity, state, companyId: null, assessmentId: null }).success).toBe(true);
   });
   it("requires company resolution before assessment readiness", () => {
@@ -60,8 +60,7 @@ describe("state-dependent Opportunity snapshots", () => {
     expect(OpportunitySchema.safeParse({ ...f.opportunity, state: "MODEL_REJECTED", assessmentId: null }).success).toBe(false);
   });
   it.each([
-    "PACKAGE_READY", "HUMAN_REVIEW", "REJECTED", "NEEDS_RESEARCH", "OUTREACH_READY", "CONTACTED",
-    "REPLIED", "NO_REPLY", "OPTED_OUT", "POSITIVE_REPLY", "NEGATIVE_REPLY", "MEETING", "SALES_OPPORTUNITY", "CUSTOMER", "CLOSED",
+    "MODEL_QUALIFIED", "MODEL_REVIEW", "MODEL_REJECTED", "HUMAN_REVIEW", "ACCEPTED", "REJECTED", "NEEDS_RESEARCH", "ARCHIVED",
   ])("requires company and assessment for %s", state => {
     const snapshot = { ...f.opportunity, state, marketProfileId: "LOCAL_CUSTOM" };
     expect(OpportunitySchema.safeParse(snapshot).success).toBe(true);

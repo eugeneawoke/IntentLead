@@ -12,12 +12,10 @@ const discoveryProfile: MarketProfile = {
   jurisdictions: [],
   regions: [],
   languages: ["en"],
-  capabilities: ["SOURCE_SEARCH", "WEB_FETCH", "COMPANY_RESOLUTION", "OPPORTUNITY_ASSESSMENT", "HUMAN_REVIEW"],
-  disabledCapabilities: ["PEOPLE_SEARCH", "CONTACT_ENRICHMENT", "EMAIL_FIND", "EMAIL_VERIFY", "DRAFT_GENERATION", "OUTREACH_READY", "OUTREACH_SEND", "OUTCOME_RECORDING", "PACKAGE_VERIFIED"],
+  capabilities: ["SOURCE_SEARCH", "COMPANY_RESOLUTION", "OPPORTUNITY_ASSESSMENT", "HUMAN_REVIEW"],
+  disabledCapabilities: ["WEB_FETCH"],
   legalPolicyId: "policy-legal-v1",
   retentionPolicyId: "policy-retention-v1",
-  outreachPolicyId: null,
-  outreachChannels: [],
   defaultCurrency: "USD",
   timezone: "UTC",
   workflow: "DISCOVERY_ONLY",
@@ -115,7 +113,7 @@ describe("durable job worker", () => {
     expect(repository.complete).toHaveBeenCalledWith(expect.anything(), "COMPLETED", { value: "fixture-result" }, null);
   });
 
-  it("denies discovery-only contact capabilities before provider selection or operation", async () => {
+  it("denies a profile-disabled discovery capability before provider selection or operation", async () => {
     const repository = fakeRepository();
     const selectProvider = vi.fn().mockReturnValue("provider");
     const operation = vi.fn();
@@ -125,35 +123,7 @@ describe("durable job worker", () => {
       minPollIntervalMs: 2,
       maxPollIntervalMs: 8,
       handler: async (_job, execution) => {
-        await execution.runExternalOperation("EMAIL_FIND", selectProvider, operation);
-        return { state: "COMPLETED", result: {} };
-      },
-    });
-
-    worker.start();
-    await waitFor(() => expect(repository.complete).toHaveBeenCalled());
-    await worker.shutdown();
-
-    expect(selectProvider).not.toHaveBeenCalled();
-    expect(operation).not.toHaveBeenCalled();
-    expect(repository.complete).toHaveBeenCalledWith(expect.anything(), "FAILED", null,
-      expect.objectContaining({ code: "POLICY_DENIED", retryable: false }));
-  });
-
-  it.each([
-    "PEOPLE_SEARCH", "CONTACT_ENRICHMENT", "EMAIL_FIND", "EMAIL_VERIFY", "DRAFT_GENERATION",
-    "OUTREACH_READY", "OUTREACH_SEND", "OUTCOME_RECORDING", "PACKAGE_VERIFIED",
-  ] as const)("denies %s before provider selection", async (capability) => {
-    const repository = fakeRepository();
-    const selectProvider = vi.fn().mockReturnValue("provider");
-    const operation = vi.fn();
-    const worker = createJobWorker({
-      repository,
-      workerId: "worker-1",
-      minPollIntervalMs: 2,
-      maxPollIntervalMs: 8,
-      handler: async (_job, execution) => {
-        await execution.runExternalOperation(capability, selectProvider, operation);
+        await execution.runExternalOperation("WEB_FETCH", selectProvider, operation);
         return { state: "COMPLETED", result: {} };
       },
     });

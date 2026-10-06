@@ -56,7 +56,7 @@ function repository(overrides: Partial<OpportunityReviewRepository> = {}): Oppor
     get: vi.fn().mockResolvedValue(detail()),
     review: vi.fn().mockResolvedValue({
       opportunityId,
-      state: "HUMAN_REVIEW",
+      state: "ACCEPTED",
       decision: "ACCEPTED",
       reason: "RELEVANT",
       reviewedAt: capturedAt,

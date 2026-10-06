@@ -80,7 +80,7 @@ describe("Opportunity review API routes", () => {
     mockListOpportunities.mockResolvedValue(listPayload);
     mockGetOpportunity.mockResolvedValue(detailPayload);
     mockSubmitReview.mockResolvedValue({
-      opportunityId: detailPayload.id, state: "HUMAN_REVIEW", decision: "ACCEPTED",
+      opportunityId: detailPayload.id, state: "ACCEPTED", decision: "ACCEPTED",
       reason: "RELEVANT", reviewedAt: "2026-10-05T12:00:00.000Z", replayed: false,
     });
   });

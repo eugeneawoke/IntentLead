@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { createSelfProspectingHandler } from "../../worker/workflows/self-prospecting";
 import { createFixtureSelfProspectingDependencies } from "../../worker/workflows/fixture-runtime";
 import type { LeasedJob } from "../../worker/jobs/repository";
-import { asRole, bootstrapTask8Database, sql } from "./task8-db";
+import { asRole, bootstrapLatestDatabase, sql } from "./task8-db";
 import { insertUsers } from "./task4-db";
 
 const enabled = Boolean(process.env.INTENTLEAD_TEST_DATABASE_URL);
@@ -121,7 +121,7 @@ async function createAndLease(): Promise<{ job: LeasedJob; briefId: string; work
 
 describe.skipIf(!enabled)("Task D fixture self-prospecting in disposable PostgreSQL", () => {
   beforeAll(async () => {
-    await bootstrapTask8Database();
+    await bootstrapLatestDatabase();
     await insertUsers(owner, outsider);
   }, 60_000);
 
@@ -140,13 +140,11 @@ describe.skipIf(!enabled)("Task D fixture self-prospecting in disposable Postgre
     expect(await sql(`SELECT count(*) FROM public.intentlead_provider_runs WHERE job_id='${job.id}' AND usage_units=0 AND cost_amount=0`)).toBe("3");
     expect(await sql(`SELECT count(*) FROM public.intentlead_source_items WHERE workspace_id='${workspaceId}'`)).toBe("2");
     expect(await sql(`SELECT count(*) FROM public.intentlead_evidence_items WHERE workspace_id='${workspaceId}'`)).toBe("2");
-    expect(await sql(`SELECT (SELECT count(*) FROM public.intentlead_people WHERE workspace_id='${workspaceId}')
-      + (SELECT count(*) FROM public.intentlead_contact_points WHERE workspace_id='${workspaceId}')
-      + (SELECT count(*) FROM public.intentlead_outreach_drafts WHERE workspace_id='${workspaceId}')`)).toBe("0");
-    expect(await sql(`SELECT count(*) FROM public.messages m
-      JOIN public.leads l ON l.id=m.lead_id
-      JOIN public.campaigns c ON c.id=l.campaign_id
-      WHERE c.workspace_id='${workspaceId}'`)).toBe("0");
+    expect(await sql(`SELECT count(*) FROM pg_class WHERE relnamespace='public'::regnamespace
+      AND relname=ANY(ARRAY[
+        'intentlead_people','intentlead_contact_points','intentlead_outreach_drafts',
+        'messages','leads','campaigns'
+      ])`)).toBe("0");
     expect(await sql(asRole("authenticated", `SELECT coalesce(public.intentlead_get_opportunity_for_review('${opportunityId}')::text,'null')`, outsider))).toBe("null");
     const detail = JSON.parse(await sql(asRole("authenticated", `SELECT public.intentlead_get_opportunity_for_review('${opportunityId}')`, owner))) as {
       assessment: { problemStatement: string; icpFit: number };

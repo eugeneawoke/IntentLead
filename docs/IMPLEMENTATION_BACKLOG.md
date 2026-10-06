@@ -10,7 +10,7 @@
 - [x] Make OfferProfile, ICPDefinition and DiscoveryBrief native execution authority (2026-10-06).
 - [x] Wire the self-prospecting handler in fixture/no-network/zero-cost mode (2026-10-06).
 - [x] Preserve Opportunity, tenant, no-downstream-action and retired-route boundaries while deleting legacy code (2026-10-06).
-- [ ] Remove legacy schema bridge through additive migrations after fresh/upgrade verification.
+- [x] Remove the legacy schema bridge through a forward-only migration after clean/populated upgrade verification (2026-10-06).
 - [ ] Run the controlled dogfood quality gate and independent reviews.
 
 ## After dogfood proof

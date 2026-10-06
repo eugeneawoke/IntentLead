@@ -66,12 +66,12 @@ The Glook snapshot consumer commits `14097c4` and `3251300` are a dormant option
 
 ## Task E — Remove legacy schema bridge
 
-- [ ] Reconcile local legacy rows needed for tests.
-- [ ] Remove `legacy_campaign_id`, old helper RPCs and remaining foreign-key dependencies.
-- [ ] Add an additive cleanup migration for obsolete `campaigns`, `signals`, `leads`, `messages` and old credit functions.
-- [ ] Verify clean database, upgrade database, RLS, deletion and rollback strategy in disposable PostgreSQL.
+- [x] Reconcile local legacy rows needed for tests (2026-10-06).
+- [x] Remove `legacy_campaign_id`, old helper RPCs and remaining foreign-key dependencies (2026-10-06).
+- [x] Add a forward-only cleanup migration for obsolete `campaigns`, `signals`, `leads`, `messages`, chat/contact/outreach/package tables and old credit functions (2026-10-06).
+- [x] Verify clean database, populated upgrade, RLS, deletion, nonce preservation and restore-based rollback strategy in disposable PostgreSQL (2026-10-06).
 
-**Done when:** new execution and tests have no dependency on old product tables or verified-contact credit semantics.
+**Done:** migration `202610060018_remove_legacy_schema.sql` leaves only Opportunity Core storage and RPCs, canonical discovery-only capabilities/states, provider/model cost events and worker nonce replay protection. Focused integration evidence exercises clean and populated upgrades, historical-state reconciliation, reapplication, tenant denial, deletion, review, leases/recovery and strict persistence provenance; the final blocker regression set passes 17/17. Rollback is database restore; the retired product graph is not recreated.
 
 ## Task F — Dogfood quality gate
 

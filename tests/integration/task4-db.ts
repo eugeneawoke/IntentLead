@@ -75,7 +75,7 @@ function applyUnlessExists(regclass: string, sqlText: string): string {
   `;
 }
 
-export async function bootstrapTask4Database(): Promise<void> {
+export async function bootstrapTask4Database(populateLegacyBaseline = true): Promise<void> {
   connection();
   const baseline = await Promise.all([
     migration("001_tables.sql"),
@@ -108,7 +108,8 @@ export async function bootstrapTask4Database(): Promise<void> {
     ${applyUnlessExists("public.intentlead_worker_nonces", `${baseline[1]}\n${baseline[2]}\nGRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;\n${baseline[3]}`)}
     DO $intentlead_populated_upgrade$
     BEGIN
-      IF to_regclass('public.intentlead_offer_profiles') IS NULL THEN
+      IF ${populateLegacyBaseline ? "true" : "false"}
+        AND to_regclass('public.intentlead_offer_profiles') IS NULL THEN
         CREATE TABLE IF NOT EXISTS public.glook_acl_sentinel (
           id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
           payload text NOT NULL
@@ -142,8 +143,8 @@ export async function bootstrapTask4Database(): Promise<void> {
   `);
 }
 
-export async function bootstrapTask5Database(): Promise<void> {
-  await bootstrapTask4Database();
+export async function bootstrapTask5Database(populateLegacyBaseline = true): Promise<void> {
+  await bootstrapTask4Database(populateLegacyBaseline);
   const task5Migration = await migration("202610050000_task5_data_lifecycle.sql");
   const task5TerminalMigration = await migration("202610050001_task5_terminal_state_sync.sql");
   const task5TerminalAclMigration = await migration("202610050002_task5_terminal_sync_acl.sql");
