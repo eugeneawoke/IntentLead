@@ -25,7 +25,7 @@ A website, Glook snapshot, map listing, review, public post, job posting or AI-a
 
 This stage establishes versioned domain contracts, evidence provenance, provider registry, market profiles, durable jobs, cost controls, application authorization and human review.
 
-**Current state:** contracts, native Offer/ICP/DiscoveryBrief authority, storage, durable jobs and review foundation are implemented locally. Worker cutover and legacy schema removal remain in progress. Production deployment and migrations remain outside the authorized scope.
+**Current state:** contracts, native Offer/ICP/DiscoveryBrief authority, storage, durable jobs, explicit zero-spend fixture execution and review are implemented locally. Legacy schema/test removal remains in progress. Production deployment and migrations remain outside the authorized scope.
 
 ## Stage 1 — Self-prospecting discovery
 
@@ -33,7 +33,7 @@ This stage establishes versioned domain contracts, evidence provenance, provider
 
 The system receives IntentLead's offer, ICP, exclusions and market, then discovers companies, captures evidence, resolves company identity and produces `QUALIFY`, `REVIEW` or `REJECT` assessments. The founder reviews results and records rejection reasons.
 
-The first run uses sanitized recorded evidence and zero paid-provider spend. It does not depend on Glook, website analysis, contact enrichment, message drafting or any sending capability.
+The first runnable contract uses an explicitly synthetic no-network fixture and zero paid-provider spend. A later dogfood gate uses separately authorized recorded evidence. Neither depends on Glook, website analysis, contact enrichment, message drafting or any sending capability.
 
 **Gate:** a reproducible sample with measured acceptance rate, company-resolution quality, evidence sufficiency, false-positive reasons, latency and cost.
 

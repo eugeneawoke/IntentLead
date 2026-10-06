@@ -15,7 +15,7 @@ const timestamp = "2026-10-05T12:00:00.000Z";
 function detail(text: string) {
   return {
     id: opportunityId, state: "HUMAN_REVIEW",
-    signal: { family: "DETECTED_PROBLEM", subtype: "website" },
+    signal: { family: "DETECTED_PROBLEM", subtype: "market_presence" },
     company: { name: "Acme Example", domain: "acme.example", confidence: 0.92 },
     assessment: {
       decision: "REVIEW", confidence: 0.88, evidenceStrength: 0.9,
@@ -82,6 +82,8 @@ describe("Opportunity review API text sanitization", () => {
     ["numeric hostname", "https://999.999.999.999/posts/abc-123", null],
     ["backslash path", "https://example.com/posts\\abc-123", null],
     ["encoded query/token", "https://example.com/posts/abc-123?token=secret%40example.com#private", "https://example.com/posts/abc-123"],
+    ["Hacker News item identity", "https://news.ycombinator.com/item?id=12345678", "https://news.ycombinator.com/item?id=12345678"],
+    ["Hacker News extra query", "https://news.ycombinator.com/item?id=12345678&token=secret", "https://news.ycombinator.com/item"],
     ["normalized safe path", "HTTPS://EXAMPLE.COM/posts/abc-123", "https://example.com/posts/abc-123"],
     ["root URL", "https://EXAMPLE.COM", "https://example.com/"],
     ["trailing slash", "HTTPS://EXAMPLE.COM/posts/", "https://example.com/posts/"],
@@ -101,6 +103,24 @@ describe("Opportunity review API text sanitization", () => {
 
     expect(response.status).toBe(200);
     expect(JSON.parse(body).data.evidence[0].sourceUrl).toBe(expected);
-    expect(body).not.toMatch(/token=secret|#private|\?/);
+    expect(body).not.toMatch(/token=secret|#private/);
+  });
+
+  it("returns only allowlisted provider limitations through the detail API", async () => {
+    mockRepository.get.mockResolvedValue({
+      ...detail("The homepage returns an unavailable page."),
+      limitations: ["SYNTHETIC_CONTRACT_FIXTURE", "NO_NETWORK", "NOT_LIVE_PROVIDER_EVIDENCE", "untrusted provider prose"],
+    });
+    const { GET } = await import("@/app/api/opportunities/[id]/route");
+
+    const response = await GET(new NextRequest(`http://localhost/api/opportunities/${opportunityId}`), {
+      params: Promise.resolve({ id: opportunityId }),
+    });
+    const limitations = JSON.parse(await response.text()).data.limitations as string[];
+
+    expect(limitations).toEqual(expect.arrayContaining([
+      "SYNTHETIC_CONTRACT_FIXTURE", "NO_NETWORK", "NOT_LIVE_PROVIDER_EVIDENCE",
+    ]));
+    expect(limitations).not.toContain("untrusted provider prose");
   });
 });

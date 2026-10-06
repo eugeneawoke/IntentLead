@@ -62,6 +62,16 @@ export interface SelfProspectingAssessmentEngine {
 export interface SelfProspectingContext {
   profile: MarketProfile;
   brief: DiscoveryBrief;
+  offer: {
+    id: string;
+    name: string;
+    definition: { summary: string; outcomes: string[]; exclusions: string[] };
+  };
+  icp: {
+    id: string;
+    name: string;
+    definition: { description: string; companyAttributes: string[]; exclusions: string[] };
+  };
 }
 
 export interface SelfProspectingPersistInput {

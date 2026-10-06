@@ -11,7 +11,7 @@ const discoveryCapabilities = new Set<Capability>([
 export const DEFAULT_SELF_PROSPECTING_POLICY: SelfProspectingPolicy = {
   maxCandidates: 20,
   maxSignalAgeDays: {
-    EXPRESSED_INTENT: 90, TRIGGER_EVENT: 180, DETECTED_PROBLEM: 30, VISIBILITY_FINDING: 14,
+    EXPRESSED_INTENT: 90, BUSINESS_EVENT: 180, DETECTED_PROBLEM: 30, MARKET_OBSERVATION: 30,
   },
   minimumEvidenceItems: 1,
   minimumCompanyConfidence: 0.72,

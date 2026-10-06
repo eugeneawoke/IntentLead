@@ -66,7 +66,7 @@ function persistenceSlice(input: SelfProspectingPersistInput): Record<string, un
 }
 
 export function createSupabaseSelfProspectingPersistence(
-  client: JobDatabaseClient = getServiceClient() as unknown as JobDatabaseClient,
+  client: Pick<JobDatabaseClient, "rpc"> = getServiceClient() as unknown as JobDatabaseClient,
 ): SelfProspectingPersistence {
   return {
     async findCandidate(job, candidateKey): Promise<FoundSelfProspectingCandidate | null> {

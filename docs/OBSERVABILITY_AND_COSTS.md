@@ -10,15 +10,15 @@ Every log/event may include workspace, discovery brief, job, step attempt, oppor
 - provider/model/version, latency, token/API usage, fallback and cost;
 - source funnel counts and rejection reasons;
 - evidence creation and assessment version;
-- state transitions, review/outcome and credit event;
-- authorization denial and suppression decision;
+- state transitions and review decision;
+- authorization and policy denials;
 - integration health state.
 
 ## Initial SLOs
 
 - accepted dispatch creates a durable job before response;
 - no stale `RUNNING` job beyond lease recovery window without alert;
-- zero credit invariant violations;
+- zero unexpected personal/contact/message records;
 - zero cross-tenant reads in automated negative tests;
 - provider health and rate-limit state visible;
 - cost per accepted Opportunity reported by source and market;
@@ -32,4 +32,4 @@ Each job has max total cost; each capability and provider has per-call/attempt c
 
 ## Alerts
 
-Alert on stale jobs, repeated provider auth/rate failures, cost anomaly, credit invariant failure, warm-bridge authorization denial spike, evidence persistence failure and production evaluation regression.
+Alert on stale jobs, repeated provider auth/rate failures, cost anomaly, cross-tenant denial anomalies, evidence persistence failure and production evaluation regression.

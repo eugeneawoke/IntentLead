@@ -92,6 +92,7 @@ export const OpportunityReviewEvidenceFactsSchema = z.object({
     subdivisionCode: z.string().trim().min(1).nullable().optional(),
     locality: z.string().trim().min(1).nullable().optional(),
   }).strict().optional(),
+  observedCondition: SafeReviewTextSchema(500).optional(),
   problemCategory: z.enum(["website", "local_listing", "reviews", "reputation", "acquisition", "conversion", "operations"]).optional(),
   problem: z.object({
     category: z.enum(["website", "local_listing", "reviews", "reputation", "acquisition", "conversion", "operations"]).optional(),

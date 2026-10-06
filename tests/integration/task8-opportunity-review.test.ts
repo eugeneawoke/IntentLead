@@ -15,11 +15,12 @@ const legacyCampaign = randomUUID();
 const multiBriefCampaign = randomUUID();
 const nonPilotCampaign = randomUUID();
 const contextCampaign = randomUUID();
+const contextBrief = randomUUID();
 const offer = randomUUID();
 const icp = randomUUID();
 const company = randomUUID();
 const opportunities = [randomUUID(), randomUUID(), randomUUID(), randomUUID()];
-const signal = JSON.stringify({ family: "DETECTED_PROBLEM", subtype: "website" });
+const signal = JSON.stringify({ family: "DETECTED_PROBLEM", subtype: "market_presence" });
 const reviewCapability = "ARRAY['SOURCE_SEARCH','COMPANY_RESOLUTION','OPPORTUNITY_ASSESSMENT','HUMAN_REVIEW']::text[]";
 const deniedCapabilities = "ARRAY['PEOPLE_SEARCH','CONTACT_ENRICHMENT','EMAIL_FIND','EMAIL_VERIFY','DRAFT_GENERATION','OUTREACH_READY','OUTREACH_SEND','OUTCOME_RECORDING','PACKAGE_VERIFIED']::text[]";
 
@@ -41,8 +42,8 @@ async function createFixture(): Promise<void> {
         ('${contextCampaign}','${workspace}','cold','Fixture offer','Fixture ICP','Fixture pain');
     INSERT INTO public.intentlead_discovery_briefs
       (id,workspace_id,offer_profile_id,icp_definition_id,market_profile_id,legacy_campaign_id,objective,criteria)
-      VALUES ('${brief}','${workspace}','${offer}','${icp}','${profile}','${legacyCampaign}','Fixture discovery','{}');
-    UPDATE public.intentlead_discovery_briefs SET legacy_campaign_id='${contextCampaign}' WHERE id='${brief}';
+      VALUES ('${brief}','${workspace}','${offer}','${icp}','${profile}',NULL,'Fixture discovery','{}'),
+        ('${contextBrief}','${workspace}','${offer}','${icp}','${profile}','${contextCampaign}','Legacy setup compatibility fixture','{}');
     INSERT INTO public.intentlead_market_profiles
       (id,workspace_id,profile_key,workflow,configuration,capabilities,disabled_capabilities)
       VALUES ('${randomUUID()}','${workspace}','CIS_RU','ASSISTED_OUTREACH','{}',ARRAY['HUMAN_REVIEW'],ARRAY[]::text[]),
@@ -122,7 +123,7 @@ describe.skipIf(!enabled)("Task 8 disposable PostgreSQL review boundary", () => 
     expect(memberDetail).toContain("Fixture Company");
     expect(memberDetail).toContain("Homepage returns an unavailable page");
     expect(memberDetail).toContain("Fixture interpretation not shown");
-    expect(memberDetail).not.toContain("Fixture-only evidence excerpt");
+    expect(memberDetail).toContain("Fixture-only evidence excerpt");
     expect(memberDetail).not.toContain("contactEmail");
     const missingEvidence = JSON.parse(await sql(asRole("authenticated", `SELECT public.intentlead_get_opportunity_for_review('${opportunities[2]}')`, member))) as { evidenceStatus: string; evidence: unknown[] };
     expect(missingEvidence.evidenceStatus).toBe("MISSING");
@@ -140,7 +141,7 @@ describe.skipIf(!enabled)("Task 8 disposable PostgreSQL review boundary", () => 
     const setup = JSON.parse(await sql(asRole("authenticated", `SELECT coalesce(jsonb_agg(to_jsonb(s)),'[]'::jsonb)
       FROM public.intentlead_discovery_setup_for_campaign('${contextCampaign}') s`, owner))) as Array<{ discovery_brief_id: string }>;
     expect(setup).toHaveLength(1);
-    expect(setup[0].discovery_brief_id).toBe(brief);
+    expect(setup[0].discovery_brief_id).toBe(contextBrief);
     expect(await sql(asRole("authenticated", `SELECT count(*) FROM public.intentlead_discovery_setup_for_campaign('${contextCampaign}')`, member))).toBe("0");
     await expect(sql(asRole("authenticated", `SELECT count(*) FROM public.intentlead_people`, member)))
       .rejects.toThrow(/permission denied/);
@@ -202,6 +203,7 @@ describe.skipIf(!enabled)("Task 8 disposable PostgreSQL review boundary", () => 
     const cases = [
       ["https://example.com/用户@example.com", null], ["https://example.com/posts/user@example.com", null], ["https://example.com/in/jane%2Edoe", null], ["https://user@example.com/posts/abc-123", null], ["https://example.com:8443/path", null], ["https://example.com:443/path", null], ["https://xn--a.example/path", null], ["https://xn--bcher-kva.de/path", null],
       ["https://example.com/posts/abc-123?token=secret%40example.com#private", "https://example.com/posts/abc-123"], ["https://example.com:99999/posts/abc-123", null], ["https://999.999.999.999/posts/abc-123", null], ["https://example.com/posts\\abc-123", null],
+      ["https://news.ycombinator.com/item?id=12345678", "https://news.ycombinator.com/item?id=12345678"], ["https://news.ycombinator.com/item?id=12345678&token=secret", "https://news.ycombinator.com/item"],
       ["HTTPS://EXAMPLE.COM/posts/abc-123", "https://example.com/posts/abc-123"], ["https://EXAMPLE.COM", "https://example.com/"], ["HTTPS://EXAMPLE.COM/posts/", "https://example.com/posts/"],
       ["https://0x7f.0.0.1/x", null], ["https://0x7f.1/x", null], ["https://0177.0.0.1/x", null],
       ["https://2130706433/x", null], ["https://127.1/x", null], ["https://123.example.com/path", "https://123.example.com/path"],
@@ -209,7 +211,7 @@ describe.skipIf(!enabled)("Task 8 disposable PostgreSQL review boundary", () => 
     ] as const;
     for (const [sourceUrl, expected] of cases) {
       const projected = await project(sourceUrl);
-      expect(projected.sourceUrl).toBe(expected); if (sourceUrl.includes("token=")) expect(projected.raw).not.toMatch(/token=secret|alice%40|\?|#/);
+      expect(projected.sourceUrl).toBe(expected); if (sourceUrl.includes("token=")) expect(projected.raw).not.toMatch(/token=secret|alice%40|#/);
     }
     await sql(await readFile(new URL("../../supabase/migrations/202610060015_task8_dns_host_policy.sql", import.meta.url), "utf8"), "task8-source-url-migration-reapply");
     expect(await sql(`SELECT count(*)=5 FROM pg_proc p WHERE p.oid IN ('public.intentlead_review_source_url_path_is_safe(text)'::regprocedure,'public.intentlead_review_source_url_host_is_safe(text)'::regprocedure,'public.intentlead_review_source_url_domain_is_allowed(text)'::regprocedure,'public.intentlead_sanitize_review_source_url(text)'::regprocedure,'public.intentlead_build_opportunity_review_dto(uuid,boolean)'::regprocedure) AND 'search_path=pg_catalog, public'=ANY(p.proconfig) AND NOT has_function_privilege('authenticated',p.oid,'EXECUTE') AND NOT has_function_privilege('anon',p.oid,'EXECUTE') AND NOT has_function_privilege('service_role',p.oid,'EXECUTE')`)).toBe("t");
@@ -288,7 +290,7 @@ describe.skipIf(!enabled)("Task 8 disposable PostgreSQL review boundary", () => 
 
     const stored = JSON.parse(await sql(`SELECT jsonb_build_object(
       'note',note,'fingerprint',request_fingerprint,'key',idempotency_key,'tombstoned',tombstoned_at IS NOT NULL
-    ) FROM public.intentlead_human_reviews WHERE idempotency_key='${key}'`)) as Record<string, unknown>;
+    ) FROM public.intentlead_human_reviews WHERE workspace_id='${workspace}' AND idempotency_key='${key}'`)) as Record<string, unknown>;
     expect(stored).toEqual({ note: null, fingerprint: "[redacted]", key, tombstoned: true });
     expect(await sql(asRole("authenticated", `SELECT coalesce(public.intentlead_get_opportunity_for_review('${opportunities[3]}')::text,'null')`, member))).toBe("null");
     await expect(sql(asRole("authenticated", `SELECT note,request_fingerprint FROM public.intentlead_human_reviews WHERE idempotency_key='${key}'`, member)))

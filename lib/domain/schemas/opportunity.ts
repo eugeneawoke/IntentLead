@@ -8,14 +8,14 @@ export const SignalSchema = z.discriminatedUnion("family", [
   z.object({ family: z.literal("EXPRESSED_INTENT"), subtype: z.enum([
     "recommendation_request", "comparison", "switching", "complaint", "solution_search", "rfp",
   ]) }).strict(),
-  z.object({ family: z.literal("TRIGGER_EVENT"), subtype: z.enum([
+  z.object({ family: z.literal("BUSINESS_EVENT"), subtype: z.enum([
     "hiring", "funding", "launch", "expansion", "leadership_change", "technology_change",
   ]) }).strict(),
   z.object({ family: z.literal("DETECTED_PROBLEM"), subtype: z.enum([
-    "website", "local_listing", "reviews", "reputation", "acquisition", "conversion", "operations",
+    "operations", "acquisition", "conversion", "reputation", "customer_experience", "market_presence",
   ]) }).strict(),
-  z.object({ family: z.literal("VISIBILITY_FINDING"), subtype: z.enum([
-    "ai_visibility", "citation_gap", "competitor_overtake", "local_visibility",
+  z.object({ family: z.literal("MARKET_OBSERVATION"), subtype: z.enum([
+    "competitor_change", "review_pattern", "category_gap", "local_presence", "visibility_gap",
   ]) }).strict(),
 ]);
 

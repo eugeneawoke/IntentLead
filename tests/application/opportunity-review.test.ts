@@ -15,7 +15,7 @@ function item(id = opportunityId) {
   return {
     id,
     state: "HUMAN_REVIEW",
-    signal: { family: "DETECTED_PROBLEM", subtype: "website" },
+    signal: { family: "DETECTED_PROBLEM", subtype: "market_presence" },
     company: { name: "Acme Example", domain: "acme.example", confidence: 0.92 },
     assessment: {
       decision: "REVIEW", confidence: 0.88, evidenceStrength: 0.9,
@@ -130,6 +130,20 @@ describe("Opportunity review application service", () => {
     }))).rejects.toMatchObject({ code: "INTERNAL_ERROR" });
   });
 
+  it("preserves only allowlisted provider limitations for an honest fixture review", async () => {
+    const result = await getOpportunityForReview("member-1", opportunityId, repository({
+      get: vi.fn().mockResolvedValue({
+        ...detail(),
+        limitations: ["SYNTHETIC_CONTRACT_FIXTURE", "NO_NETWORK", "NOT_LIVE_PROVIDER_EVIDENCE", "untrusted provider prose"],
+      }),
+    }));
+
+    expect(result.limitations).toEqual(expect.arrayContaining([
+      "SYNTHETIC_CONTRACT_FIXTURE", "NO_NETWORK", "NOT_LIVE_PROVIDER_EVIDENCE",
+    ]));
+    expect(result.limitations).not.toContain("untrusted provider prose");
+  });
+
   it.each([
     ["Unicode SMTPUTF8 path", "https://example.com/用户@example.com", null],
     ["ASCII address path", "https://example.com/posts/user@example.com", null],
@@ -141,6 +155,8 @@ describe("Opportunity review application service", () => {
     ["numeric hostname", "https://999.999.999.999/posts/abc-123", null],
     ["backslash path", "https://example.com/posts\\abc-123", null],
     ["encoded query/token", "https://example.com/posts/abc-123?token=secret%40example.com#private", "https://example.com/posts/abc-123"],
+    ["Hacker News item identity", "https://news.ycombinator.com/item?id=12345678", "https://news.ycombinator.com/item?id=12345678"],
+    ["Hacker News extra query", "https://news.ycombinator.com/item?id=12345678&token=secret", "https://news.ycombinator.com/item"],
     ["normalized safe path", "HTTPS://EXAMPLE.COM/posts/abc-123", "https://example.com/posts/abc-123"],
     ["root URL", "https://EXAMPLE.COM", "https://example.com/"],
     ["trailing slash", "HTTPS://EXAMPLE.COM/posts/", "https://example.com/posts/"],
@@ -155,7 +171,7 @@ describe("Opportunity review application service", () => {
     }));
 
     expect(result.evidence[0].sourceUrl).toBe(expected);
-    expect(JSON.stringify(result)).not.toMatch(/token=secret|#private|\?/);
+    expect(JSON.stringify(result)).not.toMatch(/token=secret|#private/);
   });
 
   it.each([

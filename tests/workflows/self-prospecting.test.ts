@@ -10,7 +10,7 @@ import { executeProviderWithFallback } from "../../worker/providers/registry";
 import { providerDescriptor, providerRequest } from "../providers/helpers";
 import { DEFAULT_SELF_PROSPECTING_POLICY } from "../../lib/domain/opportunity-policy";
 import {
-  companyCandidate, fixtureBrief, fixtureIds, fixtureProfile, freshSignal, makeCompany,
+  companyCandidate, fixtureBrief, fixtureIcp, fixtureIds, fixtureOffer, fixtureProfile, freshSignal, makeCompany,
   makeTimestampedSignal, promptInjectionContent, qualifiedAssessment,
 } from "../evals/opportunity-fixtures";
 
@@ -130,7 +130,7 @@ function makeHarness(options: {
   };
   let nextId = 0;
   const dependencies = {
-    loadContext: async () => ({ profile: fixtureProfile, brief: fixtureBrief }),
+    loadContext: async () => ({ profile: fixtureProfile, brief: fixtureBrief, offer: fixtureOffer, icp: fixtureIcp }),
     registry,
     assessmentEngine,
     persistence,

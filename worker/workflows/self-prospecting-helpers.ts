@@ -131,7 +131,7 @@ export function allowedCompany(candidate: CompanyCandidate, policy: SelfProspect
 }
 
 export function buildCompanyEvidence(input: {
-  candidateKey: string; workspaceId: string; match: CompanyCandidate | null;
+  candidateKey: string; candidateIdentity: string; workspaceId: string; match: CompanyCandidate | null;
   companyRuns: SelfProspectingPersistInput["providerRuns"]; baseEvidence: EvidenceItem[]; baseSources: SourceItem[];
   idFactory: SelfProspectingDependencies["idFactory"]; policy: SelfProspectingDependencies["policy"];
 }): { candidateEvidence: EvidenceItem[]; candidateSources: SourceItem[]; resolvedCompany: SelfProspectingPersistInput["company"]; supportedMatch: boolean } {
@@ -144,7 +144,7 @@ export function buildCompanyEvidence(input: {
     for (const item of input.match.evidence) {
       if (!companyRunIds.has(item.providerRunId)) continue;
       const provider = providerId(item.providerId);
-      const itemKey = `${input.candidateKey}:${item.providerSourceId}`;
+      const itemKey = `${input.candidateIdentity}:${item.providerSourceId}`;
       const observation = makeObservation({
         id: input.idFactory.create("company-source", itemKey),
         evidenceId: input.idFactory.create("company-evidence", itemKey),
@@ -162,7 +162,7 @@ export function buildCompanyEvidence(input: {
     }
     if (candidateEvidence.length > input.policy.minimumEvidenceItems) {
       resolvedCompany = {
-        schemaVersion: 1, id: input.idFactory.create("company", input.candidateKey), workspaceId: input.workspaceId,
+        schemaVersion: 1, id: input.idFactory.create("company", input.candidateIdentity), workspaceId: input.workspaceId,
         canonicalName: input.match.companyName, domain: normalizeCompanyRootDomain(input.match.companyDomain!),
         jurisdiction: null, confidence: input.match.confidence,
       };
@@ -177,9 +177,10 @@ export function incompleteInput(input: {
   now: Date;
 }): SelfProspectingPersistInput {
   const candidateKey = sourceCandidateKey(input.signal);
+  const candidateIdentity = `${input.job.id}:${candidateKey}`;
   const createdAt = input.now.toISOString();
   const opportunity = OpportunitySchema.parse({
-    schemaVersion: 1, id: input.idFactory.create("opportunity", candidateKey), workspaceId: input.job.workspaceId,
+    schemaVersion: 1, id: input.idFactory.create("opportunity", candidateIdentity), workspaceId: input.job.workspaceId,
     discoveryBriefId: input.job.discoveryBriefId, marketProfileId: "EN_DISCOVERY_ONLY", jurisdiction: null,
     signal: input.classified, evidenceIds: input.evidence.map(item => item.id), state: "INSUFFICIENT_EVIDENCE",
     companyId: null, assessmentId: null, createdAt, updatedAt: createdAt,

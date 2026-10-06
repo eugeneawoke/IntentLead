@@ -64,7 +64,7 @@ describe("evidence, signal semantics and assessment", () => {
     expect(SourceItemSchema.parse({ ...f.sourceItem, content: null, structuredFacts }).structuredFacts).toEqual(structuredFacts);
   });
   it("preserves family-specific subtypes", () => {
-    for (const signal of [f.signal, { family: "TRIGGER_EVENT", subtype: "hiring" }, { family: "DETECTED_PROBLEM", subtype: "website" }, { family: "VISIBILITY_FINDING", subtype: "ai_visibility" }]) {
+    for (const signal of [f.signal, { family: "BUSINESS_EVENT", subtype: "hiring" }, { family: "DETECTED_PROBLEM", subtype: "market_presence" }, { family: "MARKET_OBSERVATION", subtype: "visibility_gap" }]) {
       expect(SignalSchema.safeParse(signal).success).toBe(true);
     }
     expect(SignalSchema.safeParse({ family: "EXPRESSED_INTENT", subtype: "website" }).success).toBe(false);

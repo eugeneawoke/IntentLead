@@ -6,7 +6,8 @@ import { Zap } from "lucide-react";
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const active = pathname.startsWith("/workspace/opportunities");
+  const opportunitiesActive = pathname.includes("/opportunities");
+  const discoveryActive = pathname.endsWith("/workspace") || pathname.includes("/discovery");
 
   return (
     <aside
@@ -14,7 +15,7 @@ export default function Sidebar() {
       style={{ background: "var(--surface)", borderColor: "var(--border)" }}
     >
       <div className="flex items-center gap-2 px-5 py-4" style={{ borderBottom: "1px solid var(--border)" }}>
-        <Link href="/workspace/opportunities" className="flex min-h-11 items-center gap-2 rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2" aria-label="IntentLead Opportunities">
+        <Link href="/workspace/discovery" className="flex min-h-11 items-center gap-2 rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2" aria-label="IntentLead workspace">
           <Zap size={18} aria-hidden="true" style={{ color: "var(--accent)" }} />
           <span style={{ color: "var(--text)", fontWeight: 600, fontSize: 15, fontFamily: "Geist, sans-serif" }}>
             IntentLead
@@ -23,13 +24,26 @@ export default function Sidebar() {
       </div>
       <nav aria-label="Workspace" className="px-3 py-2">
         <Link
-          href="/workspace/opportunities"
-          aria-current={active ? "page" : undefined}
+          href="/workspace/discovery"
+          aria-current={discoveryActive ? "page" : undefined}
           className="flex min-h-11 items-center rounded-lg border px-3 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
           style={{
-            background: active ? "var(--surface-2)" : "transparent",
-            borderColor: active ? "var(--border)" : "transparent",
-            color: active ? "var(--text)" : "var(--text-muted)",
+            background: discoveryActive ? "var(--surface-2)" : "transparent",
+            borderColor: discoveryActive ? "var(--border)" : "transparent",
+            color: discoveryActive ? "var(--text)" : "var(--text-muted)",
+            textDecoration: "none",
+          }}
+        >
+          Discovery
+        </Link>
+        <Link
+          href="/workspace/opportunities"
+          aria-current={opportunitiesActive ? "page" : undefined}
+          className="mt-1 flex min-h-11 items-center rounded-lg border px-3 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+          style={{
+            background: opportunitiesActive ? "var(--surface-2)" : "transparent",
+            borderColor: opportunitiesActive ? "var(--border)" : "transparent",
+            color: opportunitiesActive ? "var(--text)" : "var(--text-muted)",
             textDecoration: "none",
           }}
         >

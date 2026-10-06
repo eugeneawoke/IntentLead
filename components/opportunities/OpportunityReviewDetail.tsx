@@ -31,6 +31,7 @@ function EvidenceFacts({ item }: { item: Detail["evidence"][number] }) {
     ["Employees", facts.employeeCount?.toLocaleString()],
     ["Technologies", facts.technologies?.join(", ")],
     ["Location", location],
+    ["Observed condition", facts.observedCondition],
     ["Observed problem category", facts.problemCategory?.replaceAll("_", " ")],
     ["Observed condition (fact)", facts.problem?.observedCondition],
     ["Measurement", measurement],

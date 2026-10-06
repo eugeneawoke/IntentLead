@@ -121,7 +121,11 @@ function safeSourceUrl(value: unknown): string | null {
     const host = url.hostname.toLowerCase();
     if (url.protocol !== "https:" || url.username || url.password || forbiddenHosts.has(host)
       || host !== rawHost || host.endsWith(".localhost") || host.endsWith(".local") || privateIp(host) || isIP(host)) return null;
-    url.search = "";
+    const queryEntries = [...url.searchParams.entries()];
+    const hackerNewsId = host === "news.ycombinator.com" && url.pathname === "/item" && !url.hash
+      && queryEntries.length === 1 && queryEntries[0]?.[0] === "id" && /^\d+$/.test(queryEntries[0][1])
+      ? queryEntries[0][1] : null;
+    url.search = hackerNewsId ? `?id=${hackerNewsId}` : "";
     url.hash = "";
     const sanitized = url.toString();
     return emailPattern.test(sanitized) || phonePattern.test(sanitized) ? null : sanitized;
@@ -144,11 +148,21 @@ function safeDetail(raw: unknown): OpportunityReviewDetail {
     "Evidence facts are shown separately from model interpretation.",
     "This discovery-only review contains no person or contact records.",
   ];
+  const allowedProviderLimitations = new Set([
+    "SYNTHETIC_CONTRACT_FIXTURE",
+    "NO_NETWORK",
+    "NOT_LIVE_PROVIDER_EVIDENCE",
+  ]);
+  const providerLimitations = Array.isArray(candidate.limitations)
+    ? candidate.limitations.filter((value): value is string => typeof value === "string" && allowedProviderLimitations.has(value))
+    : [];
   const evidenceStatus = candidate.evidenceStatus;
   if (evidenceStatus === "PARTIAL" || evidenceStatus === "MISSING") {
     baseLimitations.push("Some referenced evidence is missing or tombstoned.");
   }
-  return safeParse(OpportunityReviewDetailSchema, { ...candidate, evidence, limitations: baseLimitations }, "Opportunity review data is invalid");
+  return safeParse(OpportunityReviewDetailSchema, {
+    ...candidate, evidence, limitations: [...baseLimitations, ...new Set(providerLimitations)],
+  }, "Opportunity review data is invalid");
 }
 
 export async function listOpportunitiesForReview(

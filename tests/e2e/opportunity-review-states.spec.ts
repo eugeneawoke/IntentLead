@@ -12,7 +12,7 @@ const now = "2026-10-05T12:00:00.000Z";
 function record(id: string, status: "COMPLETE" | "PARTIAL" | "MISSING" = "COMPLETE"): OpportunityReviewDetail {
   const withEvidence = status !== "MISSING";
   return {
-    id, state: "HUMAN_REVIEW", signal: { family: "DETECTED_PROBLEM", subtype: "website" },
+    id, state: "HUMAN_REVIEW", signal: { family: "DETECTED_PROBLEM", subtype: "market_presence" },
     company: { name: `Company ${id.slice(0, 4)}`, domain: "company.example", confidence: 0.9 },
     assessment: {
       decision: "REVIEW", confidence: 0.8, evidenceStrength: 0.8, freshness: 0.9,

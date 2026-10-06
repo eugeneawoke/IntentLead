@@ -56,13 +56,13 @@ The Glook snapshot consumer commits `14097c4` and `3251300` are a dormant option
 
 ## Task D — Runnable zero-spend self-prospecting
 
-- [ ] Wire `createSelfProspectingHandler` into the worker through explicit dependency injection.
-- [ ] Add a fixture/no-network provider set with `maxTotalCost = 0` and fail-closed network guards.
-- [ ] Run discovery → evidence → company → assessment → review end to end.
-- [ ] Prove idempotent rerun, recovery, cancellation, tenant denial and zero personal/contact/message data.
-- [ ] Add the browser journey for a real recorded-company fixture and human review.
+- [x] Wire `createSelfProspectingHandler` into the worker through explicit dependency injection (2026-10-06).
+- [x] Add a fixture/no-network provider set with `maxTotalCost = 0` and fail-closed network guards (2026-10-06).
+- [x] Run discovery → evidence → company → assessment → review end to end (2026-10-06).
+- [x] Prove idempotent rerun, recovery, cancellation, tenant denial and zero personal/contact/message data (2026-10-06).
+- [x] Add the browser journey for an explicitly synthetic contract fixture and human review (2026-10-06). A recorded authorized sample remains a separate Task F gate.
 
-**Done when:** the worker produces a reviewable Opportunity instead of `CAPABILITY_UNAVAILABLE`, with zero spend and no legacy downstream action.
+**Done:** explicit fixture mode produces a reviewable Opportunity instead of `CAPABILITY_UNAVAILABLE`, with zero spend and no legacy downstream action. Its Acme data is synthetic and carries `SYNTHETIC_CONTRACT_FIXTURE`; it is not evidence for the later authorized-sample quality gate. `disabled` remains the default; live mode is unavailable. Full verify, browser and per-file isolated PostgreSQL evidence is recorded in `CURRENT_STATE_AUDIT.md`.
 
 ## Task E — Remove legacy schema bridge
 

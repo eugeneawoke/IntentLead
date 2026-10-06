@@ -64,27 +64,37 @@ export const DiscoveryCriteriaSchema = z.object({
   }).strict(),
 }).strict();
 
+export const OfferProfileDefinitionSchema = z.object({
+  summary: z.string().trim().min(1).max(500),
+  outcomes: z.array(z.string().trim().min(1).max(500)).max(20),
+  exclusions: z.array(z.string().trim().min(1).max(500)).max(20),
+}).strict();
+
+export const ICPDefinitionSchema = z.object({
+  description: z.string().trim().min(1).max(500),
+  companyAttributes: z.array(z.string().trim().min(1).max(500)).max(30),
+  exclusions: z.array(z.string().trim().min(1).max(500)).max(20),
+}).strict();
+
+export const OfferProfileContextSchema = z.object({
+  id: IdSchema,
+  name: z.string().trim().min(1),
+  definition: OfferProfileDefinitionSchema,
+}).strict();
+
+export const ICPDefinitionContextSchema = z.object({
+  id: IdSchema,
+  name: z.string().trim().min(1),
+  definition: ICPDefinitionSchema,
+}).strict();
+
 export const DiscoveryBriefSummarySchema = z.object({
   id: z.string().uuid(),
   state: z.enum(["DRAFT", "QUEUED", "RUNNING", "COMPLETED", "FAILED", "CANCELLED"]),
   objective: z.string().min(1).max(500),
   criteria: DiscoveryCriteriaSchema,
-  offer: z.object({
-    id: z.string().uuid(), name: z.string().min(1),
-    definition: z.object({
-      summary: z.string().min(1).max(500),
-      outcomes: z.array(z.string().min(1).max(500)).max(20),
-      exclusions: z.array(z.string().min(1).max(500)).max(20),
-    }).strict(),
-  }).strict(),
-  icp: z.object({
-    id: z.string().uuid(), name: z.string().min(1),
-    definition: z.object({
-      description: z.string().min(1).max(500),
-      companyAttributes: z.array(z.string().min(1).max(500)).max(30),
-      exclusions: z.array(z.string().min(1).max(500)).max(20),
-    }).strict(),
-  }).strict(),
+  offer: OfferProfileContextSchema.extend({ id: z.string().uuid() }),
+  icp: ICPDefinitionContextSchema.extend({ id: z.string().uuid() }),
   createdAt: z.string().datetime({ offset: true }),
   updatedAt: z.string().datetime({ offset: true }),
 }).strict();

@@ -32,5 +32,5 @@ export const DiscoveryCapabilitySchema = CapabilitySchema.extract([
 ]);
 export const RestrictedCapabilitySchema = CapabilitySchema.exclude(DiscoveryCapabilitySchema.options);
 export const SignalFamilySchema = z.enum([
-  "EXPRESSED_INTENT", "TRIGGER_EVENT", "DETECTED_PROBLEM", "VISIBILITY_FINDING",
+  "EXPRESSED_INTENT", "BUSINESS_EVENT", "DETECTED_PROBLEM", "MARKET_OBSERVATION",
 ]);

@@ -16,6 +16,7 @@ const migrations = [
   ["202610060014_task8_url_host_control_parity.sql", "to_regprocedure('public.intentlead_review_source_url_host_is_safe(text)') IS NULL"],
   ["202610060015_task8_dns_host_policy.sql", "to_regprocedure('public.intentlead_review_source_url_domain_is_allowed(text)') IS NULL"],
   ["202610060016_native_discovery_authority.sql", "to_regprocedure('public.intentlead_create_discovery_brief(jsonb,text)') IS NULL"],
+  ["202610060017_fixture_self_prospecting.sql", "to_regprocedure('public.intentlead_get_self_prospecting_context(uuid,text,uuid)') IS NULL"],
 ] as const;
 
 function dollarQuoted(value: string): string {
@@ -38,6 +39,11 @@ export async function bootstrapTask8Database(): Promise<void> {
       COMMIT;
     `, "intentlead-task8-bootstrap");
   }
+}
+
+export async function applyTaskDMigration(): Promise<void> {
+  const contents = await readFile(new URL("../../supabase/migrations/202610060017_fixture_self_prospecting.sql", import.meta.url), "utf8");
+  await sql(contents, "intentlead-taskd-migration");
 }
 
 export { asRole, sql };

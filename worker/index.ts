@@ -2,6 +2,9 @@ import { createWorkerApp } from "./app";
 import { getServiceClient } from "../lib/supabase/client";
 import { createSupabaseJobRepository, type JobDatabaseClient } from "./jobs/repository";
 import { createJobWorker, resolveHeartbeatIntervalMs } from "./jobs/worker";
+import {
+  createConfiguredSelfProspectingHandler, installFixtureNetworkGuard, resolveSelfProspectingMode,
+} from "./runtime";
 
 function log(level: string, meta: Record<string, unknown>, msg: string) {
   process.stdout.write(JSON.stringify({ level, ts: new Date().toISOString(), msg, ...meta }) + "\n");
@@ -32,18 +35,23 @@ function optionalPositiveInteger(name: string): number | undefined {
 }
 
 // Validate configuration and construct the durable poller before accepting HTTP.
-requiredEnvironment("NEXT_PUBLIC_SUPABASE_URL");
+const supabaseUrl = requiredEnvironment("NEXT_PUBLIC_SUPABASE_URL");
 requiredEnvironment("SUPABASE_SERVICE_ROLE_KEY");
 requiredEnvironment("WORKER_SECRET");
+const selfProspectingMode = resolveSelfProspectingMode(process.env.SELF_PROSPECTING_MODE);
 const concurrency = positiveInteger("WORKER_CONCURRENCY", 2, 1, 32);
 const leaseSeconds = positiveInteger("WORKER_LEASE_SECONDS", 60, 5, 3600);
 const heartbeatIntervalMs = resolveHeartbeatIntervalMs(
   leaseSeconds,
   optionalPositiveInteger("WORKER_HEARTBEAT_INTERVAL_MS"),
 );
-const repository = createSupabaseJobRepository(getServiceClient() as unknown as JobDatabaseClient);
+const serviceClient = getServiceClient() as unknown as JobDatabaseClient;
+installFixtureNetworkGuard({ mode: selfProspectingMode, supabaseUrl });
+const repository = createSupabaseJobRepository(serviceClient);
+const handler = createConfiguredSelfProspectingHandler({ mode: selfProspectingMode, client: serviceClient });
 const jobWorker = createJobWorker({
   repository,
+  handler,
   workerId: process.env.WORKER_ID?.trim() || `worker-${process.pid}`,
   concurrency,
   leaseSeconds,
@@ -53,7 +61,7 @@ const app = createWorkerApp(process.env.WORKER_SECRET, undefined, jobWorker.wake
 const port = positiveInteger("PORT", 3001, 1, 65535);
 const server = app.listen(port, () => {
   jobWorker.start();
-  log("info", { port, concurrency, leaseSeconds, heartbeatIntervalMs }, "Durable opportunity worker started");
+  log("info", { port, concurrency, leaseSeconds, heartbeatIntervalMs, selfProspectingMode }, "Durable opportunity worker started");
 });
 
 let shuttingDown = false;

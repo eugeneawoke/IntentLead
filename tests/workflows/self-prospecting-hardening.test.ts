@@ -4,7 +4,7 @@ import { createSelfProspectingHandler } from "../../worker/workflows/self-prospe
 import { candidateExternalStepKey } from "../../worker/workflows/self-prospecting-helpers";
 import type { SelfProspectingDependencies } from "../../types/self-prospecting";
 import {
-  companyCandidate, fixtureBrief, fixtureIds, fixtureProfile, freshSignal, qualifiedAssessment,
+  companyCandidate, fixtureBrief, fixtureIcp, fixtureIds, fixtureOffer, fixtureProfile, freshSignal, qualifiedAssessment,
 } from "../evals/opportunity-fixtures";
 
 const now = new Date("2026-10-05T12:00:00.000Z");
@@ -56,7 +56,8 @@ function makeHarness(options: { publishedAt?: string; partialCompanyBudget?: boo
   });
   const dependencies = {
     loadContext: async () => ({ profile: fixtureProfile,
-      brief: options.unsupportedFamily ? { ...fixtureBrief, signalFamilies: ["TRIGGER_EVENT"] } : fixtureBrief }),
+      brief: options.unsupportedFamily ? { ...fixtureBrief, signalFamilies: ["BUSINESS_EVENT"] } : fixtureBrief,
+      offer: fixtureOffer, icp: fixtureIcp }),
     registry: {
       async search() { return asExecution(search); },
       async resolveCompany() {

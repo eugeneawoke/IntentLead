@@ -15,18 +15,12 @@ export default function WorkspaceOpportunityEntry() {
           className="text-2xl font-semibold sm:text-3xl"
           style={{ color: "var(--text)", letterSpacing: "-0.02em", fontFamily: "Geist, sans-serif" }}
         >
-          Review Opportunities
+          Discover and review Opportunities
         </h1>
         <p className="mt-3 max-w-2xl text-sm leading-6" style={{ color: "var(--text-muted)" }}>
-          Inspect public evidence and record a human assessment. Contact enrichment, drafts, and outreach are not part of this workspace.
+          Define the offer and ideal company, run the zero-spend synthetic contract fixture, then inspect evidence and record a human assessment. Website context means products, audience and positioning only—not a technical audit.
         </p>
-        <Link
-          href="/workspace/opportunities"
-          className="mt-6 inline-flex min-h-11 items-center rounded-full px-5 py-3 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2"
-          style={{ background: "var(--accent)", color: "var(--accent-fg)", textDecoration: "none" }}
-        >
-          View Opportunities
-        </Link>
+        <div className="mt-6 flex flex-wrap gap-3"><Link href="/workspace/discovery" className="inline-flex min-h-11 items-center rounded-full px-5 py-3 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2" style={{ background: "var(--accent)", color: "var(--accent-fg)", textDecoration: "none" }}>Create discovery brief</Link><Link href="/workspace/opportunities" className="inline-flex min-h-11 items-center rounded-lg border px-5 py-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2" style={{ borderColor: "var(--border)", color: "var(--text)", textDecoration: "none" }}>Review Opportunities</Link></div>
       </div>
     </section>
   );

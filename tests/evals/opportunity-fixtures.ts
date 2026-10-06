@@ -33,6 +33,26 @@ export const fixtureBrief = {
   signalFamilies: ["EXPRESSED_INTENT"],
 };
 
+export const fixtureOffer = {
+  id: fixtureBrief.offerProfileId,
+  name: "IntentLead Opportunity Intelligence",
+  definition: {
+    summary: "Evidence-backed company opportunity research",
+    outcomes: ["Reduce manual company qualification"],
+    exclusions: [],
+  },
+};
+
+export const fixtureIcp = {
+  id: fixtureBrief.icpDefinitionId,
+  name: "B2B growth teams",
+  definition: {
+    description: "Small B2B growth teams using evidence-driven prospecting",
+    companyAttributes: ["B2B company"],
+    exclusions: [],
+  },
+};
+
 export const freshSignal = {
   source: "hackernews" as const,
   externalId: "fixture-story-1",

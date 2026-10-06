@@ -26,7 +26,7 @@ const listPayload = { items: [], nextCursor: null, hasMore: false };
 const detailPayload = {
   id: "6a4b2e8e-f3c8-45be-a1cb-9abc12345678",
   state: "HUMAN_REVIEW",
-  signal: { family: "DETECTED_PROBLEM", subtype: "website" },
+  signal: { family: "DETECTED_PROBLEM", subtype: "market_presence" },
   company: { name: "Acme Example", domain: "acme.example", confidence: 0.92 },
   assessment: null,
   evidence: [],

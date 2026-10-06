@@ -30,11 +30,11 @@ export function classifySignal(content: string): SignalClassification | null {
     const subtype = /\b(?:hiring)\b/u.test(value) ? "hiring"
       : /\b(?:funding|raised)\b/u.test(value) ? "funding"
         : /\b(?:launched|launching)\b/u.test(value) ? "launch" : "expansion";
-    return { signal: { family: "TRIGGER_EVENT", subtype }, explicit: false };
+    return { signal: { family: "BUSINESS_EVENT", subtype }, explicit: false };
   }
   if (/\b(?:broken|missing|inconsistent|error|failed|failure|zero|no reviews|bad reviews|not indexed)\b/u.test(value)) {
-    const subtype = /\b(?:review|reviews)\b/u.test(value) ? "reviews"
-      : /\b(?:website|indexed|indexing)\b/u.test(value) ? "website" : "operations";
+    const subtype = /\b(?:review|reviews)\b/u.test(value) ? "reputation"
+      : /\b(?:website|indexed|indexing)\b/u.test(value) ? "market_presence" : "operations";
     return { signal: { family: "DETECTED_PROBLEM", subtype }, explicit: false };
   }
   return null;

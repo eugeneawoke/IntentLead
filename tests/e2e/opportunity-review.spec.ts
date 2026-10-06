@@ -11,7 +11,7 @@ const capturedAt = "2026-10-05T12:00:00.000Z";
 function fixture(id: string, name: string): OpportunityReviewDetail {
   return {
     id, state: "HUMAN_REVIEW",
-    signal: { family: "DETECTED_PROBLEM", subtype: "website" },
+    signal: { family: "DETECTED_PROBLEM", subtype: "market_presence" },
     company: { name, domain: `${name.toLowerCase().replaceAll(" ", "-")}.example`, confidence: 0.92 },
     assessment: { decision: "REVIEW", confidence: 0.88, evidenceStrength: 0.9, freshness: 1, commercialImpact: 0.8, icpFit: 0.85, actionability: 0.8 },
     evidenceCount: 1, evidenceStatus: "COMPLETE", latestReview: null,

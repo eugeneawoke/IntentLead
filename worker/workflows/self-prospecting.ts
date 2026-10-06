@@ -1,5 +1,7 @@
 import { OpportunityAssessmentSchema, OpportunitySchema } from "../../lib/domain/schemas/opportunity";
-import { DiscoveryBriefSchema, MarketProfileSchema } from "../../lib/domain/schemas/market-profile";
+import {
+  DiscoveryBriefSchema, ICPDefinitionContextSchema, MarketProfileSchema, OfferProfileContextSchema,
+} from "../../lib/domain/schemas/market-profile";
 import { classifySignal, validateAssessmentGrounding } from "../../lib/domain/evidence-policy";
 import { authorizeSelfProspectingCapability, evaluateOpportunityPolicy } from "../../lib/domain/opportunity-policy";
 import type { JobHandler, JobHandlerResult } from "../jobs/worker";
@@ -23,10 +25,13 @@ export function createSelfProspectingHandler(dependencies: SelfProspectingDepend
     const context = await dependencies.loadContext(job);
     const profile = MarketProfileSchema.parse(context.profile);
     const brief = DiscoveryBriefSchema.parse(context.brief);
+    const offer = OfferProfileContextSchema.parse(context.offer);
+    const icp = ICPDefinitionContextSchema.parse(context.icp);
     if (job.marketProfileId !== "EN_DISCOVERY_ONLY" || job.capability !== "SOURCE_SEARCH"
       || !job.discoveryBriefId || profile.id !== "EN_DISCOVERY_ONLY" || profile.workflow !== "DISCOVERY_ONLY"
       || brief.id !== job.discoveryBriefId || brief.workspaceId !== job.workspaceId
-      || brief.marketProfileId !== profile.id || profile.workspaceId !== job.workspaceId) {
+      || brief.marketProfileId !== profile.id || profile.workspaceId !== job.workspaceId
+      || offer.id !== brief.offerProfileId || icp.id !== brief.icpDefinitionId) {
       return { state: "COMPLETED", result: { outcome: "POLICY_DENIED", opportunityIds: [] }, error: null };
     }
     if ((["SOURCE_SEARCH", "COMPANY_RESOLUTION", "OPPORTUNITY_ASSESSMENT", "HUMAN_REVIEW"] as const)
@@ -73,6 +78,7 @@ export function createSelfProspectingHandler(dependencies: SelfProspectingDepend
     for (const signal of signals) {
       assertNotAborted(execution.signal);
       const candidateKey = sourceCandidateKey(signal);
+      const candidateIdentity = `${job.id}:${candidateKey}`;
       const previous = await dependencies.persistence.findCandidate(job, candidateKey);
       if (previous) {
         recordCandidate(previous.opportunityId, previous.state);
@@ -82,8 +88,8 @@ export function createSelfProspectingHandler(dependencies: SelfProspectingDepend
       const sourceRun = sourceRuns.find(run => run.provider === provider);
       if (!sourceRun) throw new Error("signal provider run is missing from its registry result");
       const capturedAt = dependencies.now().toISOString();
-      const sourceId = dependencies.idFactory.create("source-item", candidateKey);
-      const evidenceId = dependencies.idFactory.create("signal-evidence", candidateKey);
+      const sourceId = dependencies.idFactory.create("source-item", candidateIdentity);
+      const evidenceId = dependencies.idFactory.create("signal-evidence", candidateIdentity);
       const sourceEvidence = makeObservation({
         id: sourceId, evidenceId, workspaceId: job.workspaceId, provider, providerRunId: sourceRun.id,
         externalId: signal.externalId, sourceUrl: signal.sourceUrl, content: signal.content,
@@ -185,7 +191,7 @@ export function createSelfProspectingHandler(dependencies: SelfProspectingDepend
 
       const match = companyResult.execution.outcome.value.length === 1 ? companyResult.execution.outcome.value[0] : null;
       const { candidateEvidence, candidateSources, resolvedCompany, supportedMatch: companyIsSupported } = buildCompanyEvidence({
-        candidateKey, workspaceId: job.workspaceId, match, companyRuns,
+        candidateKey, candidateIdentity, workspaceId: job.workspaceId, match, companyRuns,
         baseEvidence: [sourceEvidence.evidence], baseSources: [sourceEvidence.source],
         idFactory: dependencies.idFactory, policy,
       });
@@ -215,7 +221,14 @@ export function createSelfProspectingHandler(dependencies: SelfProspectingDepend
       const modelInput = {
         messages: [
           { role: "system" as const, content: OPPORTUNITY_ASSESSMENT_SYSTEM_CONTRACT },
-          { role: "user" as const, content: JSON.stringify({ signal: sourceEvidence.evidence.excerpt, evidence: evidenceForModel }) },
+          { role: "user" as const, content: JSON.stringify({
+            offer,
+            icp,
+            discoveryObjective: brief.objective,
+            exclusions: brief.exclusions,
+            signal: sourceEvidence.evidence.excerpt,
+            evidence: evidenceForModel,
+          }) },
         ] as const,
       };
       const assessment = await execution.runExternalOperation(
@@ -238,8 +251,8 @@ export function createSelfProspectingHandler(dependencies: SelfProspectingDepend
       });
       await execution.checkpoint({ workflow: "SELF_PROSPECTING_V1", step: "POLICY_DECISION", candidateKey, decision: evaluation.decision });
       assertNotAborted(execution.signal);
-      const opportunityId = dependencies.idFactory.create("opportunity", candidateKey);
-      const assessmentId = dependencies.idFactory.create("assessment", candidateKey);
+      const opportunityId = dependencies.idFactory.create("opportunity", candidateIdentity);
+      const assessmentId = dependencies.idFactory.create("assessment", candidateIdentity);
       const assessedAt = dependencies.now().toISOString();
       const assessmentReasons = [...new Set([
         ...evaluation.reasons,
