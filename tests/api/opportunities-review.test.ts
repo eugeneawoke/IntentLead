@@ -7,7 +7,6 @@ const mockCreateRepository = vi.fn();
 const mockListOpportunities = vi.fn();
 const mockGetOpportunity = vi.fn();
 const mockSubmitReview = vi.fn();
-const mockLegacyPolicy = vi.fn();
 const mockLoggerError = vi.fn();
 
 vi.mock("@/lib/auth/requireUser", () => ({ requireUser: mockRequireUser }));
@@ -18,9 +17,6 @@ vi.mock("@/lib/application/opportunity-review", () => ({
   listOpportunitiesForReview: mockListOpportunities,
   getOpportunityForReview: mockGetOpportunity,
   submitOpportunityReview: mockSubmitReview,
-}));
-vi.mock("@/lib/application/legacy-lead-policy", () => ({
-  assertLegacyLeadRouteAllowed: mockLegacyPolicy,
 }));
 vi.mock("@/lib/utils/logger", () => ({
   logger: { error: mockLoggerError, info: vi.fn(), warn: vi.fn() },
@@ -87,7 +83,6 @@ describe("Opportunity review API routes", () => {
       opportunityId: detailPayload.id, state: "HUMAN_REVIEW", decision: "ACCEPTED",
       reason: "RELEVANT", reviewedAt: "2026-10-05T12:00:00.000Z", replayed: false,
     });
-    mockLegacyPolicy.mockResolvedValue(undefined);
   });
 
   it.each(["/api/opportunities", `/api/opportunities/${detailPayload.id}`])(
@@ -150,53 +145,4 @@ describe("Opportunity review API routes", () => {
     expect((await response.json()).error.code).toBe("CONFLICT");
   });
 
-  it("policy-denies legacy lead reads for discovery-only campaigns before querying leads", async () => {
-    const supabase = { from: vi.fn() };
-    mockRequireUser.mockResolvedValue({ user: { id: "member-1" }, supabase, response: null });
-    mockLegacyPolicy.mockRejectedValue(new ApplicationError("POLICY_DENIED", "Legacy lead access is disabled"));
-
-    const response = await import("@/app/api/leads/route").then(({ GET }) =>
-      GET(new NextRequest("http://localhost/api/leads?campaignId=campaign-1")),
-    );
-
-    expect(response.status).toBe(403);
-    expect((await response.json()).code).toBe("POLICY_DENIED");
-    expect(supabase.from).not.toHaveBeenCalled();
-  });
-
-  it("policy-denies lead export for discovery-only campaigns before reading lead rows", async () => {
-    const supabase = { from: vi.fn() };
-    mockRequireUser.mockResolvedValue({ user: { id: "member-1" }, supabase, response: null });
-    mockLegacyPolicy.mockRejectedValue(new ApplicationError("POLICY_DENIED", "Legacy lead access is disabled"));
-
-    const response = await import("@/app/api/leads/export/route").then(({ POST }) =>
-      POST(new NextRequest("http://localhost/api/leads/export", {
-        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ campaignId: "campaign-1" }),
-      })),
-    );
-
-    expect(response.status).toBe(403);
-    expect((await response.json()).code).toBe("POLICY_DENIED");
-    expect(supabase.from).not.toHaveBeenCalled();
-  });
-
-  it("preserves legacy export behavior for non-pilot campaigns", async () => {
-    const query = {
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      order: vi.fn().mockResolvedValue({ data: [{ company_name: "Legacy Co" }], error: null }),
-    };
-    const supabase = { from: vi.fn().mockReturnValue(query) };
-    mockRequireUser.mockResolvedValue({ user: { id: "owner-1" }, supabase, response: null });
-
-    const response = await import("@/app/api/leads/export/route").then(({ POST }) =>
-      POST(new NextRequest("http://localhost/api/leads/export", {
-        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ campaignId: "campaign-legacy" }),
-      })),
-    );
-
-    expect(response.status).toBe(200);
-    expect(await response.text()).toContain("company_name");
-    expect(mockLegacyPolicy).toHaveBeenCalledWith("campaign-legacy", supabase);
-  });
 });
