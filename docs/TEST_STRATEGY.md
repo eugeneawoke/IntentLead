@@ -3,31 +3,42 @@
 ## Required layers
 
 1. Contract tests for every versioned domain/provider schema.
-2. Unit tests for deterministic policy, state transitions and normalization.
+2. Unit tests for deterministic policy, source planning, state transitions and normalization.
 3. Disposable PostgreSQL tests for migrations, RLS, concurrency, leases, deletion and idempotency.
 4. Application integration tests for capability authorization and durable jobs.
-5. Provider fixture tests for normalization, timeout, retry, cost and provenance.
-6. AI evaluation fixtures for Opportunity quality and injection resistance.
-7. Browser tests for discovery, job progress, Opportunity evidence and human review.
+5. Provider fixture tests for normalization, health, timeout, retry, fallback, cost and provenance.
+6. Product/AI eval fixtures for Opportunity, buyer/contact and grounded-draft quality.
+7. Browser tests for intake, progress, Opportunity evidence, contact/draft inspection and human review.
 8. Production build and both app/worker typechecks.
 
-## Mandatory first-pilot cases
+## Mandatory first-slice cases
 
 - foreign workspace denial through every API/RPC/read path;
-- fixture/no-network execution with total provider cost zero;
+- at least 20 confirmed signals in a full-size recorded corpus, with raw/confirmed/unique-company/package counts separated;
+- transparent `PARTIAL` when quality-valid results are fewer than the requested target;
+- source plan varies correctly for global SaaS, CIS and local-business briefs;
+- unavailable/prohibited providers are never selected;
 - discovery job recovery, cancellation and idempotent rerun;
 - evidence remains accessible, immutable and correctly scoped;
-- wrong-company, weak, stale, duplicate and non-commercial candidates reject cleanly;
-- external text cannot create evidence or alter instructions;
-- no personal-contact, message, mailbox, send or billing capability is invoked or rendered;
-- retired lead/export/message routes are absent or return an explicit retired response;
-- direct Glook table access is unreachable;
-- owner-authorized deletion removes or policy-tombstones all owned workflow data.
+- wrong-company, wrong-person, weak, stale, duplicate and non-commercial candidates reject cleanly;
+- every delivered contact has source, current company/role relation, verification state and freshness;
+- no guessed email, role or identity;
+- every material draft claim references evidence; unsupported claims fail closed;
+- external text cannot create evidence, alter instructions or invoke providers/actions;
+- no send, mailbox, sequence, follow-up, delivery-tracking or billing capability is invoked or rendered;
+- direct Glook table access remains unreachable;
+- owner-authorized deletion removes/redacts source, contact and draft data according to policy.
+
+## Reliability targets
+
+- tenancy, no-send, idempotency and provenance deterministic invariants: `pass^3 = 1.00`;
+- capability/product evals: `pass@3 >= 0.90` on versioned recorded fixtures;
+- ambiguous product value requires human adjudication rather than a flaky model-only gate.
 
 ## Gates
 
-During implementation and before an intermediate commit: run only focused tests for directly changed behavior, plus a relevant typecheck or lint check when the change can affect compilation or static rules. Do not repeat a green repository-wide suite for unrelated follow-up changes or documentation-only edits.
+During implementation and before an intermediate commit: run focused tests for directly changed behavior, plus the relevant typecheck/lint when compilation or static rules can change. Do not repeat a green repository-wide suite after unrelated documentation or narrow fixture edits.
 
-Before dogfood or at the end of a milestone: run the full `npm run verify`, disposable DB suite, browser journey, security/evaluation suite and independent functional/security review once. After a failure, rerun only the failed or directly affected set; repeat the full gate only if the fix has broad cross-layer impact.
+At the end of a milestone: run `npm run verify`, the relevant disposable DB suite, focused browser journeys, security/product evals and independent functional/security/frontend review once. After a failure, rerun only the failed or directly affected set; repeat the full gate only when the fix is broad.
 
 No live-provider smoke, remote migration or production canary is implied by a local green build.

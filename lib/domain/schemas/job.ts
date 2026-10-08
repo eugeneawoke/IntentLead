@@ -1,12 +1,12 @@
 import { z } from "zod";
 import {
-  CapabilitySchema, DiscoveryCapabilitySchema, IdSchema, MarketProfileIdSchema,
+  DiscoveryCapabilitySchema, IdSchema, MarketProfileIdSchema,
   NonEmptyStringSchema, ScopedRecordShape, TimestampSchema,
 } from "./common";
 
 const errorShape = {
   schemaVersion: z.literal(1), message: NonEmptyStringSchema,
-  capability: CapabilitySchema, traceId: IdSchema,
+  capability: DiscoveryCapabilitySchema, traceId: IdSchema,
 };
 export const RetryableCapabilityErrorSchema = z.object({
   ...errorShape, retryable: z.literal(true),
@@ -25,7 +25,7 @@ export const CapabilityErrorSchema = z.discriminatedUnion("retryable", [
 ]);
 
 const jobShape = {
-  ...ScopedRecordShape, capability: CapabilitySchema, marketProfileId: MarketProfileIdSchema,
+  ...ScopedRecordShape, capability: DiscoveryCapabilitySchema, marketProfileId: MarketProfileIdSchema,
   discoveryBriefId: IdSchema.nullable(), idempotencyKey: IdSchema, traceId: IdSchema,
   attempt: z.number().int().nonnegative(), maxAttempts: z.number().int().positive(),
   createdAt: TimestampSchema, updatedAt: TimestampSchema,
@@ -44,7 +44,6 @@ export const JobSchema = z.discriminatedUnion("state", [
   z.object({ ...jobShape, state: z.literal("CANCELLED"), cancelledAt: TimestampSchema, reason: NonEmptyStringSchema }).strict(),
 ]).refine(job => job.attempt <= job.maxAttempts, "Attempt exceeds retry budget")
   .refine(job => job.state !== "RETRY_WAIT" || job.attempt < job.maxAttempts, "Retry budget exhausted")
-  .refine(job => job.marketProfileId !== "EN_DISCOVERY_ONLY" || DiscoveryCapabilitySchema.safeParse(job.capability).success, "Capability disabled for discovery-only jobs")
   .refine(job => Date.parse(job.updatedAt) >= Date.parse(job.createdAt), "updatedAt precedes createdAt")
   .superRefine((job, ctx) => {
     const created = Date.parse(job.createdAt);
@@ -72,5 +71,16 @@ export const JobSchema = z.discriminatedUnion("state", [
       checkOccurredAt("completedAt", job.completedAt);
     }
     if (job.state === "CANCELLED") checkOccurredAt("cancelledAt", job.cancelledAt);
+    const errors = job.state === "PARTIAL" ? job.errors
+      : job.state === "RETRY_WAIT" || job.state === "FAILED" ? [job.error] : [];
+    errors.forEach((error, index) => {
+      if (error.capability !== job.capability) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: job.state === "PARTIAL" ? ["errors", index, "capability"] : ["error", "capability"],
+          message: "Job error capability must match the job capability",
+        });
+      }
+    });
     // No wall-clock comparison: recovery must still parse stale leases and overdue retries.
   });

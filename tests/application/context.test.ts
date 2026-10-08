@@ -12,7 +12,7 @@ function contextRow(overrides: Record<string, unknown> = {}) {
     discovery_brief_id: "brief-1", workspace_id: "workspace-from-db",
     profile_key: "EN_DISCOVERY_ONLY", workflow: "DISCOVERY_ONLY", configuration: profileConfig,
     capabilities: ["SOURCE_SEARCH", "COMPANY_RESOLUTION", "OPPORTUNITY_ASSESSMENT", "HUMAN_REVIEW"],
-    disabled_capabilities: ["WEB_FETCH"],
+    disabled_capabilities: ["WEB_FETCH", "MAILBOX_CONNECT", "MESSAGE_SEND", "SEQUENCE_RUN", "FOLLOW_UP", "DELIVERY_TRACKING"],
     ...overrides,
   };
 }

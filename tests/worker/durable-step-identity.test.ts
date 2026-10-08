@@ -7,7 +7,7 @@ import { candidateExternalStepKey } from "../../worker/workflows/self-prospectin
 const profile: MarketProfile = {
   schemaVersion: 1, id: "EN_DISCOVERY_ONLY", workspaceId: "workspace-1", jurisdictions: [], regions: [],
   languages: ["en"], capabilities: ["SOURCE_SEARCH", "COMPANY_RESOLUTION", "OPPORTUNITY_ASSESSMENT", "HUMAN_REVIEW"],
-  disabledCapabilities: [],
+  disabledCapabilities: ["MAILBOX_CONNECT", "MESSAGE_SEND", "SEQUENCE_RUN", "FOLLOW_UP", "DELIVERY_TRACKING"],
   legalPolicyId: "legal-v1", retentionPolicyId: "retention-v1",
   defaultCurrency: "USD", timezone: "UTC", workflow: "DISCOVERY_ONLY",
 };

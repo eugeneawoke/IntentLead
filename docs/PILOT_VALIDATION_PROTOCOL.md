@@ -1,22 +1,38 @@
-# Self-prospecting validation protocol
+# Pilot validation protocol
 
 ## Pilot unit
 
-One unit is one reviewed Opportunity for one company and one OfferProfile/ICPDefinition.
+A complete run starts from one OfferProfile, ICPDefinition and MarketProfile and requests at least 20 confirmed evidence-backed signals. The report distinguishes:
 
-## Preregistration
+- raw candidates;
+- confirmed signals;
+- unique resolved companies;
+- qualified Opportunities;
+- buyer-resolved Opportunities;
+- verified-contact packages;
+- grounded drafts;
+- human-accepted packages.
 
-Record sample size, evidence sources, time window, acceptance threshold, maximum wrong-company rate, duplicate policy, cost ceiling and stop conditions before running the sample.
+Twenty is not permission to lower quality. If the authorized source portfolio is exhausted first, the job returns `PARTIAL` with exact shortfall and reasons.
 
-## Metrics
+## Pass conditions
 
-- accepted / reviewed;
-- needs-research / reviewed;
-- wrong-company, weak-evidence, stale, duplicate and poor-fit rates;
-- evidence accessibility and provenance completeness;
-- latency and cost per accepted Opportunity;
-- reviewer notes and repeat-usage intent.
+- zero unsupported material claims;
+- zero duplicate packages;
+- every result has inspectable evidence and provenance;
+- company, buyer and contact accuracy are measured separately;
+- every delivered contact has a source and verification state;
+- every material draft claim references evidence;
+- source mix and provider funnel are reported;
+- no unapproved spend;
+- no message transmission, mailbox, sequence or follow-up path;
+- founder/human reviewer can understand why each company was selected and what to do next.
 
-## Current authorized run
+## Execution stages
 
-Use recorded authorized evidence, fixture/no-network providers and zero spend. Do not collect personal contacts or generate/send messages. The result is GO, REWORK or STOP for a larger discovery sample.
+1. Engineering fixture verifies deterministic contracts and invariants.
+2. Recorded authorized evidence verifies the full product-shaped flow without live calls.
+3. Explicitly enabled free/legal adapters verify live discovery after access review.
+4. Paid-provider quality is evaluated only after a separate budget authorization.
+
+The result is GO, REWORK or STOP for a larger sample. Infrastructure success alone is not product proof.

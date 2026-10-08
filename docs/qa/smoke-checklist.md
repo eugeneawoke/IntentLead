@@ -23,7 +23,8 @@
 
 ## Negative product boundary
 
-- [ ] No contact, email, message, mailbox, send, sequence or delivery control exists.
+- [ ] Verified contact provenance and grounded copy/export are visible when available.
+- [ ] No message transmission, mailbox, send, sequence, follow-up or delivery control exists.
 - [ ] Legacy lead/export/message routes are absent or explicitly retired.
 - [ ] No direct Glook table read occurs.
 - [ ] Website content, if present, is labeled business context rather than an automatic audit.

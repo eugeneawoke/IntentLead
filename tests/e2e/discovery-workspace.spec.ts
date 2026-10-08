@@ -106,10 +106,10 @@ test("creates and queues a zero-spend discovery brief without legacy downstream 
   await page.getByRole("button", { name: "Create discovery brief" }).click();
   await expect(page.getByRole("status")).toContainText("Discovery brief created");
   await expect(page.getByRole("heading", { name: /Find companies showing/ })).toBeVisible();
-  await page.getByRole("button", { name: "Run zero-spend fixture" }).click();
-  await expect(page.getByRole("status")).toContainText("network cost remains $0");
+  await page.getByRole("button", { name: "Run fixture" }).click();
+  await expect(page.locator('p[role="status"]')).toContainText("network cost remains $0");
   await expect(page.getByText("QUEUED", { exact: true })).toBeVisible();
-  const reviewLink = page.getByRole("link", { name: "Review Opportunities" }).last();
+  const reviewLink = page.getByRole("link", { name: "Review" }).last();
   await expect(reviewLink).toHaveAttribute("href", "/e2e-fixtures/opportunities");
   await reviewLink.click();
   await page.getByRole("link", { name: /Acme Example/ }).click();

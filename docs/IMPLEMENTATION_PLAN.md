@@ -1,90 +1,120 @@
-# Opportunity Core implementation plan
+# Opportunity package implementation plan
 
-**Status:** Active, revised 2026-10-06.
+**Status:** Active, corrected 2026-10-06.
 
 ## Goal
 
-Deliver a runnable, zero-spend self-prospecting workflow that produces evidence-backed Opportunities for human review, while removing the old lead/email/outreach product from active code and documentation.
+Deliver the actual first vertical slice: a preserved Signal Dark product experience and a reproducible self-prospecting workflow that finds at least 20 confirmed signals, resolves companies, identifies relevant buyers, verifies available contacts, prepares evidence-grounded drafts and stops before sending.
 
-## Constraints
+## Current authorization
 
-- local implementation only; no production deploy or migration;
-- no paid API calls or provider spend;
-- no personal-contact enrichment;
-- no message sending, mailbox integration, sequences or delivery tracking;
-- no Glook, website-audit or AI Visibility dependency;
-- GitNexus impact before symbol edits and detect-changes before commits;
-- backend, database, frontend and independent review gates remain mandatory.
+- local development, migrations and tests are allowed;
+- production deploy and production migration are not allowed;
+- paid API calls/provider spend are not allowed;
+- real or automatic sending is not allowed;
+- free/legal provider adapters, fixtures, recorded evidence and missing-credential behavior may be implemented;
+- GitNexus impact/detect-changes, focused tests and independent review remain required;
+- repository-wide gates run at milestone boundaries, not after every small edit.
 
-## Verified baseline
+## Corrected baseline
 
-The previous Task 0–8 work established verification commands, security fixes, versioned Opportunity contracts, additive Opportunity/job schema, durable runtime, provider registry/provenance, discovery-only workflow and human review UI. Those commits remain implementation evidence in Git; their obsolete Lead/outreach migration assumptions are not the active plan.
+Tasks 0–8 and Tasks A–F produced valuable Opportunity contracts, tenant isolation, durable jobs, provider registry, evidence provenance, company resolution, review UI and test infrastructure.
 
-The Glook snapshot consumer commits `14097c4` and `3251300` are a dormant optional adapter. Glook producer work is no longer on the critical path. Active direct-table reads still must be removed as security/ownership debt.
+The 2026-10-06 reset also introduced two regressions that must be corrected:
 
-## Task A — Canonical reset and legacy inventory
+1. the established public visual layer was deleted instead of having its copy/data flow adapted;
+2. buyer/contact/draft capabilities and the multi-source product were incorrectly declared out of scope.
 
-- [x] Rewrite active product, domain, architecture, roadmap, capability and execution documents (2026-10-06).
-- [x] Remove obsolete root product/spec/stack documents from the active repository; Git retains history (2026-10-06).
-- [x] Remove committed AI Visibility and verified-package credit ADRs from active decisions (2026-10-06).
-- [x] Update agent instructions and design language so old terminology cannot re-enter implementation (2026-10-06).
-- [x] Verify internal links and scan active docs for conflicting target semantics (2026-10-06).
+Historical commits remain implementation evidence, not current product authority.
 
-**Done when:** active documentation contains one Opportunity Intelligence model and a forward-only execution path.
+## Task G — Correct governance and define evals
 
-## Task B — Remove immediately isolated legacy runtime
+- [x] Restore the agreed product path in PRODUCT, DOMAIN_MODEL, ARCHITECTURE and ROADMAP (2026-10-06).
+- [x] Reconcile INDEX, CAPABILITY_MAP, PROVIDER_MATRIX, MARKET_PROFILES, TEST_STRATEGY, AI_EVALUATION_STRATEGY, backlog, current-state audit and user actions (2026-10-06; link and contradiction audit passed).
+- [x] Revise ADR-001 and add a durable buyer/contact/draft/no-send decision (2026-10-06; ADR-009).
+- [x] Reconcile AGENTS.md and CLAUDE.md locally; keep protected files out of commits (2026-10-06).
+- [x] Add a versioned capability/regression eval definition before code changes (2026-10-06; `tests/evals/opportunity-package-v1.md`).
 
-- [x] Re-index GitNexus and confirm impact for every removed symbol (2026-10-06).
-- [x] Add negative route/UI tests for retired lead export, lead delivery and message-generation surfaces (2026-10-06).
-- [x] Remove the unused linear worker pipeline and its provider wrappers/tests (`523939b`).
-- [x] Remove legacy lead API/export, lead cards/dashboard and message-generation code (`523939b`).
-- [x] Remove active Glook direct reads and warm-chat coupling; retain only the dormant versioned adapter with no runtime route (`92571ce`).
-- [x] Remove or replace public copy, pricing, comparison, methodology and roadmap claims based on verified leads, email waterfall, reply rate or sending (`92571ce`).
-- [x] Run focused tests, full `npm run verify` and retired-route browser smoke tests: 526 unit and 9/9 smoke checks passed (2026-10-06).
+**Done when:** no active document describes contacts/drafts as outside the product, no document implies HN-only discovery, and no document authorizes sending.
 
-**Done:** no reachable UI/API/worker path exposes the old lead/email/message product. Applied historical migrations and schema compatibility objects remain isolated debt for Task E.
+**Result (2026-10-06):** complete. Independent read-only review found no remaining contact, source, volume, pricing, freshness, website-analysis or sending contradiction; all local Markdown links resolve. Executable eval implementation remains a separate backlog item.
 
-## Task C — Native discovery authority
+## Task H — Restore the established visual system
 
-- [x] Add native OfferProfile and ICPDefinition persistence/contracts (`202610060016_native_discovery_authority.sql`).
-- [x] Make DiscoveryBrief the authority for create/list/context/enqueue/lifecycle/deletion (2026-10-06).
-- [x] Change application context and start commands from `campaignId` to `discoveryBriefId`; retire `/api/campaigns` (2026-10-06).
-- [x] Remove active legacy campaign synchronization and add cross-tenant/concurrency/deletion tests (2026-10-06).
-- [x] Keep applied migrations immutable; add a forward-only migration and verify it against the populated upgrade fixture in disposable PostgreSQL (4/4 Task C integration tests pass).
+- [x] Compare current UI with the last complete Signal Dark baseline and preserve the new Opportunity routes/backend (2026-10-08).
+- [x] Restore/adapt the previous hero, data-grid atmosphere, dock navigation, composer/intake interaction, workflow cards and footer treatment (2026-10-08).
+- [x] Restore only truthful package/source shells; do not revive unverified competitor, reply-rate, credit or delivery claims (2026-10-08).
+- [x] Apply the same visual language to the current discovery, Opportunity list/detail and target package shell; dedicated runtime buyer/contact/draft surfaces remain Task L (2026-10-08).
+- [x] Verify responsive layout, keyboard/focus, reduced motion and route integrity with focused browser checks and screenshots (2026-10-08).
 
-**Done:** native Opportunity execution does not read or write legacy campaign semantics. Historical bridge objects remain isolated for Task E reconciliation and removal.
+**Done when:** the product again looks like the established IntentLead experience, not the accidental stripped-down replacement, while presenting the corrected workflow.
 
-## Task D — Runnable zero-spend self-prospecting
+**Result (2026-10-08):** complete for the implemented surfaces. Signal Dark is restored without changing the approved interaction model. Independent frontend review findings on truthful future-state copy, market fallback, focus, contrast, reduced motion and CSS scoping were resolved. Focused browser journeys pass 2/2 and the production build passes.
 
-- [x] Wire `createSelfProspectingHandler` into the worker through explicit dependency injection (2026-10-06).
-- [x] Add a fixture/no-network provider set with `maxTotalCost = 0` and fail-closed network guards (2026-10-06).
-- [x] Run discovery → evidence → company → assessment → review end to end (2026-10-06).
-- [x] Prove idempotent rerun, recovery, cancellation, tenant denial and zero personal/contact/message data (2026-10-06).
-- [x] Add the browser journey for an explicitly synthetic contract fixture and human review (2026-10-06). A recorded authorized sample remains a separate Task F gate.
+## Task I — Reintroduce buyer, contact and draft contracts
 
-**Done:** explicit fixture mode produces a reviewable Opportunity instead of `CAPABILITY_UNAVAILABLE`, with zero spend and no legacy downstream action. Its Acme data is synthetic and carries `SYNTHETIC_CONTRACT_FIXTURE`; it is not evidence for the later authorized-sample quality gate. `disabled` remains the default; live mode is unavailable. Full verify, browser and per-file isolated PostgreSQL evidence is recorded in `CURRENT_STATE_AUDIT.md`.
+- [x] Restore or implement versioned `Person`, `BuyerCandidate`, `ContactPoint`, `ContactVerification`, `ConversationBrief`, `Draft` and `SuppressionEntry` schemas (2026-10-08).
+- [x] Add claim-to-evidence references and explicit contact verification/source states (2026-10-08).
+- [x] Extend MarketProfile capability policy so `EN_DISCOVERY_ONLY` permits research/contact/draft but denies every send/mailbox action (2026-10-08).
+- [x] Add forward-only `intentlead_` migrations, RLS, indexes, deletion and idempotency rules (2026-10-08; local/disposable only).
+- [x] Add negative cross-tenant, unsupported-claim, invalid-contact, stale-binding and suppression tests (2026-10-08).
 
-## Task E — Remove legacy schema bridge
+**Done when:** a qualified Opportunity can become a tenant-safe, evidence-grounded package without any sending capability.
 
-- [x] Reconcile local legacy rows needed for tests (2026-10-06).
-- [x] Remove `legacy_campaign_id`, old helper RPCs and remaining foreign-key dependencies (2026-10-06).
-- [x] Add a forward-only cleanup migration for obsolete `campaigns`, `signals`, `leads`, `messages`, chat/contact/outreach/package tables and old credit functions (2026-10-06).
-- [x] Verify clean database, populated upgrade, RLS, deletion, nonce preservation and restore-based rollback strategy in disposable PostgreSQL (2026-10-06).
+**Result (2026-10-08):** complete at the contract/storage boundary. Independent security review findings were resolved: canonical suppression hashes, current finite verification, buyer/contact binding, invalidation of stale packages, old/new claim coverage, Unicode offsets, research-only jobs/errors and contact policy/confidence are enforced. App/worker typechecks, 505/505 unit tests and the focused disposable-PostgreSQL suite (5/5) pass.
 
-**Done:** migration `202610060018_remove_legacy_schema.sql` leaves only Opportunity Core storage and RPCs, canonical discovery-only capabilities/states, provider/model cost events and worker nonce replay protection. Focused integration evidence exercises clean and populated upgrades, historical-state reconciliation, reapplication, tenant denial, deletion, review, leases/recovery and strict persistence provenance; the final blocker regression set passes 17/17. Rollback is database restore; the retired product graph is not recreated.
+## Task J — Restore and harden provider capabilities
 
-## Task F — Dogfood quality gate
+- [ ] Reuse the safe parts of historical Exa/Serper and Prospeo/Hunter/Apollo integrations behind current typed registries.
+- [ ] Separate `PERSON_SEARCH`, `EMAIL_FIND` and `EMAIL_VERIFY`; do not conflate “found” with “verified”.
+- [ ] Add official-site/public-business-contact fallback with exact source URL.
+- [ ] Implement health states: `configured`, `missing_credentials`, `disabled`, `rate_limited`, `error`.
+- [ ] Enforce cheap-to-expensive selection, per-provider reservation, timeout, fallback, cost and jurisdiction policies.
+- [ ] Do not make live paid calls; use fixtures/contracts and free-only adapters where separately safe.
 
-- [x] Run the full backend/frontend/database/security/evaluation suite (2026-10-06). Final evidence: 454/454 unit, 55/55 disposable-PostgreSQL integration and 16/16 browser checks, both typechecks, production build, lint with zero errors and nine pre-existing `fluid-glass.tsx` warnings.
-- [ ] Run one controlled self-prospecting sample on recorded authorized evidence.
-- [ ] Record acceptance, rejection reasons, company accuracy, evidence sufficiency, duplicates, latency and zero-spend cost.
-- [x] Obtain independent domain, security and frontend reviews; resolve blockers (2026-10-06). Review added the recorded-evidence runtime, measurable primary quality reasons and fail-closed acceptance when active evidence is absent; focused regressions passed without repeating the full gate.
-- [ ] Decide GO, REWORK or STOP for a larger sample.
+**Done when:** missing keys degrade honestly, contact provenance is retained and provider code cannot bypass budget or policy.
 
-**Current blocker:** code and quality gates are ready, but the repository intentionally contains no real or recorded business evidence. The controlled sample now waits for one founder-authorized, sanitized evidence bundle plus the approved self-prospecting Offer/ICP and preregistered decision thresholds. Synthetic fixture data cannot satisfy this gate.
+## Task K — Multi-source planning and adapters
 
-**Done when:** the result is a measured Opportunity-quality decision, not a demonstration of infrastructure.
+- [ ] Add a `SourcePlan` contract and deterministic provider selection by signal family, market, business type, access status and expected value.
+- [ ] Keep Reddit and HN; add prioritized free/legal adapters for GitHub and Stack Overflow/public web where practical.
+- [ ] Represent Product Hunt, reviews, jobs, news, maps and regional sources in the matrix even when status is manual-only/unavailable.
+- [ ] Add `GLOBAL_EN`, `CIS`, `RU`, `BY`, `KZ` and local-business profile foundations without scattered country conditionals.
+- [ ] Preserve raw candidate counts, confirmed-signal counts, unique companies and accepted Opportunities as separate metrics.
 
-## Following milestone
+**Done when:** no workflow is hard-coded to one source pair and capability gaps are explicit.
 
-After a successful dogfood gate, increase sample size and calibrate quality. AI Visibility and personal-contact/message workflows require a new product decision. Technical, SEO and AI-readiness website auditing is outside the accepted product scope.
+## Task L — Complete self-prospecting workflow
+
+- [ ] Extend the durable workflow through buyer resolution, contact verification and grounded draft persistence.
+- [ ] Make the requested target count at least 20 for a complete product run.
+- [ ] Add Opportunity-package UI and copy/export actions; no send action.
+- [ ] Record review reasons including wrong company, wrong person, contact invalid, weak signal, duplicate and unsupported inference.
+- [ ] Record optional human-reported outcome without mailbox integration.
+
+**Done when:** the reproducible flow reaches ICP → evidence → company → Opportunity → buyer → verified contact → grounded draft → human review.
+
+## Task M — Evaluation and controlled dogfood
+
+- [ ] Build fixtures covering expressed intent, detected problem, wrong company/person, stale/solved evidence, duplicate, missing/invalid contact, injection and unsupported draft claim.
+- [ ] Run a minimum-20 confirmed-signal evaluation with recorded or explicitly authorized free sources.
+- [ ] Measure unique companies, accepted packages, company/buyer/contact accuracy, duplicate rate, evidence accessibility, claim grounding, latency and cost.
+- [ ] Obtain independent domain, security and frontend review.
+- [ ] Decide GO, REWORK or STOP for a larger run.
+
+**Gate:** zero unsupported material claims, zero duplicate packages, zero unapproved spend, zero sending and complete provenance. Volume never overrides quality; a shortfall below 20 is reported as a shortfall, not padded.
+
+## Task N — CIS/local vertical slice
+
+- [ ] Select one market and high-value business category from the user brief rather than a permanent global ICP.
+- [ ] Implement the best available legal/free regional discovery path plus public-site contact fallback.
+- [ ] Produce concrete, quickly verifiable findings from business-wide evidence; do not force a website audit.
+- [ ] Reuse the same package, review and evaluation model.
+
+**Done when:** one regional run proves the architecture is not global-English-only.
+
+## Milestone quality gates
+
+At each task: focused tests for changed behavior, relevant typecheck/lint, GitNexus detect-changes and independent review.
+
+At the end of Tasks H, I/J, L and M: one proportional full gate covering app/worker typechecks, lint, unit tests, relevant disposable-PostgreSQL suite, production build and focused browser journeys. Do not rerun an unchanged green full gate after a narrow documentation or fixture correction.

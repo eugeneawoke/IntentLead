@@ -33,8 +33,13 @@ export const opportunity = {
 };
 export const marketProfile = {
   ...record, id: "EN_DISCOVERY_ONLY", workflow: "DISCOVERY_ONLY", jurisdictions: [],
-  regions: [], languages: ["en"], capabilities: ["SOURCE_SEARCH", "HUMAN_REVIEW"],
-  disabledCapabilities: ["WEB_FETCH"], legalPolicyId: "research-policy-1",
+  regions: [], languages: ["en"], capabilities: [
+    "SOURCE_SEARCH", "WEB_FETCH", "COMPANY_RESOLUTION", "OPPORTUNITY_ASSESSMENT",
+    "PERSON_SEARCH", "EMAIL_FIND", "EMAIL_VERIFY", "DRAFT_GENERATION", "HUMAN_REVIEW", "COPY_EXPORT",
+  ],
+  disabledCapabilities: [
+    "MAILBOX_CONNECT", "MESSAGE_SEND", "SEQUENCE_RUN", "FOLLOW_UP", "DELIVERY_TRACKING",
+  ], legalPolicyId: "research-policy-1",
   retentionPolicyId: "retention-1",
   defaultCurrency: "USD", timezone: "Europe/Minsk",
 };

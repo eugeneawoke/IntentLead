@@ -1,38 +1,38 @@
 # IntentLead implementation backlog
 
-**Status:** Active, derived from the 2026-10-06 roadmap reset.
+**Status:** Active, corrected 2026-10-06.
 
 ## Now
 
-- [x] Complete canonical reset and remove active legacy documents (2026-10-06).
-- [x] Remove isolated legacy lead/email/message runtime and stale public claims (`523939b`, `92571ce`).
-- [x] Remove active direct Glook reads; keep the versioned consumer adapter dormant (`92571ce`).
-- [x] Make OfferProfile, ICPDefinition and DiscoveryBrief native execution authority (2026-10-06).
-- [x] Wire the self-prospecting handler in fixture/no-network/zero-cost mode (2026-10-06).
-- [x] Preserve Opportunity, tenant, no-downstream-action and retired-route boundaries while deleting legacy code (2026-10-06).
-- [x] Remove the legacy schema bridge through a forward-only migration after clean/populated upgrade verification (2026-10-06).
-- [ ] Run the controlled dogfood sample and record a GO/REWORK/STOP decision. The full local suite and independent reviews passed on 2026-10-06; execution waits only for founder-authorized recorded evidence and approved Offer/ICP/threshold inputs.
+- [x] Finish canonical reconciliation and remove all active no-contact/HN-only assumptions (2026-10-06; independent contradiction/link audit passed).
+- [ ] Restore the established Signal Dark visual system around the corrected product.
+- [ ] Add capability/regression evals for multi-source, >=20 confirmed signals, verified contacts, grounded drafts and structural no-send.
+- [ ] Reintroduce buyer/contact/verification/brief contracts and forward-only tenant-safe schema.
+- [ ] Restore safe contact-provider capability behind registry/budget/policy boundaries.
+- [ ] Add source planning and prioritized free/legal global adapters.
+- [ ] Complete the durable self-prospecting flow through contact-ready package and human review.
 
-## After dogfood proof
+## Next
 
-- [ ] Expand the recorded sample and calibrate rejection/evidence/company policies.
-- [ ] Add source-funnel and cost-per-accepted-Opportunity analytics.
-- [ ] Test with 3–5 design partners through concierge delivery.
-- [ ] Choose one additional intelligence domain from measured demand and economics.
-- [ ] Productize recurring discovery and stable API/MCP capabilities.
+- [ ] Add one CIS/local market profile and working legal/free source path.
+- [ ] Add source-funnel, contact coverage, grounding and cost-per-accepted-package analytics.
+- [ ] Run the minimum-20 controlled dogfood evaluation and independent reviews.
+- [ ] Add safe CSV/Google Sheets-compatible export.
+- [ ] Test with 3–5 design partners before choosing pricing.
 
-## Deferred pending a new decision
+## Deferred pending evidence
 
-- personal contact enrichment;
-- copyable conversation brief or draft;
-- Glook business-context activation;
-- AI Visibility;
-- local/CIS specialization;
-- billing model and commercial credit semantics.
+- Glook activation;
+- AI Visibility as a dedicated signal provider;
+- recurring alerts;
+- billing model and commercial credits;
+- broad provider expansion beyond measured source gaps;
+- public API/MCP.
 
 ## Permanently excluded
 
-- automatic or assisted sending;
+- automatic or assisted message transmission from IntentLead;
 - mailbox connection, sequences, follow-ups and delivery tracking;
-- AI SDR behavior;
-- mass list generation without inspectable evidence.
+- unlawful scraping or access-control bypass;
+- invented company, buyer, contact or commercial claims;
+- generic website/SEO/AI-readiness auditing as the product.

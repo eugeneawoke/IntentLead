@@ -43,14 +43,15 @@ Code and migrations define current runtime behavior. The documents below define 
 - [ADR-004: Provider and market abstraction](adr/004-provider-market-abstractions.md)
 - [ADR-006: Evidence provenance](adr/006-evidence-provenance.md)
 - [ADR-008: Shared database namespace](adr/008-shared-database-namespace.md)
+- [ADR-009: Human-controlled Opportunity package](adr/009-human-controlled-opportunity-package.md)
 
-ADR-005 (committed AI Visibility module) and ADR-007 (verified contact/draft credit package) were removed on 2026-10-06 because they no longer represent accepted product direction. Git history preserves their rationale.
+ADR-005 (committed AI Visibility module) and ADR-007 (verified-package credit charging) were removed on 2026-10-06. AI Visibility remains an optional signal provider; pricing/credits are undecided. ADR-009 restores buyer/contact/draft as a human-controlled Opportunity package without reviving credit or sending semantics.
 
 ## Authority rules
 
 - Opportunity is the only target commercial aggregate.
 - Website reading may establish business identity/context; technical, SEO and AI-readiness auditing is outside accepted product scope.
 - Glook and AI Visibility are not prerequisites or committed near-term modules.
-- Personal contacts and message drafts are outside the current plan.
-- Sending, mailbox automation, sequences and delivery tracking are permanently outside product scope.
+- Buyer resolution, verified business contacts and evidence-grounded conversation briefs/drafts are subordinate parts of an Opportunity package.
+- Sending, mailbox automation, sequences, follow-ups and delivery tracking are permanently outside product scope.
 - New product or architecture decisions update PRODUCT, DOMAIN_MODEL, ARCHITECTURE, ROADMAP and an ADR when durable rationale is needed.

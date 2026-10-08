@@ -4,7 +4,7 @@ import type { Capability, MarketProfile } from "../../types/market-profile";
 import type { CapabilityError } from "../../types/job";
 import type { LeasedJob } from "./repository";
 
-export function structuredError(job: LeasedJob, capability: Capability, code: CapabilityError["code"], message: string): CapabilityError {
+export function structuredError(job: LeasedJob, capability: LeasedJob["capability"], code: CapabilityError["code"], message: string): CapabilityError {
   return code === "TIMEOUT" || code === "RATE_LIMITED" || code === "DEPENDENCY_UNAVAILABLE"
     ? { schemaVersion: 1, message, capability, traceId: job.traceId, code, retryable: true, retryAfterMs: null }
     : { schemaVersion: 1, message, capability, traceId: job.traceId, code, retryable: false, retryAfterMs: null };
@@ -16,7 +16,7 @@ export function assertCapabilityAllowed(profile: MarketProfile, capability: Capa
   const discoveryDenied = profile.id === "EN_DISCOVERY_ONLY"
     && (!DiscoveryCapabilitySchema.safeParse(capability).success || profile.workflow !== "DISCOVERY_ONLY");
   if (!enabled || discoveryDenied) {
-    throw new PolicyError(structuredError(job, capability, "POLICY_DENIED", "Capability is disabled by the authorized MarketProfile"));
+    throw new PolicyError(structuredError(job, job.capability, "POLICY_DENIED", "Capability is disabled by the authorized MarketProfile"));
   }
 }
 

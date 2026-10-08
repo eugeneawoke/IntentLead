@@ -19,6 +19,7 @@ export default function SiteHeader() {
 
   return (
     <header
+      className="site-header"
       style={{
         position: "fixed",
         top: 20,

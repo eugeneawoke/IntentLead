@@ -13,9 +13,9 @@ Agents implement bounded work under deterministic gates. They do not negotiate a
 | Docs researcher | official provider/framework/legal evidence | treat vendor claims as verified outcomes |
 | Architect/domain planner | boundaries, contracts, ADRs, migration path | ship code without approved spec |
 | Data implementer | migrations, RLS, RPC, repositories | edit UI/provider code |
-| Workflow/provider implementer | jobs, orchestration, adapters | bypass domain contracts |
-| Frontend implementer | Opportunity review/progress/error surfaces | invent backend state |
-| AI/eval implementer | typed prompts, fixtures, metrics | control charging or terminal states |
+| Workflow/provider implementer | jobs, source planning, discovery/contact adapters | bypass domain contracts or enable sending |
+| Frontend implementer | intake, Opportunity/evidence/contact/draft review surfaces | invent backend state or add send controls |
+| AI/eval implementer | typed prompts, grounding fixtures, metrics | control billing, terminal states or external action |
 | Reviewer | fresh-context correctness and maintainability review | approve own implementation |
 | Security/DB reviewer | tenancy, authz, RLS, migrations, abuse cases | auto-fix without returning findings |
 | E2E/a11y verifier | critical user journeys and accessibility | replace backend integration tests |

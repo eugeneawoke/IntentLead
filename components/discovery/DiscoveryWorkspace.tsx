@@ -2,7 +2,9 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { ArrowRight, Building2, Check, FlaskConical, Radar, RefreshCw, Sparkles } from "lucide-react";
 import type { DiscoveryBriefSummary } from "@/types/discovery-brief";
+import { LANDING_DISCOVERY_DRAFT_KEY, type LandingDiscoveryDraft } from "@/types/landing";
 import type { CreateDiscoveryBriefInput } from "@/lib/application/discovery-briefs";
 import {
   createDiscoveryBrief, DiscoveryApiError, loadDiscoveryBriefs, runDiscoveryBrief,
@@ -15,6 +17,12 @@ const signalFamilies = [
   ["MARKET_OBSERVATION", "Market observations"],
 ] as const;
 
+const marketOptions: Array<{ value: LandingDiscoveryDraft["market"]; label: string }> = [
+  { value: "GLOBAL_EN", label: "Global / English pilot" },
+  { value: "CIS", label: "CIS · planned" },
+  { value: "LOCAL_CUSTOM", label: "Local business · planned" },
+];
+
 function lines(value: string): string[] {
   return value.split("\n").map(item => item.trim()).filter(Boolean);
 }
@@ -25,7 +33,7 @@ function Field(props: { id: string; label: string; value: string; onChange(value
     value: props.value,
     onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => props.onChange(event.target.value),
     required: true,
-    className: "mt-2 w-full rounded-lg border px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2",
+    className: "workspace-input mt-2 w-full rounded-xl border px-3.5 py-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2",
     style: { borderColor: "var(--border)", background: "var(--surface-2)", color: "var(--text)" },
   };
   return (
@@ -46,6 +54,7 @@ export default function DiscoveryWorkspace({ basePath = "/workspace" }: { basePa
   const [icpDescription, setIcpDescription] = useState("Small B2B growth teams and outbound agencies that need fewer, better-qualified company opportunities.");
   const [companyAttributes, setCompanyAttributes] = useState("B2B company\nEvidence-driven prospecting workflow");
   const [objective, setObjective] = useState("Find companies showing a current, evidence-backed need for better prospect research and qualification.");
+  const [market, setMarket] = useState<LandingDiscoveryDraft["market"]>("GLOBAL_EN");
   const [selectedFamilies, setSelectedFamilies] = useState<string[]>(["EXPRESSED_INTENT"]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
@@ -60,11 +69,31 @@ export default function DiscoveryWorkspace({ basePath = "/workspace" }: { basePa
     finally { setLoading(false); }
   }, []);
   useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(LANDING_DISCOVERY_DRAFT_KEY);
+      if (!raw) return;
+      const candidate = JSON.parse(raw) as Partial<LandingDiscoveryDraft>;
+      if (candidate.schemaVersion !== 1 || typeof candidate.offerSummary !== "string") return;
+      if (!candidate.offerSummary.trim()) return;
+      setOfferSummary(candidate.offerSummary.trim());
+      if (candidate.market && marketOptions.some(option => option.value === candidate.market)) setMarket(candidate.market);
+      setObjective(`Find at least 20 confirmed, evidence-backed commercial signals for this offer in the ${candidate.market ?? "selected"} market.`);
+      sessionStorage.removeItem(LANDING_DISCOVERY_DRAFT_KEY);
+      setStatus("Your landing-page offer was restored. Review the brief before creating it.");
+    } catch {
+      sessionStorage.removeItem(LANDING_DISCOVERY_DRAFT_KEY);
+    }
+  }, []);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (selectedFamilies.length === 0) {
       setError("Select at least one signal family.");
+      return;
+    }
+    if (market !== "GLOBAL_EN") {
+      setError("This market profile is preserved in the product plan but is not executable in the current controlled pilot yet.");
       return;
     }
     setBusy("create");
@@ -78,7 +107,7 @@ export default function DiscoveryWorkspace({ basePath = "/workspace" }: { basePa
       criteria: {
         jurisdictions: [], languages: ["en"],
         signalFamilies: selectedFamilies as CreateDiscoveryBriefInput["criteria"]["signalFamilies"],
-        exclusions: [], limits: { maxSourceItems: 20, maxOpportunities: 5 },
+        exclusions: [], limits: { maxSourceItems: 100, maxOpportunities: 20 },
       },
     };
     try {
@@ -104,47 +133,62 @@ export default function DiscoveryWorkspace({ basePath = "/workspace" }: { basePa
   };
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 sm:py-8 lg:px-10">
-      <header className="mb-7 max-w-3xl">
-        <p className="text-xs font-medium uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>EN discovery only · synthetic fixture · $0 network spend</p>
-        <h1 className="mt-2 font-display text-2xl font-semibold tracking-tight sm:text-3xl" style={{ color: "var(--text)" }}>Create a discovery brief</h1>
-        <p className="mt-3 text-sm leading-6" style={{ color: "var(--text-muted)" }}>
-          Describe the offer, ideal company and commercial question. IntentLead will produce evidence-backed company Opportunities for human review. It will not audit websites, find people, draft messages or send anything.
-        </p>
+    <div className="workspace-page mx-auto w-full max-w-7xl">
+      <header className="workspace-page-header mb-8">
+        <div className="max-w-3xl">
+          <p className="workspace-eyebrow"><span className="workspace-live-dot" aria-hidden="true" /> EN discovery · controlled fixture</p>
+          <h1 className="mt-4 font-display text-3xl font-semibold tracking-[-0.035em] sm:text-4xl" style={{ color: "var(--text)" }}>Create a discovery brief</h1>
+          <p className="mt-3 max-w-2xl text-sm leading-6" style={{ color: "var(--text-muted)" }}>
+          Describe the offer, ideal company and commercial question. The target workflow produces evidence-backed Opportunities with a relevant buyer, verified contact and grounded draft for human review. IntentLead never sends messages.
+          </p>
+        </div>
+        <div className="workspace-runtime-badge" aria-label="Current runtime boundary">
+          <FlaskConical size={16} aria-hidden="true" />
+          <span><strong>{market === "GLOBAL_EN" ? "Current pilot" : "Planned profile"}</strong><small>{market === "GLOBAL_EN" ? "Global English fixture · $0 network" : "Saved honestly · not executable yet"}</small></span>
+        </div>
       </header>
 
       <form onSubmit={event => void submit(event)} className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        <section className="space-y-4 rounded-2xl border p-5" style={{ borderColor: "var(--border)", background: "var(--surface)" }} aria-labelledby="offer-heading">
-          <h2 id="offer-heading" className="font-display text-lg font-semibold" style={{ color: "var(--text)" }}>Offer and business context</h2>
+        <section className="workspace-form-card space-y-4" aria-labelledby="offer-heading">
+          <div className="workspace-card-heading"><span className="workspace-card-icon" aria-hidden="true"><Sparkles size={17} /></span><div><p>Step 01</p><h2 id="offer-heading">Offer and business context</h2></div></div>
           <Field id="offer-name" label="Offer name" value={offerName} onChange={setOfferName} />
           <Field id="offer-summary" label="What the offer helps a business achieve" value={offerSummary} onChange={setOfferSummary} multiline hint="Business outcome only — no technical website or SEO audit." />
           <Field id="offer-outcomes" label="Expected outcomes" value={outcomes} onChange={setOutcomes} multiline hint="One outcome per line." />
         </section>
-        <section className="space-y-4 rounded-2xl border p-5" style={{ borderColor: "var(--border)", background: "var(--surface)" }} aria-labelledby="icp-heading">
-          <h2 id="icp-heading" className="font-display text-lg font-semibold" style={{ color: "var(--text)" }}>Ideal company profile</h2>
+        <section className="workspace-form-card space-y-4" aria-labelledby="icp-heading">
+          <div className="workspace-card-heading"><span className="workspace-card-icon" aria-hidden="true"><Building2 size={17} /></span><div><p>Step 02</p><h2 id="icp-heading">Ideal company profile</h2></div></div>
           <Field id="icp-name" label="ICP name" value={icpName} onChange={setIcpName} />
           <Field id="icp-description" label="Which businesses should fit" value={icpDescription} onChange={setIcpDescription} multiline />
-          <Field id="company-attributes" label="Useful company attributes" value={companyAttributes} onChange={setCompanyAttributes} multiline hint="One attribute per line. Do not enter personal contact details." />
+          <Field id="company-attributes" label="Useful company attributes" value={companyAttributes} onChange={setCompanyAttributes} multiline hint="One attribute per line. IntentLead resolves contacts only after a company qualifies." />
         </section>
-        <section className="space-y-4 rounded-2xl border p-5 lg:col-span-2" style={{ borderColor: "var(--border)", background: "var(--surface)" }} aria-labelledby="objective-heading">
-          <h2 id="objective-heading" className="font-display text-lg font-semibold" style={{ color: "var(--text)" }}>Discovery objective</h2>
+        <section className="workspace-form-card space-y-4 lg:col-span-2" aria-labelledby="objective-heading">
+          <div className="workspace-card-heading"><span className="workspace-card-icon" aria-hidden="true"><Radar size={17} /></span><div><p>Step 03</p><h2 id="objective-heading">Discovery objective</h2></div></div>
+          <label htmlFor="market-profile" className="block text-sm font-medium" style={{ color: "var(--text)" }}>Market profile
+            <select id="market-profile" className="workspace-input mt-2 w-full rounded-xl border px-3.5 py-3 text-sm" style={{ borderColor: "var(--border)", background: "var(--surface-2)", color: "var(--text)" }} value={market} onChange={event => setMarket(event.target.value as LandingDiscoveryDraft["market"])}>
+              {marketOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+            {market !== "GLOBAL_EN" && <span className="mt-1 block text-xs font-normal" style={{ color: "var(--pending)" }}>This profile is planned for Task N and cannot silently fall back to English discovery.</span>}
+          </label>
           <Field id="objective" label="What should IntentLead discover?" value={objective} onChange={setObjective} multiline />
           <fieldset>
             <legend className="text-sm font-medium" style={{ color: "var(--text)" }}>Evidence families</legend>
             <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {signalFamilies.map(([value, label]) => <label key={value} className="flex min-h-11 items-center gap-3 rounded-lg border px-3 text-sm" style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}><input type="checkbox" checked={selectedFamilies.includes(value)} onChange={event => setSelectedFamilies(current => event.target.checked ? [...current, value] : current.filter(item => item !== value))} />{label}</label>)}
+              {signalFamilies.map(([value, label]) => { const checked = selectedFamilies.includes(value); return <label key={value} className={`workspace-check-option ${checked ? "is-checked" : ""}`}><input className="sr-only" type="checkbox" checked={checked} onChange={event => setSelectedFamilies(current => event.target.checked ? [...current, value] : current.filter(item => item !== value))} /><span className="workspace-check-box" aria-hidden="true">{checked && <Check size={13} />}</span>{label}</label>; })}
             </div>
           </fieldset>
-          <button type="submit" disabled={busy !== null} className="min-h-11 rounded-full px-5 py-3 text-sm font-semibold disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2" style={{ background: "var(--accent)", color: "var(--accent-fg)" }}>{busy === "create" ? "Creating…" : "Create discovery brief"}</button>
+          <div className="flex flex-wrap items-center justify-between gap-4 border-t pt-5" style={{ borderColor: "var(--border)" }}>
+            <p className="max-w-xl text-xs leading-5" style={{ color: "var(--text-faint)" }}>A full product run targets at least 20 confirmed signals. This controlled runtime validates the contract without external provider calls.</p>
+            <button type="submit" disabled={busy !== null || market !== "GLOBAL_EN"} className="workspace-primary-action">{busy === "create" ? "Creating…" : <>Create discovery brief <ArrowRight size={16} aria-hidden="true" /></>}</button>
+          </div>
         </section>
       </form>
 
       <p className="mt-4 min-h-5 text-sm" role="alert" style={{ color: "var(--error)" }}>{error}</p>
       <p className="min-h-5 text-sm" role="status" aria-live="polite" style={{ color: "var(--text-muted)" }}>{status}</p>
 
-      <section className="mt-8" aria-labelledby="briefs-heading">
-        <div className="flex flex-wrap items-center justify-between gap-3"><h2 id="briefs-heading" className="font-display text-xl font-semibold" style={{ color: "var(--text)" }}>Discovery briefs</h2><button type="button" onClick={() => void refresh()} disabled={loading} className="min-h-11 rounded-lg border px-4 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2" style={{ borderColor: "var(--border)", color: "var(--text)" }}>Refresh</button></div>
-        {loading ? <p className="mt-4 text-sm" style={{ color: "var(--text-muted)" }}>Loading discovery briefs…</p> : briefs.length === 0 ? <p className="mt-4 rounded-xl border p-4 text-sm" style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}>No discovery briefs yet.</p> : <div className="mt-4 space-y-3">{briefs.map(brief => <article key={brief.id} className="rounded-xl border p-4" style={{ borderColor: "var(--border)", background: "var(--surface)" }}><div className="flex flex-wrap items-start justify-between gap-4"><div className="max-w-3xl"><p className="text-xs uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>{brief.state.replaceAll("_", " ")}</p><h3 className="mt-1 font-medium" style={{ color: "var(--text)" }}>{brief.objective}</h3><p className="mt-2 text-sm" style={{ color: "var(--text-muted)" }}>{brief.offer.name} · {brief.icp.name}</p></div><div className="flex flex-wrap gap-2">{brief.state === "DRAFT" && <button type="button" onClick={() => void start(brief)} disabled={busy !== null} className="min-h-11 rounded-full px-4 text-sm font-semibold disabled:opacity-60" style={{ background: "var(--accent)", color: "var(--accent-fg)" }}>{busy === brief.id ? "Queueing…" : "Run zero-spend fixture"}</button>}<Link href={`${basePath}/opportunities`} className="inline-flex min-h-11 items-center rounded-lg border px-4 text-sm" style={{ borderColor: "var(--border)", color: "var(--text)", textDecoration: "none" }}>Review Opportunities</Link></div></div></article>)}</div>}
+      <section className="mt-10" aria-labelledby="briefs-heading">
+        <div className="flex flex-wrap items-end justify-between gap-3"><div><p className="workspace-eyebrow">Saved work</p><h2 id="briefs-heading" className="mt-2 font-display text-2xl font-semibold" style={{ color: "var(--text)" }}>Discovery briefs</h2></div><button type="button" onClick={() => void refresh()} disabled={loading} className="workspace-secondary-action"><RefreshCw size={15} aria-hidden="true" className={loading ? "animate-spin" : ""} /> {loading ? "Refreshing…" : "Refresh"}</button></div>
+        {loading ? <div className="workspace-empty-state mt-4" role="status"><span className="workspace-skeleton h-4 w-44" /><span className="workspace-skeleton mt-3 h-3 w-72 max-w-full" /></div> : briefs.length === 0 ? <div className="workspace-empty-state mt-4"><Radar size={22} aria-hidden="true" style={{ color: "var(--text-faint)" }} /><p className="mt-3 text-sm font-medium" style={{ color: "var(--text)" }}>No discovery briefs yet</p><p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>Complete the brief above to start a controlled run.</p></div> : <div className="mt-4 space-y-3">{briefs.map((brief, index) => <article key={brief.id} className="workspace-brief-row"><div className="workspace-mono shrink-0">{String(index + 1).padStart(2, "0")}</div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className="workspace-state-chip">{brief.state.replaceAll("_", " ")}</span><span className="text-xs" style={{ color: "var(--text-faint)" }}>{brief.offer.name} · {brief.icp.name}</span></div><h3 className="mt-2 break-words text-sm font-medium leading-6" style={{ color: "var(--text)" }}>{brief.objective}</h3></div><div className="flex flex-wrap gap-2">{brief.state === "DRAFT" && <button type="button" onClick={() => void start(brief)} disabled={busy !== null} className="workspace-primary-action">{busy === brief.id ? "Queueing…" : "Run fixture"}</button>}<Link href={`${basePath}/opportunities`} className="workspace-secondary-action">Review <ArrowRight size={15} aria-hidden="true" /></Link></div></article>)}</div>}
       </section>
     </div>
   );

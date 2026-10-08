@@ -308,7 +308,7 @@ describe("Task 7 self-prospecting workflow", () => {
   });
 
   it("denies capabilities disabled by the active discovery profile", () => {
-    expect(authorizeSelfProspectingCapability({ ...fixtureProfile, capabilities: fixtureProfile.capabilities.filter(item => item !== "WEB_FETCH"), disabledCapabilities: ["WEB_FETCH"] }, "WEB_FETCH"))
+    expect(authorizeSelfProspectingCapability({ ...fixtureProfile, capabilities: fixtureProfile.capabilities.filter(item => item !== "WEB_FETCH"), disabledCapabilities: [...fixtureProfile.disabledCapabilities, "WEB_FETCH"] }, "WEB_FETCH"))
       .toMatchObject({ allowed: false, reason: "CAPABILITY_DISABLED" });
     expect(authorizeSelfProspectingCapability(fixtureProfile, "HUMAN_REVIEW")).toMatchObject({ allowed: true });
   });

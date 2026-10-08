@@ -10,3 +10,17 @@ export const ArtifactMetadataSchema = z.object({
   item => item.expiresAt === null || Date.parse(item.expiresAt) >= Date.parse(item.createdAt),
   "Artifact expiry precedes creation",
 );
+
+export const SuppressionEntrySchema = z.object({
+  ...ScopedRecordShape,
+  identifierType: z.enum(["EMAIL", "PHONE", "PROFILE"]),
+  identifierHash: ContentHashSchema,
+  reason: z.enum(["OPT_OUT", "COMPLAINT", "POLICY"]),
+  policyId: IdSchema,
+  source: z.enum(["HUMAN", "POLICY", "PROVIDER"]),
+  createdAt: TimestampSchema,
+  retainUntil: TimestampSchema.nullable(),
+}).strict().refine(
+  item => item.retainUntil === null || Date.parse(item.retainUntil) >= Date.parse(item.createdAt),
+  "Suppression retention precedes creation",
+);

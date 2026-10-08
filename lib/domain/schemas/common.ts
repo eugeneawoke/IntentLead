@@ -6,7 +6,7 @@ export const IdSchema = NonEmptyStringSchema;
 export const TimestampSchema = z.string().datetime({ offset: true })
   .refine(value => Number.isFinite(Date.parse(value)), "Invalid timestamp or UTC offset");
 export const ConfidenceSchema = z.number().finite().min(0).max(1);
-export const ContentHashSchema = z.string().regex(/^[a-f0-9]{64}$/i);
+export const ContentHashSchema = z.string().regex(/^[a-f0-9]{64}$/);
 export const EvidenceIdsSchema = z.array(IdSchema).nonempty();
 export const HttpUrlSchema = z.string().url().refine(value => /^https?:\/\//i.test(value), "Expected an HTTP(S) URL");
 export const JurisdictionSchema = z.object({
@@ -21,10 +21,15 @@ export const ScopedRecordShape = {
 
 export const MarketProfileIdSchema = z.enum(["EN_DISCOVERY_ONLY", "CIS_RU", "LOCAL_CUSTOM"]);
 export const WorkflowSchema = z.literal("DISCOVERY_ONLY");
-export const CapabilitySchema = z.enum([
-  "SOURCE_SEARCH", "WEB_FETCH", "COMPANY_RESOLUTION", "OPPORTUNITY_ASSESSMENT", "HUMAN_REVIEW",
+export const ResearchCapabilitySchema = z.enum([
+  "SOURCE_SEARCH", "WEB_FETCH", "COMPANY_RESOLUTION", "OPPORTUNITY_ASSESSMENT",
+  "PERSON_SEARCH", "EMAIL_FIND", "EMAIL_VERIFY", "DRAFT_GENERATION", "HUMAN_REVIEW", "COPY_EXPORT",
 ]);
-export const DiscoveryCapabilitySchema = CapabilitySchema;
+export const TransmissionCapabilitySchema = z.enum([
+  "MAILBOX_CONNECT", "MESSAGE_SEND", "SEQUENCE_RUN", "FOLLOW_UP", "DELIVERY_TRACKING",
+]);
+export const CapabilitySchema = z.union([ResearchCapabilitySchema, TransmissionCapabilitySchema]);
+export const DiscoveryCapabilitySchema = ResearchCapabilitySchema;
 export const SignalFamilySchema = z.enum([
   "EXPRESSED_INTENT", "BUSINESS_EVENT", "DETECTED_PROBLEM", "MARKET_OBSERVATION",
 ]);

@@ -28,7 +28,7 @@ const context = {
     regions: [],
     languages: ["en"],
     capabilities: ["SOURCE_SEARCH", "HUMAN_REVIEW"],
-    disabledCapabilities: [],
+    disabledCapabilities: ["MAILBOX_CONNECT", "MESSAGE_SEND", "SEQUENCE_RUN", "FOLLOW_UP", "DELIVERY_TRACKING"],
     legalPolicyId: "research-policy-1",
     retentionPolicyId: "retention-1",
     defaultCurrency: "USD",

@@ -13,7 +13,7 @@ const discoveryProfile: MarketProfile = {
   regions: [],
   languages: ["en"],
   capabilities: ["SOURCE_SEARCH", "COMPANY_RESOLUTION", "OPPORTUNITY_ASSESSMENT", "HUMAN_REVIEW"],
-  disabledCapabilities: ["WEB_FETCH"],
+  disabledCapabilities: ["WEB_FETCH", "MAILBOX_CONNECT", "MESSAGE_SEND", "SEQUENCE_RUN", "FOLLOW_UP", "DELIVERY_TRACKING"],
   legalPolicyId: "policy-legal-v1",
   retentionPolicyId: "policy-retention-v1",
   defaultCurrency: "USD",

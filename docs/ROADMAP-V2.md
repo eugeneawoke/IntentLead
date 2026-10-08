@@ -1,98 +1,95 @@
-# IntentLead product roadmap
+# IntentLead product roadmap V2
 
-**Status:** Accepted direction, revised 2026-10-06.
+**Status:** Corrected accepted direction, 2026-10-06.
 
-IntentLead is an Opportunity Intelligence Engine. It discovers businesses with a concrete, evidence-backed commercial reason to consider a user's offer. The product ends at an inspectable Opportunity package and human decision. It does not send messages, operate mailboxes or automate outreach.
+IntentLead reduces “кому мне продавать?” to “вот компания, доказуемая причина, нужный человек, проверенный контакт и grounded opening angle”. It never sends messages.
 
 ## Product sequence
 
 ```text
 Offer + ICP + market
-→ business discovery
-→ observable signal, event or problem
-→ evidence and provenance
-→ company resolution
-→ commercial assessment
-→ Opportunity package
-→ human review and feedback
+→ source plan
+→ at least 20 confirmed signals per complete run
+→ evidence and company resolution
+→ commercial assessment and deduplication
+→ buyer and verified contact
+→ grounded brief/draft
+→ human review/export
+→ optional human-reported outcome
 ```
 
-A website, Glook snapshot, map listing, review, public post, job posting or AI-answer observation is only a possible evidence source. None is the product boundary or a mandatory stage.
+## Stage 0 — Truth and visual recovery
 
-## Stage 0 — Opportunity foundation
+**Outcome:** one canonical model and the established Signal Dark experience restored around it.
 
-**Outcome:** one durable, tenant-safe and provider-independent Opportunity Core.
+- remove the accidental “no contacts” and HN-only product boundary;
+- retain the new Opportunity/durable-job backend;
+- selectively restore the previous landing composition, motion, navigation and premium component language;
+- rewrite old verified-lead/sending claims rather than deleting the visual system;
+- establish capability and regression evals before further implementation.
 
-This stage establishes versioned domain contracts, evidence provenance, provider registry, market profiles, durable jobs, cost controls, application authorization and human review.
+**Gate:** docs, UI and tests describe the same product; no automatic-send affordance exists.
 
-**Current state:** contracts, native Offer/ICP/DiscoveryBrief authority, storage, durable jobs, explicit zero-spend fixture execution and review are implemented locally. The forward-only Task E migration removes the retired lead/contact/outreach/message/chat/credit schema and compatibility RPCs while preserving Opportunity Core, RLS and worker replay protection. Production deployment and migrations remain outside the authorized scope.
+## Stage 1 — Complete self-prospecting vertical slice
 
-## Stage 1 — Self-prospecting discovery
+**Outcome:** one reproducible `EN_DISCOVERY_ONLY` run produces complete Opportunity packages for IntentLead.
 
-**Outcome:** IntentLead finds reviewable Opportunities for IntentLead itself under `EN_DISCOVERY_ONLY`.
+Required path:
 
-The system receives IntentLead's offer, ICP, exclusions and market, then discovers companies, captures evidence, resolves company identity and produces `QUALIFY`, `REVIEW` or `REJECT` assessments. The founder reviews results and records rejection reasons.
+```text
+ICP → source discovery → signal/problem → company → evidence
+→ assessment → buyer → verified contact → grounded draft → human review
+```
 
-The first runnable contract uses an explicitly synthetic no-network fixture and zero paid-provider spend. The controlled dogfood runtime is also implemented locally: it accepts only separately authorized, sanitized recorded evidence from an external file, preserves capture provenance and blocks every network origin except Supabase. The first recorded sample is waiting for founder-supplied evidence and approved Offer/ICP/threshold inputs. Neither mode depends on Glook, website analysis, contact enrichment, message drafting or any sending capability.
+Use existing Reddit, Hacker News, Exa, Serper and historical Prospeo/Hunter/Apollo work where it remains safe. Implement missing capabilities behind the provider registry. Missing keys produce `missing_credentials` and fallbacks, not fake success.
 
-**Gate:** a reproducible sample with measured acceptance rate, company-resolution quality, evidence sufficiency, false-positive reasons, latency and cost.
+**Gate:** at least 20 confirmed evidence-backed signals in the complete run; unique-company and Opportunity counts reported separately; zero duplicates, zero unsupported material claims, contact provenance visible, no send action and no unapproved spend.
 
-## Stage 2 — Opportunity quality
+## Stage 2 — Multi-source global quality
 
-**Outcome:** high precision and explainable rejection on a larger self-prospecting sample.
+**Outcome:** source selection is driven by the user's business and market rather than a fixed HN/Reddit pair.
 
-Improve evidence policies, freshness, entity resolution, deduplication, commercial-fit assessment, reviewer feedback and source economics. Prefer rejecting uncertain candidates over filling a list.
+Prioritized capability families:
 
-**Gate:** predeclared precision, reviewer agreement and cost-per-accepted-Opportunity thresholds pass.
+1. public web/search and official company sources;
+2. Reddit, Hacker News, GitHub and Stack Overflow;
+3. jobs/company events via public career pages and legal feeds;
+4. Product Hunt, review/comparison and competitor sources where access permits;
+5. contact discovery/verification fallbacks.
 
-## Stage 3 — Design-partner workflow
+**Gate:** measured provider funnel, company/buyer/contact accuracy, acceptance, latency and cost per accepted package.
 
-**Outcome:** 3–5 users repeatedly receive Opportunities they consider worth acting on.
+## Stage 3 — CIS and local-business slice
 
-Add workspace-safe offer/ICP management, bounded discovery briefs, Opportunity delivery, review reasons and export of the evidence package. A user may optionally copy a conversation brief or draft, but IntentLead does not send it and does not track mailbox delivery.
+**Outcome:** the same core works for one regional/local profile without forked domain logic.
 
-**Gate:** repeat use, willingness to pay, accepted-Opportunity yield and delivery economics are measured by cohort.
+Candidate sources include Yandex Search/Maps/Business/Webmaster, 2GIS, public Telegram/VK, vc.ru, Habr, local directories, review platforms and regional job/news sources. Each capability declares actual access status; manual-only and unavailable sources remain explicit.
 
-## Stage 4 — Intelligence-domain expansion
+A website, listing or review is analyzed only for a concrete offer-relevant finding, not as a mandatory technical audit.
 
-**Outcome:** one additional detector materially improves accepted-Opportunity yield.
+**Gate:** one legal/free provider path, at least 20 confirmed signals/observations for the selected brief, evidence a user can verify quickly, and useful contacts/drafts without sending.
 
-Candidate domains include expressed public intent, company and market changes, hiring, reviews/reputation, competitor changes, local-business evidence and operational/commercial gaps. Choose one from measured customer demand, legal access, evidence quality and economics. Do not add sources for coverage optics.
+## Stage 4 — Design-partner workflow
 
-A company website may supply business identity and context: products, audience, positioning and public claims. Technical, SEO and AI-readiness auditing are outside the accepted product scope. Glook may later supply a versioned business-context snapshot, but it is not required by the core workflow.
+**Outcome:** 3–5 users repeatedly receive packages they consider worth contacting.
 
-## Stage 5 — Market expansion
+Add polished onboarding, recurring briefs, export/CSV/Google Sheets where useful, review feedback and outcome recording. Pricing remains undecided until repeat use and delivery economics are measured.
 
-**Outcome:** the validated workflow works in one additional market or language without forking domain logic.
+**Gate:** repeated use, willingness to pay, accepted-package yield, contact validity and delivery economics by cohort.
 
-Expand through `MarketProfile`, provider capability and evidence policy. Each market requires an explicit access/compliance assessment and measured source quality.
+## Stage 5 — Intelligence-domain expansion
 
-## Stage 6 — Capability API and MCP
+Add one domain only when it improves accepted-package yield. Candidates include reviews/reputation, hiring, competitor change, local presence and AI Visibility observations. AI Visibility is an optional signal provider, not a required first-stage product.
 
-**Outcome:** stable Opportunity capabilities can be consumed safely by external software and agents.
+## Stage 6 — Stable API/MCP capabilities
 
-Expose typed, workspace-aware, budgeted capabilities and resources only after application services and async jobs are stable. MCP and REST are transports over the same domain services.
+Expose typed, scoped capabilities only after the application contracts and asynchronous jobs stabilize. External automation cannot bypass the no-send boundary.
 
-## Deferred research modules
+## Permanent boundaries
 
-AI Visibility, local visibility and other deep intelligence modules remain research candidates. They are not part of Stages 0–3. A module enters implementation only after the core is validated and a design-partner problem justifies it. AI Visibility, if selected, produces evidence and findings for Opportunity assessment; it is never treated as buying intent by itself.
-
-## Permanent non-goals
-
-- automatic or assisted sending;
-- mailbox connection, sequencing, follow-ups or delivery tracking;
-- AI SDR behavior;
-- a CRM or proprietary contact database;
-- bulk lead generation without inspectable evidence;
-- a generic website, SEO or AI Visibility dashboard;
-- provider-specific domain logic;
-- direct reads of another product's internal tables;
-- claims that a proxy proves lost revenue or purchase intent.
-
-## Decision rule
-
-Every roadmap item must answer:
-
-> Does this help a user find a business with a concrete, defensible reason to consider the user's offer?
-
-If not, it is outside IntentLead Core.
+- no automatic or assisted sending from IntentLead;
+- no mailbox connection, sequences, follow-ups or delivery tracking;
+- no illegal scraping or ToS bypass;
+- no invented company, buyer, contact or commercial fact;
+- no universal website/SEO/AI-readiness audit;
+- no price promise before value and economics evidence.

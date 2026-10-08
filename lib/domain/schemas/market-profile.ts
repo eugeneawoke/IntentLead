@@ -23,8 +23,27 @@ export const MarketProfileSchema = z.discriminatedUnion("id", [
     jurisdictions: z.array(JurisdictionSchema).nonempty(), category: NonEmptyStringSchema, geography: NonEmptyStringSchema,
   }).strict(),
 ]).superRefine((profile, ctx) => {
+  const transmissionCapabilities = [
+    "MAILBOX_CONNECT", "MESSAGE_SEND", "SEQUENCE_RUN", "FOLLOW_UP", "DELIVERY_TRACKING",
+  ] as const;
   if (profile.capabilities.some(capability => profile.disabledCapabilities.includes(capability))) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["capabilities"], message: "Enabled and disabled capabilities overlap" });
+  }
+  for (const capability of transmissionCapabilities) {
+    if (profile.capabilities.includes(capability)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["capabilities"],
+        message: `${capability} is unavailable in IntentLead`,
+      });
+    }
+    if (!profile.disabledCapabilities.includes(capability)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["disabledCapabilities"],
+        message: `${capability} must be explicitly disabled`,
+      });
+    }
   }
 });
 

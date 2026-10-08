@@ -78,7 +78,7 @@ describe("evidence, signal semantics and assessment", () => {
 });
 
 describe("market and identity boundaries", () => {
-  it.each(["PEOPLE_SEARCH", "CONTACT_ENRICHMENT", "EMAIL_FIND", "OUTREACH_SEND", "PACKAGE_VERIFIED"])("legacy capability %s no longer exists", capability => {
+  it.each(["PEOPLE_SEARCH", "CONTACT_ENRICHMENT", "OUTREACH_SEND", "PACKAGE_VERIFIED"])("legacy capability %s no longer exists", capability => {
     expect(CapabilitySchema.safeParse(capability).success).toBe(false);
   });
   it("allows only discovery workflow fields", () => {
@@ -123,6 +123,14 @@ describe("durable jobs and structured capability errors", () => {
       { ...f.job, attempt: 4 },
       { ...f.job, state: "RETRY_WAIT", attempt: 3, nextAttemptAt: f.timestamp, error: f.capabilityError },
     ]) expect(JobSchema.safeParse(state).success).toBe(false);
+    for (const capability of ["MAILBOX_CONNECT", "MESSAGE_SEND", "SEQUENCE_RUN", "FOLLOW_UP", "DELIVERY_TRACKING"]) {
+      expect(JobSchema.safeParse({ ...f.job, capability }).success).toBe(false);
+      expect(CapabilityErrorSchema.safeParse({ ...f.capabilityError, capability }).success).toBe(false);
+    }
+    expect(JobSchema.safeParse({
+      ...f.job, state: "FAILED", completedAt: f.timestamp,
+      error: { ...f.capabilityError, capability: "COMPANY_RESOLUTION" },
+    }).success).toBe(false);
   });
   it("uses stable errors without vendor bodies or impossible retries", () => {
     expect(CapabilityErrorSchema.parse(f.capabilityError)).toEqual(f.capabilityError);

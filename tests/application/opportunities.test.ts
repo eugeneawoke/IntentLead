@@ -15,7 +15,7 @@ const profile: MarketProfile = {
   regions: [],
   languages: ["en"],
   capabilities: ["SOURCE_SEARCH", "WEB_FETCH", "COMPANY_RESOLUTION", "OPPORTUNITY_ASSESSMENT", "HUMAN_REVIEW"],
-  disabledCapabilities: [],
+  disabledCapabilities: ["MAILBOX_CONNECT", "MESSAGE_SEND", "SEQUENCE_RUN", "FOLLOW_UP", "DELIVERY_TRACKING"],
   legalPolicyId: "policy-legal-v1",
   retentionPolicyId: "policy-retention-v1",
   defaultCurrency: "USD",

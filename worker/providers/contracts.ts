@@ -50,7 +50,7 @@ export interface ProviderBudget {
 
 export interface ProviderSelectionRequest {
   profile: MarketProfile;
-  capability: Capability;
+  capability: ProviderCapability;
   language: string;
   region: string;
   jurisdiction: string | null;

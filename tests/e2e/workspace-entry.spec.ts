@@ -4,10 +4,10 @@ test("workspace entry exposes discovery and review without legacy navigation", a
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/e2e-fixtures/workspace");
 
-  await expect(page.getByRole("heading", { name: "Discover and review Opportunities", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Turn observable demand into reviewable Opportunities.", level: 1 })).toBeVisible();
   const discoveryLink = page.getByRole("link", { name: "Create discovery brief" });
   await expect(discoveryLink).toHaveAttribute("href", "/workspace/discovery");
-  const opportunitiesLink = page.getByRole("link", { name: "View Opportunities" });
+  const opportunitiesLink = page.getByRole("link", { name: "Review Opportunities" });
   await expect(opportunitiesLink).toHaveAttribute("href", "/workspace/opportunities");
   await expect(opportunitiesLink).toBeVisible();
   await expect(page.getByRole("link", { name: /new campaign/i })).toHaveCount(0);

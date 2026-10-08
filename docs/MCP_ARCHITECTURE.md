@@ -10,6 +10,8 @@ Potential tools/resources after Opportunity Core stabilizes:
 - start and inspect a discovery job;
 - list/get Opportunities;
 - get EvidenceItems and provenance;
+- inspect buyer candidates and verified contact points;
+- get a grounded conversation brief/draft for copy/export;
 - record a ReviewDecision;
 - inspect provider health, cost and limitations.
 
