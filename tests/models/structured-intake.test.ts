@@ -4,11 +4,12 @@ import type { ModelAdapter } from "../../types/model-runtime";
 import type { ModelProviderDescriptor } from "../../types/model-provider";
 import { consumeModelReservation } from "../../worker/models/registry";
 import { createStructuredDiscoveryIntakePort } from "../../worker/models/structured-intake";
+import { STRUCTURED_DISCOVERY_INTAKE_OUTPUT } from "../../worker/models/structured-output-schemas";
 
 const descriptor: ModelProviderDescriptor = {
   id: "local", model: "scripted-intake", version: "fixture-v1",
   capabilities: ["STRUCTURE_DISCOVERY_BRIEF"], operationalState: "fixture_only",
-  maxInputTokens: 8_000, configuredCostPerMillionInputTokens: 0,
+  maxInputTokens: 32_000, configuredCostPerMillionInputTokens: 0,
   configuredCostPerMillionOutputTokens: 0, configuredCostCurrency: null,
 };
 
@@ -49,6 +50,13 @@ function supportedOutput() {
 }
 
 describe("structured discovery intake model port", () => {
+  it("uses only the supported strict Structured Outputs schema subset", () => {
+    const serialized = JSON.stringify(STRUCTURED_DISCOVERY_INTAKE_OUTPUT.schema);
+    expect(serialized).not.toContain("minLength");
+    expect(serialized).not.toContain("maxLength");
+    expect(serialized).not.toContain('"const"');
+  });
+
   it("keeps injected instructions in the user message and records registry-owned prompt metadata", async () => {
     const seen = vi.fn();
     const review = await structureConversationalIntake(

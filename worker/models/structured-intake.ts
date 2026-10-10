@@ -7,6 +7,7 @@ import type {
 import type { ModelAdapter } from "../../types/model-runtime";
 import { sha256 } from "../providers/normalization";
 import { executeModel } from "./registry";
+import { STRUCTURED_DISCOVERY_INTAKE_OUTPUT } from "./structured-output-schemas";
 
 const ModelStructuredIntakeOutputSchema = StructureDiscoveryIntakePortResultSchema.pick({
   schemaVersion: true,
@@ -25,7 +26,7 @@ export function createStructuredDiscoveryIntakePort(adapter: ModelAdapter): Stru
           evidenceIds: [],
           budget: {
             currency: "USD", remainingCost: 0,
-            remainingInputTokens: 4_000, remainingOutputTokens: 1_200, remainingCalls: 1,
+            remainingInputTokens: 32_000, remainingOutputTokens: 1_200, remainingCalls: 1,
           },
           allowExternalActions: false,
           allowProviderSelection: false,
@@ -34,10 +35,11 @@ export function createStructuredDiscoveryIntakePort(adapter: ModelAdapter): Stru
         input: { userTurns: input.userTurns },
         sourceContent: [],
         timeoutMs: 5_000,
-        maxInputTokens: 4_000,
+        maxInputTokens: 32_000,
         maxOutputTokens: 1_200,
         evidenceExists: () => false,
         outputSchema: ModelStructuredIntakeOutputSchema,
+        structuredOutput: STRUCTURED_DISCOVERY_INTAKE_OUTPUT,
         traceId: `intake:${sha256(JSON.stringify(input))}`,
       }, adapter);
       if (!result.ok) throw new Error(`Structured intake failed: ${result.code}`);

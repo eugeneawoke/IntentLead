@@ -28,7 +28,8 @@ Status values: `implemented`, `fixture_only`, `planned`, `missing_credentials`, 
 | Prospeo | person/email find and verification | provider markets | partner API | paid_locked; fixture contract planned | demand-gated enrichment candidate |
 | Hunter | email find and verification | provider markets | partner API | paid_locked; fixture contract planned | demand-gated enrichment candidate |
 | Apollo | people/company/email discovery | provider markets | partner API | paid_locked; fixture contract planned | demand-gated; found is not verified |
-| OpenAI / Anthropic / Gemini / local model | structured intake, bounded reasoning and drafting | policy-dependent | model API/local runtime | registry/contract implemented; paid models locked | one founder-selected adapter first; live budget explicit |
+| OpenAI | structured intake, bounded reasoning and drafting | policy-dependent | Responses API | adapter implemented and fixture-verified; `paid_locked` | exact model/pricing/credential/non-zero budget required before live activation; no tools or external actions |
+| Anthropic / Gemini / local model | structured intake, bounded reasoning and drafting | policy-dependent | model API/local runtime | registry/contract implemented; planned or paid-locked | replaceable adapters after the first OpenAI slice is evaluated |
 | Yandex Search | regional discovery/context | CIS/RU/BY/KZ | search index/API varies | planned | regional priority; verify access |
 | Yandex Maps/Business | local company/listing/review evidence | CIS/RU | official/public/manual varies | planned/manual_only | concrete evidence, no generic audit |
 | Yandex Webmaster/Wordstat | owner-authorized/search-demand evidence | CIS/RU | official/owner/manual | planned/manual_only | requires authorization where applicable |

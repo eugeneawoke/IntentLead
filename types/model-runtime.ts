@@ -6,10 +6,16 @@ export interface ModelMessage {
   content: string;
 }
 
+export interface ModelStructuredOutputDefinition {
+  name: string;
+  schema: Readonly<Record<string, unknown>>;
+}
+
 export interface ModelAdapterRequest {
   messages: readonly [ModelMessage & { role: "system" }, ModelMessage & { role: "user" }];
   maxOutputTokens: number;
   maxInputTokens: number;
+  structuredOutput: ModelStructuredOutputDefinition;
 }
 
 export interface ModelAdapterResponse {
@@ -17,6 +23,8 @@ export interface ModelAdapterResponse {
   inputTokens: number;
   outputTokens: number;
   limitations: string[];
+  providerResponseId?: string;
+  reportedModel?: string;
 }
 
 declare const modelReservationBrand: unique symbol;
@@ -27,6 +35,7 @@ export interface ModelCallContext {
   reservation: ModelReservation;
   requestFingerprint: string;
   traceId: string;
+  capability: ModelCapability;
 }
 
 export interface ModelAdapter {
@@ -45,12 +54,14 @@ export interface ModelExecutionRequest<T> {
   maxOutputTokens: number;
   evidenceExists: (evidenceId: string) => boolean;
   outputSchema: z.ZodType<T>;
+  structuredOutput: ModelStructuredOutputDefinition;
   traceId?: string;
 }
 
 export interface ModelRunEnvelope<T> {
   providerId: ModelProviderDescriptor["id"];
   model: string;
+  providerResponseId: string | null;
   providerVersion: string;
   promptId: string;
   promptVersion: string;
