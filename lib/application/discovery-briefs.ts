@@ -1,39 +1,14 @@
 import { z } from "zod";
 import type { ApplicationSupabaseClient } from "./context";
 import { ApplicationError } from "./errors";
-import type { DiscoveryBriefSummary } from "@/types/discovery-brief";
-import { DiscoveryBriefSummarySchema, DiscoveryCriteriaSchema } from "@/lib/domain/schemas/market-profile";
+import type { CreatedDiscoveryBrief, DiscoveryBriefSummary } from "@/types/discovery-brief";
+import { DiscoveryBriefSummarySchema } from "@/lib/domain/schemas/market-profile";
+import {
+  CreateDiscoveryBriefInputSchema,
+} from "@/lib/domain/schemas/discovery-brief-command";
 
-const NonEmptyText = z.string().trim().min(1).max(500);
-
-export const CreateDiscoveryBriefInputSchema = z.object({
-  schemaVersion: z.literal(1),
-  offer: z.object({
-    name: z.string().trim().min(1).max(120),
-    summary: NonEmptyText,
-    outcomes: z.array(NonEmptyText).max(20).default([]),
-    exclusions: z.array(NonEmptyText).max(20).default([]),
-  }).strict(),
-  icp: z.object({
-    name: z.string().trim().min(1).max(120),
-    description: NonEmptyText,
-    companyAttributes: z.array(NonEmptyText).max(30).default([]),
-    exclusions: z.array(NonEmptyText).max(20).default([]),
-  }).strict(),
-  objective: z.string().trim().min(1).max(500),
-  criteria: DiscoveryCriteriaSchema,
-}).strict();
-
-export type CreateDiscoveryBriefInput = z.infer<typeof CreateDiscoveryBriefInputSchema>;
-
-export interface CreatedDiscoveryBrief {
-  discoveryBriefId: string;
-  workspaceId: string;
-  offerProfileId: string;
-  icpDefinitionId: string;
-  marketProfileId: string;
-  created: boolean;
-}
+export { CreateDiscoveryBriefInputSchema };
+export type { CreateDiscoveryBriefInput, CreatedDiscoveryBrief } from "@/types/discovery-brief";
 
 function requiredString(row: Record<string, unknown>, key: string): string {
   const value = row[key];

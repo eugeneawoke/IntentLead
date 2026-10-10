@@ -10,7 +10,7 @@
 | Source planning | Typed deterministic plan wired into the durable no-network fixture worker | Live activation requires an explicit provider/access gate | Now |
 | Durable jobs | Implemented | Extend checkpoints through contact and draft | Core |
 | Provider registry and budgets | Implemented for discovery/company | Add source/contact/draft capability metadata | Core |
-| Model registry and conversational intake | Provider-neutral registry plus bounded review-only intake contracts, immutable prompts, lexical support ledger and fixture port are verified; no API/UI, persistence or live model | Add human-approved mapping, one selected live adapter, analysis and grounded drafting | Now |
+| Model registry and conversational intake | Provider-neutral registry, bounded review intake, immutable prompts, lexical support, fixture port and lossless V2 human-approval command are verified; V2 persistence is service-only and not production-applied; no API/UI or live model | Add user-facing review/approval transport, one selected live adapter, analysis and grounded drafting | Now |
 | Source normalization | Implemented contracts/adapters | Multi-source global and CIS/local ingestion | Now |
 | Evidence and provenance | Implemented | Preserve through contact and draft claims | Core |
 | Company resolution | Implemented | Measure ambiguity and accuracy | Core |

@@ -35,4 +35,11 @@ describe("native DiscoveryBrief command", () => {
     const conflict = { rpc: vi.fn().mockResolvedValue({ data: null, error: { message: "idempotency_conflict" } }) } as ApplicationSupabaseClient;
     await expect(createDiscoveryBrief(conflict, command, "create-brief-0001")).rejects.toMatchObject({ code: "CONFLICT" });
   });
+
+  it("rejects V2 so the generic authenticated path remains V1-only", async () => {
+    const client = { rpc: vi.fn() } as unknown as ApplicationSupabaseClient;
+    await expect(createDiscoveryBrief(client, { ...command, schemaVersion: 2 }, "create-brief-0002"))
+      .rejects.toMatchObject({ code: "INVALID_INPUT" });
+    expect(client.rpc).not.toHaveBeenCalled();
+  });
 });
