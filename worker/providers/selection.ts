@@ -135,7 +135,8 @@ export function selectProvider(request: ProviderSelectionRequest): ProviderSelec
     .filter(descriptor => !excluded.has(descriptor.id))
     .filter(descriptor => descriptor.operationalState === "configured"
       || descriptor.operationalState === "degraded"
-      || (request.executionMode === "fixture" && descriptor.operationalState === "fixture_only"))
+      || ((request.executionMode === "fixture" || request.executionMode === "no_network")
+        && descriptor.operationalState === "fixture_only"))
     .filter(descriptor => {
       const amount = descriptor.configuredCost.amount;
       if (amount === null) return false;

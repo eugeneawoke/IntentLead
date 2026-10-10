@@ -63,8 +63,12 @@ export function uniqueRuns(input: SelfProspectingPersistInput["providerRuns"]): 
 }
 
 export function providerId(value: string): ProviderId {
-  if (["reddit", "hackernews", "exa", "serper", "openai"].includes(value)) return value as ProviderId;
+  if (["reddit", "hackernews", "github", "stackexchange", "exa", "serper", "openai"].includes(value)) return value as ProviderId;
   throw new Error("provider result is outside the Task 6 registry contract");
+}
+
+export function sourceTypeForProvider(provider: ProviderId): "SOCIAL" | "WEB" {
+  return provider === "reddit" || provider === "hackernews" ? "SOCIAL" : "WEB";
 }
 
 function hash(value: string): string {
@@ -112,7 +116,7 @@ export function deduplicateSignals(signals: DiscoveredSignal[]): DiscoveredSigna
   const seen = new Set<string>();
   return signals.filter(signal => {
     const url = normalizeHttpUrl(signal.sourceUrl);
-    const key = `${signal.source}:${signal.externalId}:${url ?? ""}`;
+    const key = `${signal.source}:${signal.externalId}`;
     if (!signal.externalId.trim() || !url || seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -161,9 +165,10 @@ export function buildCompanyEvidence(input: {
       candidateEvidence.push(observation.evidence);
     }
     if (candidateEvidence.length > input.policy.minimumEvidenceItems) {
+      const domain = normalizeCompanyRootDomain(input.match.companyDomain!);
       resolvedCompany = {
-        schemaVersion: 1, id: input.idFactory.create("company", input.candidateIdentity), workspaceId: input.workspaceId,
-        canonicalName: input.match.companyName, domain: normalizeCompanyRootDomain(input.match.companyDomain!),
+        schemaVersion: 1, id: input.idFactory.create("company", `${input.workspaceId}:${domain}`), workspaceId: input.workspaceId,
+        canonicalName: input.match.companyName, domain,
         jurisdiction: null, confidence: input.match.confidence,
       };
     }

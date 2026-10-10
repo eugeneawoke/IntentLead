@@ -1,6 +1,7 @@
 import type { CapabilityError } from "../../types/job";
 import type { Capability, MarketProfile } from "../../types/market-profile";
 import type { ProviderRunRecorder } from "./recorder-contracts";
+import type { NoNetworkExecutionAuthority } from "./no-network-authority";
 export type { ProviderRunFinish, ProviderRunRecorder, ProviderRunStart } from "./recorder-contracts";
 export type { EmailFindProvider, EmailVerifyProvider, PersonSearchProvider } from "../../types/provider-research";
 
@@ -62,7 +63,8 @@ export interface ProviderSelectionRequest {
   language: string;
   region: string;
   jurisdiction: string | null;
-  executionMode: "fixture" | "live";
+  executionMode: "fixture" | "no_network" | "live";
+  noNetworkAuthority?: NoNetworkExecutionAuthority;
   timeoutMs: number;
   budget: ProviderBudget;
   descriptors: ProviderDescriptor[];
@@ -91,6 +93,9 @@ export interface ProviderProvenance {
 export interface ProviderUsage {
   requestCount: number;
   recordCount: number;
+  rawRecordCount?: number;
+  normalizedRecordCount?: number;
+  deduplicatedRecordCount?: number;
   inputTokens?: number | null;
   outputTokens?: number | null;
 }
@@ -173,6 +178,7 @@ export interface ProviderRuntimeDependencies {
   recorder: ProviderRunRecorder;
   timeoutMs: number;
   maxResponseBytes: number;
+  maxRequestsPerRun: number;
   maxKeywords: number;
   maxRecords: number;
   maxContentChars: number;
@@ -201,7 +207,7 @@ export interface SignalSearchInput {
 }
 
 export interface DiscoveredSignal {
-  source: "reddit" | "hackernews";
+  source: "reddit" | "hackernews" | "github" | "stackexchange";
   externalId: string;
   sourceUrl: string;
   content: string;

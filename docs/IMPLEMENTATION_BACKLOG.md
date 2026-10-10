@@ -1,6 +1,6 @@
 # IntentLead implementation backlog
 
-**Status:** Active, corrected 2026-10-06.
+**Status:** Active, corrected 2026-10-10.
 
 ## Now
 
@@ -9,14 +9,14 @@
 - [x] Add capability/regression eval definitions for multi-source, >=20 confirmed signals, verified contacts, grounded drafts and structural no-send (2026-10-06; executable eval remains pending).
 - [x] Reintroduce buyer/contact/verification/brief contracts and forward-only tenant-safe schema (2026-10-08).
 - [x] Generalize provider/model registries and explicit activation states; keep paid providers locked (2026-10-08).
-- [ ] Add source planning and prioritized free/legal global adapters.
+- [x] Add source planning and prioritized free/legal global adapters (2026-10-10; durable no-network portfolio verified, live disabled).
 - [ ] Add bounded natural-language intake and LLM reasoning behind typed model capabilities.
 - [ ] Complete the durable self-prospecting flow through contact-ready package and human review.
 
 ## Next
 
 - [ ] Add one CIS/local market profile and working legal/free source path.
-- [ ] Add source-funnel, contact coverage, grounding and cost-per-accepted-package analytics.
+- [ ] Complete contact coverage, grounding and cost-per-accepted-package analytics (source-funnel count contract added 2026-10-10).
 - [ ] Run the minimum-20 controlled dogfood evaluation and independent reviews.
 - [ ] Add safe CSV/Google Sheets-compatible export.
 - [ ] Test with 3–5 design partners before choosing pricing.

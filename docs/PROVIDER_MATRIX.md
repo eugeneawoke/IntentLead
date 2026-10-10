@@ -1,6 +1,6 @@
 # Provider capability matrix
 
-**Status:** Target catalog and current implementation truth, 2026-10-06. Access, pricing, free tiers and commercial terms must be revalidated against current primary provider documentation before live use.
+**Status:** Target catalog and current implementation truth, 2026-10-10. Access, pricing, free tiers and commercial terms must be revalidated against current primary provider documentation before live use.
 
 Status values: `implemented`, `fixture_only`, `planned`, `missing_credentials`, `paid_locked`, `manual_only`, `unavailable`, `disabled`.
 
@@ -10,8 +10,8 @@ Status values: `implemented`, `fixture_only`, `planned`, `missing_credentials`, 
 | Recorded authorized evidence | discovery through assessment | declared by bundle | external authorized file | implemented | evaluation without live calls |
 | Reddit | public expressed intent | global | official API | implemented, not live-wired | first global portfolio after terms/credentials check |
 | Hacker News Algolia | public expressed intent | global/tech | official public API | implemented, not live-wired | first global portfolio |
-| GitHub Issues/Discussions | developer pain, projects and changes | global/tech | official API/public web | planned | free/legal priority |
-| Stack Overflow / Stack Exchange | technical questions and pain | global/tech | official API | planned | free/legal priority |
+| GitHub Issues | developer pain and project blockers | global/tech | official API | implemented, live disabled | bounded fixture-verified adapter; activation gate required |
+| Stack Overflow / Stack Exchange | technical questions and pain | global/tech | official API | implemented, live disabled | bounded fixture-verified adapter; activation gate required |
 | Product Hunt | launches and product context | global | official/public access varies | planned | enable only after access check |
 | G2 / Capterra / Trustpilot | reviews, comparisons and recurring pain | global | partner/API/public web varies | planned/manual_only | no prohibited scraping |
 | Public career pages | hiring and capability investment | global/CIS/local | public web | planned | prefer Greenhouse/Lever/Ashby public endpoints where allowed |
@@ -24,7 +24,7 @@ Status values: `implemented`, `fixture_only`, `planned`, `missing_credentials`, 
 | Serper | search/company discovery | global | partner API | implemented, paid_locked | no live use before demand/spend gate |
 | Google Custom Search | public web/company lookup | global | official API | planned | free quota/cost must be revalidated |
 | Jina Reader/extraction | content extraction | global | public/partner API | planned | compare access/cost before adoption |
-| Official company website | identity, business context and public contact | global/CIS/local | public web | planned | primary zero-cost contact fallback |
+| Official company website | identity, business context and public company role contact | global/CIS/local | public web | contact adapter implemented, live disabled; context adapter planned | mandatory authority-aware public egress, exact-page provenance, no person-email guessing |
 | Prospeo | person/email find and verification | provider markets | partner API | paid_locked; fixture contract planned | demand-gated enrichment candidate |
 | Hunter | email find and verification | provider markets | partner API | paid_locked; fixture contract planned | demand-gated enrichment candidate |
 | Apollo | people/company/email discovery | provider markets | partner API | paid_locked; fixture contract planned | demand-gated; found is not verified |

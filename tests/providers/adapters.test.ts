@@ -215,7 +215,7 @@ describe("provider boundary outcomes", () => {
     }
   });
 
-  it.each(keys)("bounds 429 retry metadata for %s", async (key) => {
+  it.each(keys)("preserves 429 retry metadata for %s", async (key) => {
     const built = buildAdapter(key, async (input) => String(input).includes("access_token")
       ? fakeResponse({ access_token: "fixture-bearer" })
       : fakeResponse({ error: "fixture" }, 429, { "retry-after": "900" }));
@@ -223,7 +223,7 @@ describe("provider boundary outcomes", () => {
 
     expect(result.status).toBe("RATE_LIMITED");
     expect(result.failureKind).toBe("RATE_LIMITED");
-    expect(result.capabilityError).toMatchObject({ code: "RATE_LIMITED", retryable: true, retryAfterMs: 60_000 });
+    expect(result.capabilityError).toMatchObject({ code: "RATE_LIMITED", retryable: true, retryAfterMs: 900_000 });
   });
 
   it.each(keys)("maps provider 5xx to unavailable for %s", async (key) => {

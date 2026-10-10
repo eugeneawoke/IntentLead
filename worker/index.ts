@@ -46,12 +46,13 @@ const heartbeatIntervalMs = resolveHeartbeatIntervalMs(
   optionalPositiveInteger("WORKER_HEARTBEAT_INTERVAL_MS"),
 );
 const serviceClient = getServiceClient() as unknown as JobDatabaseClient;
-installFixtureNetworkGuard({ mode: selfProspectingMode, supabaseUrl });
+const networkGuard = installFixtureNetworkGuard({ mode: selfProspectingMode, supabaseUrl });
 const repository = createSupabaseJobRepository(serviceClient);
 const handler = createConfiguredSelfProspectingHandler({
   mode: selfProspectingMode,
   client: serviceClient,
   recordedEvidencePath: process.env.SELF_PROSPECTING_RECORDED_EVIDENCE_PATH,
+  noNetworkAuthority: networkGuard.authority ?? undefined,
 });
 const jobWorker = createJobWorker({
   repository,

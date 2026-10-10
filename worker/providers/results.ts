@@ -165,6 +165,9 @@ export async function runRecordedProvider<T>(input: {
   const usage: ProviderUsage = {
     requestCount,
     recordCount: operationResult?.usage.recordCount ?? 0,
+    ...(operationResult?.usage.rawRecordCount !== undefined ? { rawRecordCount: operationResult.usage.rawRecordCount } : {}),
+    ...(operationResult?.usage.normalizedRecordCount !== undefined ? { normalizedRecordCount: operationResult.usage.normalizedRecordCount } : {}),
+    ...(operationResult?.usage.deduplicatedRecordCount !== undefined ? { deduplicatedRecordCount: operationResult.usage.deduplicatedRecordCount } : {}),
     ...(operationResult?.usage.inputTokens !== undefined ? { inputTokens: operationResult.usage.inputTokens } : {}),
     ...(operationResult?.usage.outputTokens !== undefined ? { outputTokens: operationResult.usage.outputTokens } : {}),
   };
@@ -186,6 +189,9 @@ export async function runRecordedProvider<T>(input: {
     cost,
     responseMetadata: {
       recordCount: usage.recordCount,
+      rawRecordCount: usage.rawRecordCount ?? null,
+      normalizedRecordCount: usage.normalizedRecordCount ?? null,
+      deduplicatedRecordCount: usage.deduplicatedRecordCount ?? null,
       failureKind,
       errorCode: error?.code ?? null,
     },

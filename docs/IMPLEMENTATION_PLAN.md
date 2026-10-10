@@ -78,15 +78,17 @@ Historical commits remain implementation evidence, not current product authority
 
 ## Task K — Free/legal multi-source planning and adapters
 
-- [ ] Add a `SourcePlan` contract and deterministic provider selection by signal family, market, business type, access status and expected value.
-- [ ] Keep Reddit and HN; add prioritized free/legal adapters for GitHub and Stack Overflow/public web where practical.
-- [ ] Add official-site/public-business-contact fallback with exact source URL.
-- [ ] Add public RSS/blog/changelog and career-page foundations; prefer structured Greenhouse/Lever/Ashby endpoints where permitted.
-- [ ] Represent Product Hunt, reviews, jobs, news, maps and regional sources in the matrix even when status is manual-only/unavailable.
-- [ ] Add `GLOBAL_EN`, `CIS`, `RU`, `BY`, `KZ` and local-business profile foundations without scattered country conditionals.
-- [ ] Preserve raw candidate counts, confirmed-signal counts, unique companies and accepted Opportunities as separate metrics.
+- [x] Add a `SourcePlan` contract and deterministic provider selection by signal family, market, business type, access status and expected value (2026-10-10).
+- [x] Keep Reddit and HN; add prioritized free/legal adapters for GitHub and Stack Overflow/public web where practical (2026-10-10).
+- [x] Add official-site/public-business-contact fallback with exact source URL (2026-10-10).
+- [x] Add public RSS/blog/changelog and career-page foundations; prefer structured Greenhouse/Lever/Ashby endpoints where permitted (2026-10-10).
+- [x] Represent Product Hunt, reviews, jobs, news, maps and regional sources in the matrix even when status is manual-only/unavailable (2026-10-10).
+- [x] Add `GLOBAL_EN`, `CIS`, `RU`, `BY`, `KZ` and local-business profile foundations without scattered country conditionals (2026-10-10).
+- [x] Preserve raw candidate counts, confirmed-signal counts, unique companies and accepted Opportunities as separate metrics (2026-10-10).
 
 **Done when:** no workflow is hard-coded to one source pair, a useful zero-paid-provider portfolio exists and capability gaps are explicit.
+
+**Result (2026-10-10):** code-complete and live-disabled. `SourcePlan` selects by profile, business type, signal family, operational/legal state, explicit expected value and budget, validates status and executable snapshots, and rejects plans outside the authorized workspace/brief. Budget-compatible sources are ranked before portfolio truncation, so an incompatible source cannot displace an executable one. The durable fixture worker executes a real no-network GitHub + Stack Exchange portfolio through the provider registry only with active guard-issued authority outside tests, preserves each source run and exact provenance, then continues through assessment and persistence; it does not synthesize a portfolio run. Authority is revoked when the guard is restored. Adapters enforce host/path/source identity, response/request bounds, full provider backoff and exhausted-quota stops. The official-site fallback has no raw HTTP path: future activation requires an authority-aware public-egress implementation, and it only returns company role addresses with exact page provenance. RSS/blog/changelog, career pages, Greenhouse/Lever/Ashby and the broader global/regional matrix remain explicit planned foundations. Funnel results distinguish raw, normalized, deduplicated, processed, confirmed, unique-company and returned-Opportunity counts; accepted count is `null` until human-review aggregation is measured. The focused 107-test eval passes three deterministic repeats. New additive migrations extend replay metrics and the source-provider allowlist but were not applied to production. All live source descriptors remain `disabled`; no network, paid call, production migration or sending occurred.
 
 ## Task K2 — Conversational LLM layer
 

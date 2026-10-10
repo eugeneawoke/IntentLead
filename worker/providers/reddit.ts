@@ -98,6 +98,8 @@ export function createRedditAdapter(config: {
 
           const records = new Map<string, DiscoveredSignal>();
           const provenance = new Map<string, ReturnType<typeof makeProvenance>>();
+          let rawRecordCount = 0;
+          let normalizedRecordCount = 0;
           for (let index = 0; index < keywords.length; index++) {
             if (operation.signal.aborted) throw new ProviderCancelledError();
             if (index > 0) await dependencies.sleep(1_000, operation.signal);
@@ -116,6 +118,7 @@ export function createRedditAdapter(config: {
               }, operation.signal);
               const parsed = RedditSearchSchema.safeParse(response);
               if (!parsed.success) throw new ProviderMalformedResponseError();
+              rawRecordCount += parsed.data.data.children.length;
 
               for (const child of parsed.data.data.children) {
                 const post = child.data;
@@ -132,6 +135,7 @@ export function createRedditAdapter(config: {
                   publishedAt: postedAt,
                 });
                 if (!normalized.success) throw new ProviderMalformedResponseError();
+                normalizedRecordCount++;
                 if (!records.has(post.id)) {
                   records.set(post.id, normalized.data);
                   provenance.set(post.id, makeProvenance(post.id, url, operation.providerRunId, dependencies));
@@ -148,7 +152,7 @@ export function createRedditAdapter(config: {
                 status: "PARTIAL",
                 failureKind: mapped.failureKind,
                 capabilityError: mapped.capabilityError,
-                usage: { requestCount: providerRequestCount, recordCount: value.length },
+                usage: { requestCount: providerRequestCount, recordCount: value.length, rawRecordCount, normalizedRecordCount, deduplicatedRecordCount: value.length },
                 provenance: [...provenance.values()],
                 limitations: ["Some bounded keywords failed; completed results were retained and the raw provider payload was discarded."],
               };
@@ -159,7 +163,7 @@ export function createRedditAdapter(config: {
           return {
             value,
             status: value.length ? "SUCCEEDED" : "EMPTY",
-            usage: { requestCount: providerRequestCount, recordCount: value.length },
+            usage: { requestCount: providerRequestCount, recordCount: value.length, rawRecordCount, normalizedRecordCount, deduplicatedRecordCount: value.length },
             provenance: [...provenance.values()],
             limitations: ["Only bounded public result excerpts were normalized; the raw provider payload was discarded."],
             actualCost: descriptor.configuredCost.amount === 0 ? 0 : null,

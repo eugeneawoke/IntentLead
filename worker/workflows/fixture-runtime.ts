@@ -12,41 +12,10 @@ import type {
 } from "../../types/self-prospecting";
 import { createSupabaseSelfProspectingPersistence } from "./self-prospecting-persistence";
 import { SYNTHETIC_SELF_PROSPECTING_FIXTURE } from "./fixture-data";
-
-export interface NoNetworkSelfProspectingFixture {
-  version: string;
-  signal: {
-    source: "reddit" | "hackernews";
-    externalId: string;
-    sourceUrl: string;
-    content: string;
-    context: string | null;
-    publishedAt: string | null;
-    capturedAt?: string;
-  };
-  company: {
-    name: string;
-    domain: string;
-    sourceId: string;
-    sourceUrl: string;
-    title: string;
-    excerpt: string;
-    confidence: number;
-    capturedAt?: string;
-  };
-  assessment: {
-    problemType: "website" | "local_listing" | "reviews" | "reputation" | "acquisition" | "conversion" | "operations" | "other";
-    evidenceStrength: number;
-    explicitness: number;
-    urgency: number;
-    commercialImpact: number;
-    icpFit: number;
-    buyerRelevance: number;
-    actionability: number;
-    confidence: number;
-    reviewReasons: readonly string[];
-  };
-}
+import { createNoNetworkPortfolioSearch } from "./no-network-source-portfolio";
+import type { NoNetworkExecutionAuthority } from "../providers/no-network-authority";
+import type { NoNetworkSelfProspectingFixture } from "./fixture-runtime-contracts";
+export type { NoNetworkSelfProspectingFixture } from "./fixture-runtime-contracts";
 
 type RpcResult = { data: unknown; error: { message?: string } | null };
 export interface FixtureRuntimeDatabaseClient {
@@ -149,7 +118,7 @@ function fixtureRegistry(
           sourceUrl: fixture.sourceUrl,
         }],
       });
-      return { execution: execution(run, budget), providerRuns: [run] };
+      return { signals: value, providerRuns: [run], remainingBudget: consumeCall(budget), error: null };
     },
 
     async resolveCompany({ job, signal, budget }) {
@@ -263,13 +232,19 @@ function row(value: unknown): Record<string, unknown> | null {
 export function createFixtureSelfProspectingDependencies(
   client: FixtureRuntimeDatabaseClient,
   clock: () => Date = () => new Date(),
+  noNetworkAuthority?: NoNetworkExecutionAuthority,
 ): SelfProspectingDependencies {
-  return createNoNetworkSelfProspectingDependencies(
+  const dependencies = createNoNetworkSelfProspectingDependencies(
     client,
     SYNTHETIC_SELF_PROSPECTING_FIXTURE,
     ["SYNTHETIC_CONTRACT_FIXTURE", "NO_NETWORK", "NOT_LIVE_PROVIDER_EVIDENCE"],
     clock,
   );
+  return {
+    ...dependencies,
+    registry: { ...dependencies.registry, search: createNoNetworkPortfolioSearch(clock, noNetworkAuthority) },
+    initialBudget: () => ({ currency: "USD", remainingCost: 0, remainingProviderCalls: 6 }),
+  };
 }
 
 export function createNoNetworkSelfProspectingDependencies(

@@ -1,0 +1,23 @@
+{
+  "items": [
+    {
+      "question_id": 81001,
+      "link": "https://stackoverflow.com/questions/81001/fixture-workflow-question",
+      "title": "How can a small team make customer intake reliable?",
+      "body": "A fictional company needs a workflow before launch. Email owner@example.test.",
+      "tags": ["workflow", "saas"],
+      "creation_date": 1791187200
+    },
+    {
+      "question_id": 81001,
+      "link": "https://stackoverflow.com/questions/81001/fixture-workflow-question",
+      "title": "Duplicate question",
+      "body": "The adapter must deduplicate this item.",
+      "tags": ["workflow"],
+      "creation_date": 1791187200
+    }
+  ],
+  "has_more": true,
+  "backoff": 120,
+  "quota_remaining": 9999
+}

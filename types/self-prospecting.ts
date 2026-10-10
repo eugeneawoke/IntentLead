@@ -35,10 +35,17 @@ export interface RegistryStepResult<T> {
   providerRuns: ProviderRunEnvelope<unknown>[];
 }
 
+export interface DiscoverySearchResult {
+  signals: DiscoveredSignal[];
+  providerRuns: ProviderRunEnvelope<unknown>[];
+  remainingBudget: ProviderBudget;
+  error: import("./job").CapabilityError | null;
+}
+
 export interface SelfProspectingRegistry {
   search(input: {
     job: LeasedJob; profile: MarketProfile; brief: DiscoveryBrief; signal: AbortSignal; budget: ProviderBudget;
-  }): Promise<RegistryStepResult<DiscoveredSignal[]>>;
+  }): Promise<DiscoverySearchResult>;
   resolveCompany(input: {
     job: LeasedJob; profile: MarketProfile; brief: DiscoveryBrief; signal: AbortSignal;
     budget: ProviderBudget; signalContent: string;
@@ -103,6 +110,8 @@ export interface SelfProspectingPersistInput {
 export interface FoundSelfProspectingCandidate {
   opportunityId: string;
   state: Opportunity["state"];
+  signalConfirmed: boolean;
+  companyIdentity: string | null;
 }
 
 export interface SelfProspectingPersistence {

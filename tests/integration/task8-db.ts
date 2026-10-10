@@ -54,6 +54,13 @@ export async function applyTaskEMigration(): Promise<void> {
 export async function bootstrapLatestDatabase(): Promise<void> {
   await bootstrapTask8Database(false);
   await applyTaskEMigration();
+  for (const name of [
+    "202610100001_taskk_replay_funnel.sql",
+    "202610100002_taskk_source_provider_allowlist.sql",
+  ]) {
+    const contents = await readFile(new URL(`../../supabase/migrations/${name}`, import.meta.url), "utf8");
+    await sql(contents, `intentlead-${name}`);
+  }
 }
 
 export { asRole, sql };

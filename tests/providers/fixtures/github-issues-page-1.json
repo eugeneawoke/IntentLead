@@ -1,0 +1,23 @@
+{
+  "total_count": 3,
+  "items": [
+    {
+      "id": 91001,
+      "number": 101,
+      "html_url": "https://github.com/fixture-org/fixture-repo/issues/101",
+      "repository_url": "https://api.github.com/repos/fixture-org/fixture-repo",
+      "title": "Need a safer customer intake workflow",
+      "body": "Our fictional team is comparing options. Contact jane@example.test or +1 415 555 0199.",
+      "created_at": "2026-10-04T08:30:00Z"
+    },
+    {
+      "id": 91001,
+      "number": 101,
+      "html_url": "https://github.com/fixture-org/fixture-repo/issues/101",
+      "repository_url": "https://api.github.com/repos/fixture-org/fixture-repo",
+      "title": "Duplicate fixture record",
+      "body": "This duplicate must not become another signal.",
+      "created_at": "2026-10-04T08:30:00Z"
+    }
+  ]
+}

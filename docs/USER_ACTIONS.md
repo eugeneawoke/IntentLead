@@ -1,8 +1,10 @@
 # Founder actions
 
-**Status:** 2026-10-06.
+**Status:** 2026-10-10.
 
 There is no current founder-input blocker. Product direction is approved: preserve the established visual language; build multi-source Opportunity discovery through buyer/contact verification and grounded drafting; target at least 20 confirmed signals per complete run; never send messages.
+
+Future live activation is intentionally separate: before any public-source call, the founder must approve the exact provider set and access policy. Official-site access additionally requires a public-egress implementation that enforces company/evidence authority and DNS/private-address/redirect/size controls. This is not required for the current no-network implementation sequence.
 
 The implementation agent owns local code, fixtures, prompts, evals, migrations and reviews. The founder does not need to create JSON files, start agents or select an arbitrary HN-only sample.
 

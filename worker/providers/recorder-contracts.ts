@@ -25,6 +25,9 @@ export interface ProviderRunFinish {
   cost: ProviderCost;
   responseMetadata: {
     recordCount: number;
+    rawRecordCount: number | null;
+    normalizedRecordCount: number | null;
+    deduplicatedRecordCount: number | null;
     failureKind: ProviderFailureKind | null;
     errorCode: CapabilityError["code"] | null;
   };

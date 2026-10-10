@@ -1,6 +1,6 @@
 # Current state audit
 
-**Verified:** 2026-10-08 on branch `codex/opportunity-core` after the local Tasks H/I/J gate.
+**Verified:** 2026-10-10 on branch `codex/opportunity-core` after the local Task K implementation gate.
 
 This document reports current local code, not planned scope and not production state.
 
@@ -26,9 +26,9 @@ Buyer/contact verification and grounded-draft contracts/storage now exist locall
 | Auth and tenancy | Supabase auth helpers, application authorization and RLS foundations | Preserve negative tenant tests |
 | Opportunity contracts | Versioned Evidence, Company, Opportunity, Person, BuyerCandidate, ContactPoint/Verification, ConversationBrief, Draft, SuppressionEntry, review and governance contracts | Keep provider-independent and extend runtime through typed capabilities |
 | Durable jobs | Lease, recovery, cancellation and replay protections use native DiscoveryBrief authority | Preserve through schema cleanup |
-| Provider registry | Trusted catalog, explicit activation, capability, provenance, one-time reservation, registry timeout and cost policies implemented; generic fixtures are test-only | Keep live adapters disabled; add free/legal adapters in Task K |
+| Provider registry | Trusted catalog, explicit activation, capability, provenance, one-time reservation, registry timeout and cost policies implemented; Reddit/HN/GitHub/Stack Exchange plus official-site company-contact adapters are fixture-tested | Keep live adapters disabled until source-specific access gates are approved |
 | Model registry | Provider-neutral capabilities, fixed system/untrusted-user boundary, evidence checks and pre-call token/cost/call reservation implemented | No live model is active; wire conversational intake in Task K2 |
-| Self-prospecting | Explicit fixture-mode worker wiring, DB persistence and network guard implemented locally | Extend with source planning, contact-ready package and a gated free/legal live mode |
+| Self-prospecting | Durable fixture worker executes a real no-network GitHub + Stack Exchange SourcePlan portfolio with per-provider provenance, replay-aware DB persistence and separate funnel metrics; recorded mode remains single authorized evidence | Extend through conversational intake and buyer/contact/draft package; live mode remains disabled |
 | Human review | List, detail and decision APIs/UI implemented | Use for dogfood quality feedback |
 | Glook | Versioned snapshot consumer exists with contract tests; no active route or direct table read | Keep dormant and optional |
 | Legacy lead runtime | Pipeline, provider wrappers, API/export, cards and message code removed | Keep the unsafe runtime absent; rebuild clean buyer/contact/draft capabilities |
@@ -37,20 +37,20 @@ Buyer/contact verification and grounded-draft contracts/storage now exist locall
 
 ## Current execution gap
 
-The worker injects `createSelfProspectingHandler` only in explicit `fixture` or `recorded` modes. `fixture` exercises the embedded synthetic deterministic contract. `recorded` requires a local, schema-valid, sanitized and explicitly authorized JSON evidence file supplied outside the repository. Both modes allow network access only to Supabase, record zero provider requests and cost, and cannot invoke live provider endpoints. `disabled` remains the default and unknown modes fail startup. OfferProfile, ICPDefinition and DiscoveryBrief are native authority. The Task E forward migration removes the historical campaign-linked graph, verified-contact/credit semantics and callable compatibility helpers; only migration history retains their definitions.
+The worker injects `createSelfProspectingHandler` only in explicit `fixture` or `recorded` modes. `fixture` runs two real adapters through injected no-network GitHub/Stack Exchange responses and records their logical request counts while spending zero; `recorded` requires a local, schema-valid, sanitized and explicitly authorized JSON evidence file supplied outside the repository. The process network guard still permits only Supabase, so neither mode can reach provider endpoints. `disabled` remains the default and unknown modes fail startup. OfferProfile, ICPDefinition and DiscoveryBrief are native authority. The Task E forward migration removes the historical campaign-linked graph, verified-contact/credit semantics and callable compatibility helpers; only migration history retains their definitions.
 
 The corrected critical sequence is therefore:
 
 1. restore the visual/product contract and add package evals;
 2. add clean buyer/contact/draft contracts and storage;
-3. add multi-source planning and free/legal adapter foundations;
+3. add bounded conversational intake behind the model registry;
 4. extend the durable worker through a contact-ready grounded package;
 5. run the minimum-20 controlled evaluation before any paid provider mode.
 
 ## Quality evidence for the reset
 
 - GitNexus was re-indexed; individual removed exports had LOW impact. The aggregate public rewrite was rated HIGH because six connected landing/Auth/Lang flows changed together, so it received full build, browser and independent review gates.
-- `npm run verify`: app and worker typecheck pass; lint has zero errors; 526 unit tests pass; production build passes.
+- Current milestone-gate evidence: app and worker typecheck pass; lint has zero errors and nine pre-existing `fluid-glass.tsx` warnings; 587 unit tests pass; production build passes.
 - Browser smoke: 9/9 pass, including 404 assertions for retired public/API routes and sitemap exclusions.
 - Independent review found no dangling imports, auth regression or product/security blocker.
 - Task C unit/type gates pass with 529 unit tests. Its forward-only migration passed 4/4 real PostgreSQL tests covering concurrent idempotent creation, direct-RPC validation, tenant isolation, native enqueue/lifecycle and deletion without legacy campaign mutation.
@@ -63,5 +63,6 @@ The corrected critical sequence is therefore:
 - The former Task F “external founder input” blocker is superseded. The founder has supplied the target product direction and authorized continued local implementation. Recorded/live evidence is still required later to claim product quality, but it does not block correcting the code, UI, contracts, adapters or eval harness.
 - Tasks H/I gate (2026-10-08): Signal Dark and current workspace surfaces are restored; independent frontend findings on truthfulness/accessibility were resolved. App/worker typechecks pass, 505/505 unit tests pass, focused browser journeys pass 2/2, Task I disposable-PostgreSQL tests pass 5/5, targeted lint has zero errors and the production build passes. Independent security findings on suppression canonicalization, verification chronology/expiry, package binding invalidation, claim coverage, Unicode offsets and research-only job errors were resolved. No live provider call was made.
 - Task J gate (2026-10-08): provider/model contracts, source-plan foundations, trusted activation, reservation, timeout, cost and grounding controls pass the complete local verification command: both typechecks, lint with zero errors and nine pre-existing `fluid-glass.tsx` warnings, 536/536 unit tests and the production build. Independent security review found and drove fixes for pre-call model reservation, test-only fixture execution, authorized evidence IDs and bijective nested-run provenance. The unchanged Task I PostgreSQL gate remains 5/5 and the unchanged Task H browser gate remains 2/2; neither was rerun without a DB/UI change. No network or paid call was made.
+- Task K gate (2026-10-10): deterministic `SourcePlan`, global/regional foundations, GitHub and Stack Exchange adapters, authority-gated official-site company-role fallback, durable no-network multi-source execution and replay-aware funnel metrics pass both typechecks, lint with only the nine pre-existing `fluid-glass.tsx` warnings, 587/587 unit tests and the production build. The focused 107-test adapter/workflow eval passes three deterministic repeats (`pass^3 = 1.00`) and covers provenance identity, malformed/oversized responses, timeout, cancellation, 403/429, provider backoff, exhausted quota, request ceilings, production no-network authority and terminal run recording. Additive PostgreSQL migrations and the updated disposable-DB test are authored but not executed in this environment because no local `INTENTLEAD_TEST_DATABASE_URL` is configured. Live catalog entries remain disabled.
 
 No production deployment, production migration, real-source run, real sending or paid API call was performed.

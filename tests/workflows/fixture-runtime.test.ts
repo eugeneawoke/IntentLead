@@ -1,12 +1,10 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createSelfProspectingHandler } from "../../worker/workflows/self-prospecting";
 import { createFixtureSelfProspectingDependencies } from "../../worker/workflows/fixture-runtime";
-import {
-  createConfiguredSelfProspectingHandler, installFixtureNetworkGuard, resolveSelfProspectingMode,
-} from "../../worker/runtime";
+import { createConfiguredSelfProspectingHandler, resolveSelfProspectingMode } from "../../worker/runtime";
 import { fixtureBrief, fixtureIcp, fixtureIds, fixtureOffer, fixtureProfile } from "../evals/opportunity-fixtures";
 import type { LeasedJob } from "../../worker/jobs/repository";
 
@@ -163,7 +161,7 @@ describe("fixture self-prospecting runtime", () => {
   });
 
   it("runs the synthetic contract fixture to a reviewable zero-cost Opportunity and reuses it on rerun", async () => {
-    const persisted = new Map<string, { opportunityId: string; state: string }>();
+    const persisted = new Map<string, { opportunityId: string; state: string; signalConfirmed: boolean; companyIdentity: string | null }>();
     const slices: Array<Record<string, unknown>> = [];
     const rpc = vi.fn(async (name: string, args: Record<string, unknown>) => {
       if (name === "intentlead_get_self_prospecting_context") return contextResult();
@@ -174,7 +172,13 @@ describe("fixture self-prospecting runtime", () => {
         const slice = args.p_slice as Record<string, unknown>;
         const opportunity = slice.opportunity as { id: string; state: string };
         slices.push(slice);
-        persisted.set(String(args.p_candidate_key), { opportunityId: opportunity.id, state: opportunity.state });
+        const company = slice.company as { id?: string; domain?: string | null } | null;
+        const reasons = slice.policyReasons as string[];
+        persisted.set(String(args.p_candidate_key), {
+          opportunityId: opportunity.id, state: opportunity.state,
+          signalConfirmed: !reasons.some(reason => ["SIGNAL_FAMILY_UNSUPPORTED", "SIGNAL_TOO_OLD"].includes(reason)),
+          companyIdentity: company?.domain ?? company?.id ?? null,
+        });
         return { data: opportunity.id, error: null };
       }
       throw new Error(`unexpected RPC: ${name}`);
@@ -185,8 +189,12 @@ describe("fixture self-prospecting runtime", () => {
     const second = await handler(job, execution());
 
     expect(first).toMatchObject({ state: "COMPLETED", result: { outcome: "REVIEW_READY" } });
+    expect(first.result).toMatchObject({ funnel: {
+      rawCandidates: 2, normalizedCandidates: 2, deduplicatedSignals: 2, processedSignals: 2, confirmedSignals: 2,
+      uniqueCompanies: 1, opportunitiesReturned: 2, acceptedOpportunities: null,
+    } });
     expect(second).toMatchObject({ state: "COMPLETED", result: { outcome: "REVIEW_READY" } });
-    expect(slices).toHaveLength(1);
+    expect(slices).toHaveLength(2);
     const slice = slices[0]!;
     expect(slice.opportunity).toMatchObject({ state: "HUMAN_REVIEW", signal: { family: "EXPRESSED_INTENT" } });
     expect(slice).toMatchObject({
@@ -194,7 +202,8 @@ describe("fixture self-prospecting runtime", () => {
       assessment: { icpFit: 0.4, reviewReasons: expect.arrayContaining(["MODEL_REVIEW", "LOW_ICP_FIT", "NEEDS_HUMAN_CONFIRMATION"]) },
     });
     expect(slice.providerRuns).toEqual(expect.arrayContaining([
-      expect.objectContaining({ capability: "SOURCE_SEARCH", requestCount: 0, actualCost: 0 }),
+      expect.objectContaining({ capability: "SOURCE_SEARCH", provider: "github", requestCount: 1, actualCost: 0 }),
+      expect.objectContaining({ capability: "SOURCE_SEARCH", provider: "stackexchange", requestCount: 1, actualCost: 0 }),
       expect.objectContaining({ capability: "COMPANY_RESOLUTION", requestCount: 0, actualCost: 0 }),
       expect.objectContaining({ capability: "OPPORTUNITY_ASSESSMENT", requestCount: 0, actualCost: 0 }),
     ]));
@@ -238,7 +247,7 @@ describe("fixture self-prospecting runtime", () => {
     });
 
     expect(ids(first)).not.toEqual(ids(second));
-    expect(new Set([...ids(first).providerRuns, ...ids(second).providerRuns]).size).toBe(6);
+    expect(new Set([...ids(first).providerRuns, ...ids(second).providerRuns]).size).toBe(8);
   });
 
   it("fails closed when the lease-bound context is unavailable", async () => {
@@ -246,41 +255,5 @@ describe("fixture self-prospecting runtime", () => {
       rpc: vi.fn(async () => ({ data: null, error: null })),
     }, () => now);
     await expect(dependencies.loadContext(job)).rejects.toThrow("returned no row");
-  });
-});
-
-describe("fixture network guard", () => {
-  const originalFetch = globalThis.fetch;
-  afterEach(() => { globalThis.fetch = originalFetch; });
-
-  it("allows only the configured database origin and blocks provider/network origins", async () => {
-    const underlying = vi.fn(async () => new Response("ok"));
-    const restore = installFixtureNetworkGuard({
-      mode: "fixture",
-      supabaseUrl: "https://db.intentlead.test",
-      fetchImplementation: underlying,
-    });
-
-    await expect(fetch("https://db.intentlead.test/rest/v1/jobs", { redirect: "follow" })).resolves.toBeInstanceOf(Response);
-    await expect(fetch("https://api.openai.com/v1/responses")).rejects.toThrow("blocked network origin");
-    await expect(fetch("https://www.reddit.com/search.json")).rejects.toThrow("blocked network origin");
-    expect(underlying).toHaveBeenCalledTimes(1);
-    expect(underlying).toHaveBeenCalledWith(
-      "https://db.intentlead.test/rest/v1/jobs",
-      expect.objectContaining({ redirect: "error" }),
-    );
-    restore();
-  });
-
-  it("applies the same network deny guard to recorded evidence mode", async () => {
-    const underlying = vi.fn(async () => new Response("ok"));
-    const restore = installFixtureNetworkGuard({
-      mode: "recorded",
-      supabaseUrl: "https://db.intentlead.test",
-      fetchImplementation: underlying,
-    });
-    await expect(fetch("https://api.openai.com/v1/responses")).rejects.toThrow("blocked network origin");
-    expect(underlying).not.toHaveBeenCalled();
-    restore();
   });
 });

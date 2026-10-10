@@ -7,6 +7,7 @@ function languageMatches(supported: string[], requested: string[]): boolean {
 
 function gapReason(entry: SourcePlan["selected"][number], request: SourcePlanRequest): SourcePlan["gaps"][number]["reason"] | null {
   if (entry.legalStatus === "PROHIBITED") return "PROHIBITED";
+  if (entry.legalStatus === "RESTRICTED") return "LEGAL_RESTRICTED";
   if (entry.legalStatus === "UNASSESSED") return "LEGAL_UNASSESSED";
   if (entry.state !== "READY" && entry.state !== "DEGRADED") return entry.state;
   const cost = entry.configuredCost;
@@ -15,9 +16,10 @@ function gapReason(entry: SourcePlan["selected"][number], request: SourcePlanReq
   return null;
 }
 
-function executionRank(entry: SourceCatalogEntry): number {
-  if (entry.legalStatus !== "ALLOWED") return 2;
-  return entry.state === "READY" || entry.state === "DEGRADED" ? 0 : 1;
+function executionRank(entry: SourceCatalogEntry, request: SourcePlanRequest): number {
+  if (gapReason(entry, request) === null) return 0;
+  if (entry.legalStatus === "ALLOWED" && (entry.state === "READY" || entry.state === "DEGRADED")) return 1;
+  return 2;
 }
 
 export function buildSourcePlan(requestInput: SourcePlanRequest, catalogInput: SourceCatalogEntry[]): SourcePlan {
@@ -30,8 +32,9 @@ export function buildSourcePlan(requestInput: SourcePlanRequest, catalogInput: S
   ));
 
   const selected = relevant.sort((left, right) => (
-    executionRank(left) - executionRank(right)
+    executionRank(left, request) - executionRank(right, request)
     || (left.configuredCost.amount ?? Number.POSITIVE_INFINITY) - (right.configuredCost.amount ?? Number.POSITIVE_INFINITY)
+    || right.expectedValueScore - left.expectedValueScore
     || left.priority - right.priority
     || left.providerKey.localeCompare(right.providerKey)
   )).slice(0, request.maxProviders).map(entry => {
@@ -49,6 +52,7 @@ export function buildSourcePlan(requestInput: SourcePlanRequest, catalogInput: S
       configuredCost: entry.configuredCost,
       signalFamilies,
       priority: entry.priority,
+      expectedValueScore: entry.expectedValueScore,
       rationale: entry.rationale,
     };
   });

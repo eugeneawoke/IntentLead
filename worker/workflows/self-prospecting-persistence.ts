@@ -76,10 +76,17 @@ export function createSupabaseSelfProspectingPersistence(
       rpcError(response.error);
       const row = rpcRow(response.data);
       if (!row) return null;
-      if (typeof row.opportunityId !== "string" || typeof row.state !== "string") {
+      if (typeof row.opportunityId !== "string" || typeof row.state !== "string"
+        || typeof row.signalConfirmed !== "boolean"
+        || (row.companyIdentity !== null && typeof row.companyIdentity !== "string")) {
         throw new Error("self-prospecting lookup returned an invalid result");
       }
-      return { opportunityId: row.opportunityId, state: row.state as FoundSelfProspectingCandidate["state"] };
+      return {
+        opportunityId: row.opportunityId,
+        state: row.state as FoundSelfProspectingCandidate["state"],
+        signalConfirmed: row.signalConfirmed,
+        companyIdentity: row.companyIdentity as string | null,
+      };
     },
 
     async persistCandidate(job, input): Promise<string> {

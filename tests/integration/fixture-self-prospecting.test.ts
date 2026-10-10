@@ -136,10 +136,11 @@ describe.skipIf(!enabled)("Task D fixture self-prospecting in disposable Postgre
     const opportunityId = (first.result.opportunityIds as string[])[0]!;
 
     expect(await sql(`SELECT count(*) FROM public.intentlead_opportunities WHERE id='${opportunityId}' AND workspace_id='${workspaceId}' AND state='HUMAN_REVIEW'`)).toBe("1");
-    expect(await sql(`SELECT count(*) FROM public.intentlead_job_candidate_results WHERE job_id='${job.id}'`)).toBe("1");
-    expect(await sql(`SELECT count(*) FROM public.intentlead_provider_runs WHERE job_id='${job.id}' AND usage_units=0 AND cost_amount=0`)).toBe("3");
-    expect(await sql(`SELECT count(*) FROM public.intentlead_source_items WHERE workspace_id='${workspaceId}'`)).toBe("2");
-    expect(await sql(`SELECT count(*) FROM public.intentlead_evidence_items WHERE workspace_id='${workspaceId}'`)).toBe("2");
+    expect(await sql(`SELECT count(*) FROM public.intentlead_job_candidate_results WHERE job_id='${job.id}'`)).toBe("2");
+    expect(await sql(`SELECT count(*) FROM public.intentlead_provider_runs WHERE job_id='${job.id}' AND cost_amount=0`)).toBe("4");
+    expect(await sql(`SELECT count(*) FROM public.intentlead_provider_runs WHERE job_id='${job.id}' AND provider IN ('github','stackexchange')`)).toBe("2");
+    expect(await sql(`SELECT count(*) FROM public.intentlead_source_items WHERE workspace_id='${workspaceId}'`)).toBe("4");
+    expect(await sql(`SELECT count(*) FROM public.intentlead_evidence_items WHERE workspace_id='${workspaceId}'`)).toBe("4");
     expect(await sql(`SELECT count(*) FROM pg_class WHERE relnamespace='public'::regnamespace
       AND relname=ANY(ARRAY[
         'intentlead_people','intentlead_contact_points','intentlead_outreach_drafts',
@@ -151,7 +152,7 @@ describe.skipIf(!enabled)("Task D fixture self-prospecting in disposable Postgre
       evidence: Array<{ facts: { observedCondition?: string } }>;
       limitations: string[];
     };
-    expect(detail.assessment.problemStatement).toBe("We are looking for a better way to manage repeated manual vendor checks.");
+    expect(detail.assessment.problemStatement).toContain("vendor review workflow");
     expect(detail.assessment.icpFit).toBe(0.4);
     expect(detail.evidence.some(item => item.facts.observedCondition?.includes("manual vendor checks"))).toBe(true);
     expect(detail.limitations).toEqual(expect.arrayContaining([

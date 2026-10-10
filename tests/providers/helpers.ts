@@ -106,6 +106,7 @@ export function makeDependencies(
     recorder,
     timeoutMs: 100,
     maxResponseBytes: 100_000,
+    maxRequestsPerRun: 10,
     maxKeywords: 5,
     maxRecords: 100,
     maxContentChars: 2_000,

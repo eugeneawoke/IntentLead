@@ -60,7 +60,7 @@ function sleep(milliseconds: number, signal?: AbortSignal): Promise<void> {
 export function createProviderRuntimeDependencies(
   recorder: ProviderRunRecorder = createStructuredProviderRunRecorder(),
   overrides: Partial<Pick<ProviderRuntimeDependencies,
-    "timeoutMs" | "maxResponseBytes" | "maxKeywords" | "maxRecords" | "maxContentChars">> = {},
+    "timeoutMs" | "maxResponseBytes" | "maxRequestsPerRun" | "maxKeywords" | "maxRecords" | "maxContentChars">> = {},
 ): ProviderRuntimeDependencies {
   return {
     http: (url, init) => globalThis.fetch(url, { ...init, redirect: "error" }),
@@ -70,6 +70,7 @@ export function createProviderRuntimeDependencies(
     recorder,
     timeoutMs: overrides.timeoutMs ?? 8_000,
     maxResponseBytes: overrides.maxResponseBytes ?? 1_000_000,
+    maxRequestsPerRun: overrides.maxRequestsPerRun ?? 10,
     maxKeywords: overrides.maxKeywords ?? 5,
     maxRecords: overrides.maxRecords ?? 100,
     maxContentChars: overrides.maxContentChars ?? 2_000,

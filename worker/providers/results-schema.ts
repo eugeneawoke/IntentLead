@@ -17,6 +17,9 @@ const EnvelopeShape = {
   usage: z.object({
     requestCount: z.number().int().nonnegative(),
     recordCount: z.number().int().nonnegative(),
+    rawRecordCount: z.number().int().nonnegative().optional(),
+    normalizedRecordCount: z.number().int().nonnegative().optional(),
+    deduplicatedRecordCount: z.number().int().nonnegative().optional(),
     inputTokens: z.number().int().nonnegative().nullable().optional(),
     outputTokens: z.number().int().nonnegative().nullable().optional(),
   }).strict(),

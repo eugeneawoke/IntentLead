@@ -5,6 +5,9 @@ import {
   type FixtureRuntimeDatabaseClient,
 } from "./workflows/fixture-runtime";
 import { loadRecordedEvidence } from "./workflows/recorded-evidence";
+import {
+  installNoNetworkExecutionGuard, type NoNetworkExecutionAuthority, type NoNetworkExecutionGuard,
+} from "./providers/no-network-authority";
 
 export type SelfProspectingMode = "disabled" | "fixture" | "recorded";
 
@@ -18,11 +21,12 @@ export function createConfiguredSelfProspectingHandler(input: {
   mode: SelfProspectingMode;
   client: FixtureRuntimeDatabaseClient;
   recordedEvidencePath?: string;
+  noNetworkAuthority?: NoNetworkExecutionAuthority;
 }): JobHandler | undefined {
   if (input.mode === "disabled") return undefined;
   let dependencies;
   if (input.mode === "fixture") {
-    dependencies = createFixtureSelfProspectingDependencies(input.client);
+    dependencies = createFixtureSelfProspectingDependencies(input.client, undefined, input.noNetworkAuthority);
   } else {
     const recorded = loadRecordedEvidence(input.recordedEvidencePath);
     dependencies = createNoNetworkSelfProspectingDependencies(input.client, recorded.fixture, [
@@ -34,20 +38,16 @@ export function createConfiguredSelfProspectingHandler(input: {
   return createSelfProspectingHandler(dependencies);
 }
 
+export type FixtureNetworkGuard = NoNetworkExecutionGuard;
+
 export function installFixtureNetworkGuard(input: {
   mode: SelfProspectingMode;
   supabaseUrl: string;
   fetchImplementation?: typeof fetch;
-}): () => void {
-  if (input.mode === "disabled") return () => undefined;
-  const allowedOrigin = new URL(input.supabaseUrl).origin;
-  const original = input.fetchImplementation ?? globalThis.fetch;
-  if (typeof original !== "function") throw new Error("Global fetch is unavailable for the no-network guard");
-  const guarded: typeof fetch = async (request, init) => {
-    const url = new URL(typeof request === "string" || request instanceof URL ? request : request.url);
-    if (url.origin !== allowedOrigin) throw new Error(`No-network mode blocked network origin: ${url.origin}`);
-    return original(request, { ...init, redirect: "error" });
-  };
-  globalThis.fetch = guarded;
-  return () => { globalThis.fetch = original; };
+}): FixtureNetworkGuard {
+  return installNoNetworkExecutionGuard({
+    enabled: input.mode !== "disabled",
+    allowedOrigin: new URL(input.supabaseUrl).origin,
+    fetchImplementation: input.fetchImplementation,
+  });
 }

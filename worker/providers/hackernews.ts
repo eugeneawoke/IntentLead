@@ -63,6 +63,8 @@ export function createHackerNewsAdapter(config: {
           }
 
           let providerRequestCount = 0;
+          let rawRecordCount = 0;
+          let normalizedRecordCount = 0;
           const records = new Map<string, DiscoveredSignal>();
           const seenUrls = new Set<string>();
           const provenance = new Map<string, ReturnType<typeof makeProvenance>>();
@@ -78,6 +80,7 @@ export function createHackerNewsAdapter(config: {
               }, operation.signal);
               const parsed = HackerNewsSearchSchema.safeParse(response);
               if (!parsed.success) throw new ProviderMalformedResponseError();
+              rawRecordCount += parsed.data.hits.length;
 
               for (const hit of parsed.data.hits) {
                 const fallbackUrl = `https://news.ycombinator.com/item?id=${encodeURIComponent(hit.objectID)}`;
@@ -94,6 +97,7 @@ export function createHackerNewsAdapter(config: {
                   publishedAt,
                 });
                 if (!normalized.success) throw new ProviderMalformedResponseError();
+                normalizedRecordCount++;
                 if (!records.has(hit.objectID) && !seenUrls.has(url)) {
                   records.set(hit.objectID, normalized.data);
                   seenUrls.add(url);
@@ -111,7 +115,7 @@ export function createHackerNewsAdapter(config: {
                 status: "PARTIAL",
                 failureKind: mapped.failureKind,
                 capabilityError: mapped.capabilityError,
-                usage: { requestCount: providerRequestCount, recordCount: value.length },
+                usage: { requestCount: providerRequestCount, recordCount: value.length, rawRecordCount, normalizedRecordCount, deduplicatedRecordCount: value.length },
                 provenance: [...provenance.values()],
                 limitations: ["Some bounded keywords failed; completed results were retained and raw provider payloads were discarded."],
               };
@@ -122,7 +126,7 @@ export function createHackerNewsAdapter(config: {
           return {
             value,
             status: value.length ? "SUCCEEDED" : "EMPTY",
-            usage: { requestCount: providerRequestCount, recordCount: value.length },
+            usage: { requestCount: providerRequestCount, recordCount: value.length, rawRecordCount, normalizedRecordCount, deduplicatedRecordCount: value.length },
             provenance: [...provenance.values()],
             limitations: ["Only bounded public result excerpts were normalized; the raw provider payload was discarded."],
             actualCost: descriptor.configuredCost.amount === 0 ? 0 : null,

@@ -41,13 +41,13 @@ function clearTimer(dependencies: ProviderRuntimeDependencies, handle: unknown):
   else clearTimeout(handle as ReturnType<typeof setTimeout>);
 }
 
-function boundedRetryAfter(value: string | null, dependencies: ProviderRuntimeDependencies): number | null {
+function retryAfter(value: string | null, dependencies: ProviderRuntimeDependencies): number | null {
   if (!value) return null;
   const seconds = Number(value.trim());
-  if (Number.isFinite(seconds) && seconds >= 0) return Math.min(60_000, Math.round(seconds * 1_000));
+  if (Number.isFinite(seconds) && seconds >= 0 && seconds <= Number.MAX_SAFE_INTEGER / 1_000) return Math.round(seconds * 1_000);
   const timestamp = Date.parse(value);
   if (!Number.isFinite(timestamp)) return null;
-  return Math.min(60_000, Math.max(0, timestamp - dependencies.now().getTime()));
+  return Math.max(0, timestamp - dependencies.now().getTime());
 }
 
 async function readBodyBounded(response: Response, maxBytes: number): Promise<string> {
@@ -99,11 +99,19 @@ export async function requestJson(
   try {
     return await withProviderDeadline(dependencies, parentSignal, async signal => {
       const response = await dependencies.http(url, { ...init, signal, redirect: "error" });
+      const rateLimitRemaining = response.headers.get("x-ratelimit-remaining");
+      if (response.status === 403 && (rateLimitRemaining === "0" || response.headers.has("retry-after"))) {
+        throw new ProviderHttpError(
+          "RATE_LIMITED",
+          response.status,
+          retryAfter(response.headers.get("retry-after"), dependencies),
+        );
+      }
       if (response.status === 401 || response.status === 403) {
         throw new ProviderHttpError("UNAUTHORIZED", response.status);
       }
       if (response.status === 429) {
-        throw new ProviderHttpError("RATE_LIMITED", response.status, boundedRetryAfter(response.headers.get("retry-after"), dependencies));
+        throw new ProviderHttpError("RATE_LIMITED", response.status, retryAfter(response.headers.get("retry-after"), dependencies));
       }
       if (response.status >= 500 || response.status === 408) {
         throw new ProviderHttpError("UNAVAILABLE", response.status);
@@ -115,6 +123,40 @@ export async function requestJson(
       } catch {
         throw new ProviderMalformedResponseError();
       }
+    });
+  } catch (error) {
+    if (error instanceof ProviderCancelledError || error instanceof ProviderTimeoutError
+      || error instanceof ProviderHttpError || error instanceof ProviderMalformedResponseError) throw error;
+    throw new ProviderHttpError("UNAVAILABLE", 0);
+  }
+}
+
+export async function requestText(
+  dependencies: ProviderRuntimeDependencies,
+  url: string,
+  init: RequestInit,
+  parentSignal: AbortSignal,
+): Promise<string> {
+  try {
+    return await withProviderDeadline(dependencies, parentSignal, async signal => {
+      const response = await dependencies.http(url, { ...init, signal, redirect: "error" });
+      const rateLimitRemaining = response.headers.get("x-ratelimit-remaining");
+      if (response.status === 403 && (rateLimitRemaining === "0" || response.headers.has("retry-after"))) {
+        throw new ProviderHttpError(
+          "RATE_LIMITED", response.status,
+          retryAfter(response.headers.get("retry-after"), dependencies),
+        );
+      }
+      if (response.status === 401 || response.status === 403) throw new ProviderHttpError("UNAUTHORIZED", response.status);
+      if (response.status === 429) {
+        throw new ProviderHttpError(
+          "RATE_LIMITED", response.status,
+          retryAfter(response.headers.get("retry-after"), dependencies),
+        );
+      }
+      if (response.status >= 500 || response.status === 408) throw new ProviderHttpError("UNAVAILABLE", response.status);
+      if (!response.ok) throw new ProviderHttpError("MALFORMED_RESPONSE", response.status);
+      return readBodyBounded(response, dependencies.maxResponseBytes);
     });
   } catch (error) {
     if (error instanceof ProviderCancelledError || error instanceof ProviderTimeoutError

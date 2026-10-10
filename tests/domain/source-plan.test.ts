@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildSourcePlan } from "../../lib/domain/source-plan";
 import { DEFAULT_SOURCE_CATALOG } from "../../lib/domain/source-catalog";
+import { SourcePlanSchema } from "../../lib/domain/schemas/source-plan";
 
 const baseRequest = {
   schemaVersion: 1 as const,
@@ -36,7 +37,7 @@ describe("SourcePlan v1", () => {
   it("uses a regional portfolio for CIS instead of reusing the global tech plan", () => {
     const plan = buildSourcePlan({
       ...baseRequest,
-      marketProfileId: "CIS_RU",
+      marketProfileId: "CIS",
       languages: ["ru"],
       businessType: "AGENCY",
       signalFamilies: ["EXPRESSED_INTENT", "BUSINESS_EVENT", "MARKET_OBSERVATION"],
@@ -48,8 +49,22 @@ describe("SourcePlan v1", () => {
     expect(plan.selected.map(item => item.providerKey)).not.toContain("hackernews");
     expect(plan.status).toBe("BLOCKED");
     expect(plan.gaps).toEqual(expect.arrayContaining([
-      expect.objectContaining({ providerKey: "public_telegram", reason: "MANUAL_ONLY" }),
+      expect.objectContaining({ providerKey: "public_telegram", reason: "LEGAL_RESTRICTED" }),
     ]));
+  });
+
+  it.each([
+    ["GLOBAL_EN", "en"], ["CIS", "ru"], ["RU", "ru"], ["BY", "ru"], ["KZ", "ru"],
+  ] as const)("builds an explicit %s planning foundation", (marketProfileId, language) => {
+    const plan = buildSourcePlan({
+      ...baseRequest,
+      marketProfileId,
+      languages: [language],
+      businessType: "SAAS",
+      signalFamilies: ["BUSINESS_EVENT", "DETECTED_PROBLEM"],
+    }, DEFAULT_SOURCE_CATALOG);
+    expect(plan.selected.length).toBeGreaterThan(0);
+    expect(plan.marketProfileId).toBe(marketProfileId);
   });
 
   it("selects maps, directories, reviews and official sites for local services", () => {
@@ -161,6 +176,25 @@ describe("SourcePlan v1", () => {
     expect(plan.gaps).toEqual([expect.objectContaining({ reason: "BUDGET_EXCEEDED" })]);
   });
 
+  it("does not let an incompatible-currency source displace an executable source", () => {
+    const catalog = DEFAULT_SOURCE_CATALOG
+      .filter(item => item.providerKey === "github" || item.providerKey === "hackernews")
+      .map(item => ({
+        ...item, state: "READY" as const, costClass: "PAID" as const,
+        configuredCost: item.providerKey === "github"
+          ? { amount: 0, currency: "EUR" }
+          : { amount: 1, currency: "USD" },
+      }));
+    const plan = buildSourcePlan({
+      ...baseRequest, budget: { currency: "USD", maxCost: 1 }, maxProviders: 1,
+      marketProfileId: "EN_DISCOVERY_ONLY", languages: ["en"], businessType: "SAAS",
+      signalFamilies: ["DETECTED_PROBLEM"],
+    }, catalog);
+
+    expect(plan.executable.map(item => item.providerKey)).toEqual(["hackernews"]);
+    expect(plan.status).toBe("PARTIAL");
+  });
+
   it("rejects a complete-run target below twenty", () => {
     expect(() => buildSourcePlan({ ...baseRequest, requestedConfirmedSignals: 5,
       marketProfileId: "EN_DISCOVERY_ONLY", languages: ["en"], businessType: "SAAS",
@@ -181,5 +215,54 @@ describe("SourcePlan v1", () => {
       signalFamilies: ["EXPRESSED_INTENT"],
     }, catalog);
     expect(plan.executable.map(item => item.providerKey)).toEqual(["hackernews"]);
+  });
+
+  it("never executes a legally restricted source even when it is operational", () => {
+    const restricted = DEFAULT_SOURCE_CATALOG.filter(item => item.providerKey === "product_hunt")
+      .map(item => ({ ...item, state: "READY" as const }));
+    const plan = buildSourcePlan({
+      ...baseRequest, marketProfileId: "GLOBAL_EN", languages: ["en"], businessType: "SAAS",
+      signalFamilies: ["BUSINESS_EVENT"], maxProviders: 1,
+    }, restricted);
+    expect(plan.executable).toEqual([]);
+    expect(plan.gaps).toEqual([{ providerKey: "product_hunt", reason: "LEGAL_RESTRICTED" }]);
+  });
+
+  it("uses explicit expected value after availability and cost", () => {
+    const catalog = DEFAULT_SOURCE_CATALOG.filter(item => ["github", "hackernews"].includes(item.providerKey))
+      .map(item => ({ ...item, state: "READY" as const, priority: 10,
+        expectedValueScore: item.providerKey === "github" ? 0.9 : 0.2 }));
+    const plan = buildSourcePlan({
+      ...baseRequest, marketProfileId: "EN_DISCOVERY_ONLY", languages: ["en"], businessType: "SAAS",
+      signalFamilies: ["DETECTED_PROBLEM"], maxProviders: 2,
+    }, catalog);
+    expect(plan.executable.map(item => item.providerKey)).toEqual(["github", "hackernews"]);
+  });
+
+  it("rejects an executable snapshot or status that diverges from the selected portfolio", () => {
+    const catalog = DEFAULT_SOURCE_CATALOG
+      .filter(item => ["github", "hackernews", "stackexchange"].includes(item.providerKey))
+      .map(item => ({ ...item, state: "READY" as const }));
+    const plan = buildSourcePlan({
+      ...baseRequest, marketProfileId: "EN_DISCOVERY_ONLY", languages: ["en"], businessType: "SAAS",
+      signalFamilies: ["EXPRESSED_INTENT", "DETECTED_PROBLEM"], maxProviders: 3,
+    }, catalog);
+    const executable = plan.executable.map((source, index) => index === 0
+      ? { ...source, accessMode: "PUBLIC_WEB" as const }
+      : source);
+
+    expect(SourcePlanSchema.safeParse({ ...plan, executable }).success).toBe(false);
+    expect(SourcePlanSchema.safeParse({ ...plan, status: "BLOCKED" }).success).toBe(false);
+    expect(SourcePlanSchema.safeParse({
+      ...plan,
+      executable: plan.executable.map((source, index) => index === 0
+        ? { ...source, configuredCost: { amount: null, currency: null } }
+        : source),
+    }).success).toBe(false);
+    expect(SourcePlanSchema.safeParse({
+      ...plan,
+      executable: plan.executable.slice(1),
+      gaps: [{ providerKey: plan.executable[0]!.providerKey, reason: "PROHIBITED" }, ...plan.gaps],
+    }).success).toBe(false);
   });
 });

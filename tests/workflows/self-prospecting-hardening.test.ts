@@ -59,7 +59,7 @@ function makeHarness(options: { publishedAt?: string; partialCompanyBudget?: boo
       brief: options.unsupportedFamily ? { ...fixtureBrief, signalFamilies: ["BUSINESS_EVENT"] } : fixtureBrief,
       offer: fixtureOffer, icp: fixtureIcp }),
     registry: {
-      async search() { return asExecution(search); },
+      async search() { return { signals: search.value, providerRuns: [search], remainingBudget: budget, error: null }; },
       async resolveCompany() {
         calls.company++;
         return asExecution(company, options.partialCompanyBudget ? { ...budget, remainingProviderCalls: 0 } : budget);

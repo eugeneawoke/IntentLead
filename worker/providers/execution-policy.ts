@@ -7,6 +7,7 @@ import {
   type ProviderSelectionRequest,
 } from "./contracts";
 import { errorFor } from "./selection";
+import { isNoNetworkExecutionAuthority } from "./no-network-authority";
 
 function fingerprint(value: unknown): string {
   return JSON.stringify(value) ?? "";
@@ -33,6 +34,12 @@ export function authorizeExecutionRequest(request: ProviderSelectionRequest): Ca
     if (request.executionMode === "fixture") {
       if (process.env.NODE_ENV !== "test" || !fixtureDescriptorIsSafe(descriptor)) {
         return errorFor(request, "POLICY_DENIED", "Fixture execution requires a zero-cost fixture-only descriptor");
+      }
+      continue;
+    }
+    if (request.executionMode === "no_network") {
+      if (!isNoNetworkExecutionAuthority(request.noNetworkAuthority) || !fixtureDescriptorIsSafe(descriptor)) {
+        return errorFor(request, "POLICY_DENIED", "No-network execution requires guard-issued authority and a safe descriptor");
       }
       continue;
     }
