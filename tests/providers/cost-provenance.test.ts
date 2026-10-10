@@ -11,10 +11,8 @@ import { fakeResponse, makeDependencies, providerDescriptor } from "./helpers";
 
 const fixture = (name: string) => JSON.parse(readFileSync(join(__dirname, "fixtures", name), "utf8")) as unknown;
 const profile = MarketProfileSchema.parse({ ...marketProfile, capabilities: ["SOURCE_SEARCH", "COMPANY_RESOLUTION", "HUMAN_REVIEW"] });
-const searchDescriptor = providerDescriptor("exa", "COMPANY_RESOLUTION", { configuredCost: { amount: 0.02, currency: "USD" } });
-const inferenceDescriptor = providerDescriptor("openai" as ProviderDescriptor["id"], "COMPANY_RESOLUTION", {
-  configuredCost: { amount: 0.05, currency: "USD" },
-});
+const searchDescriptor = providerDescriptor("exa", "COMPANY_RESOLUTION");
+const inferenceDescriptor = providerDescriptor("openai" as ProviderDescriptor["id"], "COMPANY_RESOLUTION");
 
 function request(
   budget: ProviderSelectionRequest["budget"],
@@ -26,7 +24,8 @@ function request(
     language: "en",
     region: "US",
     jurisdiction: null,
-    health: {},
+    executionMode: "fixture",
+    timeoutMs: 250,
     budget,
     descriptors: [searchDescriptor],
     nestedDescriptors,
@@ -44,7 +43,7 @@ beforeEach(() => vi.stubGlobal("fetch", vi.fn(() => { throw new Error("global ne
 afterEach(() => vi.unstubAllGlobals());
 
 describe("separate company search and inference cost/provenance", () => {
-  it("denies inference before construction/call when its reserved cost exceeds the remaining budget", async () => {
+  it("denies inference before construction/call when its provider-call budget is exhausted", async () => {
     const { dependencies, started, finished } = makeDependencies(async () => fakeResponse(fixture("exa-success.json")));
     let inferenceCalls = 0;
     const inference = createCompanyInferenceAdapter({
@@ -59,7 +58,7 @@ describe("separate company search and inference cost/provenance", () => {
       inferenceProvider: inference,
     });
     const execution = await executeProviderWithFallback(
-      request({ currency: "USD", remainingCost: 0.06, remainingProviderCalls: 2 }),
+      request({ currency: "USD", remainingCost: 0, remainingProviderCalls: 1 }),
       async (_descriptor, context) => {
         if (!isCallContext(context)) throw new Error("registry must pass its reservation context");
         return resolver.resolve({ signalContent: "Acme Example public operations issue" }, context);
@@ -73,10 +72,10 @@ describe("separate company search and inference cost/provenance", () => {
     expect(inferenceCalls).toBe(0);
     expect(started.map(event => event.provider)).toEqual(["exa"]);
     expect(finished).toHaveLength(1);
-    expect(execution.remainingBudget).toEqual({ currency: "USD", remainingCost: 0.04, remainingProviderCalls: 1 });
+    expect(execution.remainingBudget).toEqual({ currency: "USD", remainingCost: 0, remainingProviderCalls: 0 });
   });
 
-  it("does not select paid inference when its configured cost is unknown", async () => {
+  it("rejects an unsafe unknown-cost fixture before any provider call", async () => {
     const { dependencies, started } = makeDependencies(async () => fakeResponse(fixture("exa-success.json")));
     let inferenceCalls = 0;
     const unknownInferenceDescriptor = providerDescriptor("openai", "COMPANY_RESOLUTION", { configuredCost: { amount: null, currency: null } });
@@ -91,15 +90,14 @@ describe("separate company search and inference cost/provenance", () => {
       async (_descriptor, context) => resolver.resolve({ signalContent: "Acme Example public operations issue" }, context),
     );
 
-    expect(execution.ok).toBe(true);
-    if (!execution.ok) throw new Error("Expected partial company-resolution result");
-    expect(execution.outcome.status).toBe("PARTIAL");
-    expect(execution.outcome.capabilityError?.code).toBe("CAPABILITY_UNAVAILABLE");
+    expect(execution.ok).toBe(false);
+    if (execution.ok) throw new Error("Expected fixture authorization failure");
+    expect(execution.error.code).toBe("POLICY_DENIED");
     expect(inferenceCalls).toBe(0);
-    expect(started.map(event => event.provider)).toEqual(["exa"]);
+    expect(started).toHaveLength(0);
   });
 
-  it("records separate Exa and OpenAI envelopes and charges both configured reserves", async () => {
+  it("records separate zero-cost Exa and OpenAI fixture envelopes", async () => {
     const { dependencies, started, finished } = makeDependencies(async () => fakeResponse(fixture("exa-success.json")));
     const inference = createCompanyInferenceAdapter({
       descriptor: inferenceDescriptor,
@@ -129,18 +127,18 @@ describe("separate company search and inference cost/provenance", () => {
     expect(execution.outcome.value?.[0].resolutionStatus).toBe("RESOLVED");
     expect(execution.outcome.provider).toBe("exa");
     expect(execution.outcome.usage).toMatchObject({ requestCount: 1 });
-    expect(execution.outcome.cost).toEqual({ configuredAmount: 0.02, reservedAmount: 0.02, actualAmount: null, currency: "USD" });
+    expect(execution.outcome.cost).toEqual({ configuredAmount: 0, reservedAmount: 0, actualAmount: 0, currency: null });
     expect(execution.outcome.relatedRuns).toHaveLength(1);
     expect(execution.outcome.relatedRuns?.[0]).toMatchObject({
       provider: "openai",
       providerVersion: inferenceDescriptor.version,
       status: "SUCCEEDED",
       usage: { requestCount: 1, inputTokens: 41, outputTokens: 13 },
-      cost: { configuredAmount: 0.05, reservedAmount: 0.05, actualAmount: null, currency: "USD" },
+      cost: { configuredAmount: 0, reservedAmount: 0, actualAmount: 0, currency: null },
     });
     expect(started.map(event => event.provider)).toEqual(["exa", "openai"]);
     expect(finished).toHaveLength(2);
-    expect(execution.remainingBudget).toEqual({ currency: "USD", remainingCost: 0.03, remainingProviderCalls: 0 });
+    expect(execution.remainingBudget).toEqual({ currency: "USD", remainingCost: 0.1, remainingProviderCalls: 0 });
   });
 
   it("redacts contact-like PII and URLs from search requests and model input, including evidence excerpts", async () => {

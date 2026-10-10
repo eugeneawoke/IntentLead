@@ -37,6 +37,7 @@ market-profile
 discovery-briefs
 source-planning
 provider-registry
+model-registry
 jobs
 source-ingestion
 evidence
@@ -65,9 +66,21 @@ Domain services request capabilities rather than vendors. A `SourcePlanner` choo
 - expected quality, freshness, latency and cost;
 - requested result count and budget.
 
-Provider capability families include `PUBLIC_POST_SEARCH`, `WEB_SEARCH`, `REVIEWS`, `JOB_SEARCH`, `NEWS_SEARCH`, `MAP_SEARCH`, `LOCAL_BUSINESS_SEARCH`, `WEBSITE_FETCH`, `CONTENT_EXTRACTION`, `COMPANY_ENRICHMENT`, `PERSON_SEARCH`, `EMAIL_FIND` and `EMAIL_VERIFY`.
+Source families include public posts, web/search, reviews, jobs, news, maps, local-business data, websites and company enrichment. The current runtime provider capabilities remain the smaller typed set `SOURCE_SEARCH`, `COMPANY_RESOLUTION`, `PERSON_SEARCH`, `EMAIL_FIND` and `EMAIL_VERIFY`; source-family specialization lives in `SourcePlan` metadata until an adapter needs a narrower executable contract.
 
 The registry must support `OFFICIAL_API`, `PARTNER_API`, `SEARCH_INDEX`, `PUBLIC_WEB`, `AUTHORIZED_SCRAPING`, `MANUAL_ONLY` and `UNAVAILABLE`. Missing credentials degrade to another allowed provider or an explicit capability gap; they do not block unrelated steps.
+
+Provider presence in the catalog never means live activation. Runtime state distinguishes implemented, fixture-only, planned, missing-credential, paid-locked, manual-only, disabled and unavailable integrations. The first active portfolio is free/legal; paid search and contact-enrichment providers remain locked until founder approval after demand and delivery economics are measured.
+
+Provider IDs are validated stable catalog keys rather than a closed vendor enum, so adding a new regional or vertical source does not require widening core domain unions. Capabilities and policy remain closed typed sets.
+
+## Conversational model layer
+
+A model-independent `ModelRegistry` supplies bounded reasoning capabilities rather than evidence. The initial conversational flow turns natural-language input into a reviewable Offer, ICP, market and `DiscoveryBrief`, asks for missing constraints, and then explains the resulting source plan and Opportunity packages.
+
+Model capabilities include request structuring, source-plan proposals, evidence interpretation, Opportunity assessment, buyer-role hypotheses and grounded drafting. Deterministic code owns authorization, provider selection, budgets, state transitions, evidence creation and external side-effect denial. External content is always untrusted user data and cannot choose tools, recipients or policies.
+
+One founder-selected model may be enabled first. OpenAI, Anthropic, Gemini or a local model remain replaceable adapters; none receives a live-call budget merely by being present in the catalog.
 
 ## Business analysis boundary
 
@@ -134,10 +147,11 @@ These are typed steps or capabilities, not an unconstrained swarm.
 2. Restore the established visual layer selectively without reviving obsolete claims or send controls.
 3. Reintroduce versioned BuyerCandidate, ContactPoint, ContactVerification, ConversationBrief and Draft contracts.
 4. Add forward-only `intentlead_` schema for those entities; never rewrite applied migrations.
-5. Restore/rebuild historical contact-provider code behind the current registry, budget and policy boundaries.
-6. Extend `EN_DISCOVERY_ONLY` to research through verified contact and grounded draft while denying all external action.
-7. Add source planning and free/legal provider adapters for global and CIS/local profiles.
-8. Run a reproducible minimum-20-signal self-prospecting evaluation.
+5. Generalize provider and model registries, explicit activation states, budgets and policy boundaries.
+6. Add source planning and the prioritized free/legal global portfolio, including official-site contact fallback.
+7. Add the bounded conversational/model layer and extend `EN_DISCOVERY_ONLY` through verified contact and grounded draft while denying all external action.
+8. Run a reproducible minimum-20-signal self-prospecting evaluation without paid providers.
+9. Activate paid search or contact providers only after demonstrated demand and a separate founder gate.
 
 ## Cross-cutting requirements
 

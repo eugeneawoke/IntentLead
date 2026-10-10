@@ -5,11 +5,12 @@
 ## Now
 
 - [x] Finish canonical reconciliation and remove all active no-contact/HN-only assumptions (2026-10-06; independent contradiction/link audit passed).
-- [ ] Restore the established Signal Dark visual system around the corrected product.
-- [ ] Add capability/regression evals for multi-source, >=20 confirmed signals, verified contacts, grounded drafts and structural no-send.
-- [ ] Reintroduce buyer/contact/verification/brief contracts and forward-only tenant-safe schema.
-- [ ] Restore safe contact-provider capability behind registry/budget/policy boundaries.
+- [x] Restore the established Signal Dark visual system around the corrected product (2026-10-08).
+- [x] Add capability/regression eval definitions for multi-source, >=20 confirmed signals, verified contacts, grounded drafts and structural no-send (2026-10-06; executable eval remains pending).
+- [x] Reintroduce buyer/contact/verification/brief contracts and forward-only tenant-safe schema (2026-10-08).
+- [x] Generalize provider/model registries and explicit activation states; keep paid providers locked (2026-10-08).
 - [ ] Add source planning and prioritized free/legal global adapters.
+- [ ] Add bounded natural-language intake and LLM reasoning behind typed model capabilities.
 - [ ] Complete the durable self-prospecting flow through contact-ready package and human review.
 
 ## Next
@@ -26,6 +27,7 @@
 - AI Visibility as a dedicated signal provider;
 - recurring alerts;
 - billing model and commercial credits;
+- paid search/contact providers until demand or a measured free-source coverage gap exists;
 - broad provider expansion beyond measured source gaps;
 - public API/MCP.
 

@@ -63,26 +63,41 @@ Historical commits remain implementation evidence, not current product authority
 
 **Result (2026-10-08):** complete at the contract/storage boundary. Independent security review findings were resolved: canonical suppression hashes, current finite verification, buyer/contact binding, invalidation of stale packages, old/new claim coverage, Unicode offsets, research-only jobs/errors and contact policy/confidence are enforced. App/worker typechecks, 505/505 unit tests and the focused disposable-PostgreSQL suite (5/5) pass.
 
-## Task J — Restore and harden provider capabilities
+## Task J — Generalize provider/model foundations
 
-- [ ] Reuse the safe parts of historical Exa/Serper and Prospeo/Hunter/Apollo integrations behind current typed registries.
-- [ ] Separate `PERSON_SEARCH`, `EMAIL_FIND` and `EMAIL_VERIFY`; do not conflate “found” with “verified”.
-- [ ] Add official-site/public-business-contact fallback with exact source URL.
-- [ ] Implement health states: `configured`, `missing_credentials`, `disabled`, `rate_limited`, `error`.
-- [ ] Enforce cheap-to-expensive selection, per-provider reservation, timeout, fallback, cost and jurisdiction policies.
-- [ ] Do not make live paid calls; use fixtures/contracts and free-only adapters where separately safe.
+- [x] Represent the broad provider catalog through typed capabilities and explicit activation states without implying live integration (2026-10-08).
+- [x] Separate `PERSON_SEARCH`, `EMAIL_FIND` and `EMAIL_VERIFY`; do not conflate “found” with “verified” (2026-10-08).
+- [x] Implement activation/health states including `configured`, `missing_credentials`, `paid_locked`, `disabled`, `rate_limited`, `degraded` and `error`; missing state fails closed (2026-10-08).
+- [x] Enforce cheap-to-expensive selection, per-provider reservation, timeout, fallback, cost and jurisdiction policies (2026-10-08).
+- [x] Add a model-provider boundary for structured intake, analysis and drafting with independent budgets and no evidence/tool authority (2026-10-08).
+- [x] Keep Exa/Serper/Prospeo/Hunter/Apollo as disabled or paid-locked descriptors and fixture contracts only; make no live paid calls (2026-10-08).
 
-**Done when:** missing keys degrade honestly, contact provenance is retained and provider code cannot bypass budget or policy.
+**Done when:** the whole provider/model landscape can be represented honestly, missing state fails closed and no adapter can bypass policy, budget or activation gates.
 
-## Task K — Multi-source planning and adapters
+**Result (2026-10-08):** complete at the registry/contract boundary. Provider execution now requires a trusted catalog descriptor in live mode, one-time top-level and nested reservations, registry timeout, bijective related-run provenance and validated configured/reserved/actual cost. Generic fixture execution is test-only and zero-cost; production fixture/recorded workflows remain separate no-network implementations. The model registry builds fixed system plus untrusted-user messages, verifies existing evidence, requires grounded claims to cite only authorized evidence, reserves cost/token/call ceilings before invocation and charges the reservation on timeout or malformed/error outcomes. All paid descriptors remain unreachable. The second independent security review blockers were resolved; no live provider/model call was made.
+
+## Task K — Free/legal multi-source planning and adapters
 
 - [ ] Add a `SourcePlan` contract and deterministic provider selection by signal family, market, business type, access status and expected value.
 - [ ] Keep Reddit and HN; add prioritized free/legal adapters for GitHub and Stack Overflow/public web where practical.
+- [ ] Add official-site/public-business-contact fallback with exact source URL.
+- [ ] Add public RSS/blog/changelog and career-page foundations; prefer structured Greenhouse/Lever/Ashby endpoints where permitted.
 - [ ] Represent Product Hunt, reviews, jobs, news, maps and regional sources in the matrix even when status is manual-only/unavailable.
 - [ ] Add `GLOBAL_EN`, `CIS`, `RU`, `BY`, `KZ` and local-business profile foundations without scattered country conditionals.
 - [ ] Preserve raw candidate counts, confirmed-signal counts, unique companies and accepted Opportunities as separate metrics.
 
-**Done when:** no workflow is hard-coded to one source pair and capability gaps are explicit.
+**Done when:** no workflow is hard-coded to one source pair, a useful zero-paid-provider portfolio exists and capability gaps are explicit.
+
+## Task K2 — Conversational LLM layer
+
+- [ ] Convert natural-language user input into a reviewable Offer, ICP, market, exclusions and discovery target.
+- [ ] Ask bounded clarification questions when required constraints are missing; never silently invent them.
+- [ ] Route interpretation, buyer hypotheses and drafting through typed model capabilities with versioned prompts and output schemas.
+- [ ] Treat source content as untrusted data and prevent it from selecting tools, providers, recipients or policies.
+- [ ] Support one founder-selected model first while keeping OpenAI, Anthropic, Gemini and local models replaceable adapters.
+- [ ] Record model/version, tokens, latency, cost, evidence references and limitations; default live-call budget remains zero until configured.
+
+**Done when:** a user can describe the search in normal language, approve the structured brief and receive explanations grounded only in collected evidence.
 
 ## Task L — Complete self-prospecting workflow
 
@@ -112,6 +127,15 @@ Historical commits remain implementation evidence, not current product authority
 - [ ] Reuse the same package, review and evaluation model.
 
 **Done when:** one regional run proves the architecture is not global-English-only.
+
+## Task P — Demand-gated paid providers
+
+- [ ] Start only after design-partner interest or measured free-source coverage gaps.
+- [ ] Revalidate current terms, quotas, pricing, credentials and market availability for each candidate.
+- [ ] Enable Exa, Serper, Prospeo, Hunter or Apollo one at a time behind existing registry, reservation and cost controls.
+- [ ] Measure incremental accepted-package yield, contact coverage and cost before enabling the next provider.
+
+**Gate:** explicit founder approval and spend ceiling per provider. This task is not authorized in the current pilot.
 
 ## Milestone quality gates
 

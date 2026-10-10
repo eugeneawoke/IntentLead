@@ -5,15 +5,13 @@ import { COMPANY_INFERENCE_SYSTEM_INSTRUCTION, createCompanyInferenceAdapter } f
 import { ProviderHttpError } from "../../worker/providers/http";
 import { executeProviderWithFallback } from "../../worker/providers/registry";
 import type { CompanyInferenceCompletion, CompanyInferenceInput, CompanyInferenceOutput, ProviderResult } from "../../worker/providers/contracts";
-import { fakeResponse, makeDependencies, providerDescriptor, providerRequest } from "./helpers";
+import { consumeFixtureReservation, fakeResponse, makeDependencies, providerDescriptor, providerRequest } from "./helpers";
 
 const profile = MarketProfileSchema.parse({
   ...marketProfile,
   capabilities: ["SOURCE_SEARCH", "COMPANY_RESOLUTION", "HUMAN_REVIEW"],
 });
-const openaiDescriptor = providerDescriptor("openai", "COMPANY_RESOLUTION", {
-  configuredCost: { amount: 0.05, currency: "USD" },
-});
+const openaiDescriptor = providerDescriptor("openai", "COMPANY_RESOLUTION");
 const parentDescriptor = providerDescriptor("exa", "COMPANY_RESOLUTION");
 const evidence = {
   providerId: "exa",
@@ -68,6 +66,7 @@ async function runRegisteredInference(
     nestedDescriptors: [openaiDescriptor],
     budget: { currency: "USD", remainingCost: 1, remainingProviderCalls: 2 },
   }), async (_descriptor, context) => {
+    consumeFixtureReservation(parentDescriptor, context);
     inferenceResult = await provider.infer(input, context);
     return parentResult(inferenceResult!);
   });
@@ -80,7 +79,7 @@ beforeEach(() => vi.stubGlobal("fetch", vi.fn(() => { throw new Error("global ne
 afterEach(() => vi.unstubAllGlobals());
 
 describe("typed company-inference provider boundary", () => {
-  it("records inference independently with its own provider id, configured reserve, actual cost and token usage", async () => {
+  it("records zero-cost fixture inference independently with token usage", async () => {
     const { dependencies, started, finished } = makeDependencies(async () => fakeResponse({}));
     let observedSignal: AbortSignal | undefined;
     let observedInput: CompanyInferenceInput | undefined;
@@ -99,7 +98,7 @@ describe("typed company-inference provider boundary", () => {
     expect(result.status).toBe("EMPTY");
     expect(result.provider).toBe("openai");
     expect(result.usage).toMatchObject({ requestCount: 1, inputTokens: 17, outputTokens: 8 });
-    expect(result.cost).toEqual({ configuredAmount: 0.05, reservedAmount: 0.05, actualAmount: null, currency: "USD" });
+    expect(result.cost).toEqual({ configuredAmount: 0, reservedAmount: 0, actualAmount: 0, currency: null });
     expect(observedInput).toEqual(inferenceInput);
     expect(observedSignal).toBeInstanceOf(AbortSignal);
     expect(started.map(event => event.provider)).toEqual(["openai"]);

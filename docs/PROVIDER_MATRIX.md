@@ -2,7 +2,7 @@
 
 **Status:** Target catalog and current implementation truth, 2026-10-06. Access, pricing, free tiers and commercial terms must be revalidated against current primary provider documentation before live use.
 
-Status values: `implemented`, `fixture_only`, `planned`, `missing_credentials`, `manual_only`, `unavailable`, `disabled`.
+Status values: `implemented`, `fixture_only`, `planned`, `missing_credentials`, `paid_locked`, `manual_only`, `unavailable`, `disabled`.
 
 | Provider/family | Capability | Market | Access class | Current state | Priority / rule |
 |---|---|---|---|---|---|
@@ -20,15 +20,15 @@ Status values: `implemented`, `fixture_only`, `planned`, `missing_credentials`, 
 | Public news/search | events and company context | global/CIS/local | search index/provider | planned | provider-selected |
 | LinkedIn / X | public professional/social signals | global | partner/official access only | disabled | never bypass access controls |
 | Public Slack/Discord/Telegram | community signals | market-specific | official/authorized access only | disabled/manual_only | enable per source and consent/legal policy |
-| Exa | web/company/person discovery | global | partner API | implemented, disabled | explicit budget/credentials required |
-| Serper | search/company discovery | global | partner API | implemented, disabled | explicit budget/credentials required |
+| Exa | web/company/person discovery | global | partner API | implemented, paid_locked | no live use before demand/spend gate |
+| Serper | search/company discovery | global | partner API | implemented, paid_locked | no live use before demand/spend gate |
 | Google Custom Search | public web/company lookup | global | official API | planned | free quota/cost must be revalidated |
 | Jina Reader/extraction | content extraction | global | public/partner API | planned | compare access/cost before adoption |
 | Official company website | identity, business context and public contact | global/CIS/local | public web | planned | primary zero-cost contact fallback |
-| Prospeo | person/email find and verification | provider markets | partner API | historical code removed; rebuild planned | first enrichment fallback after revalidation |
-| Hunter | email find and verification | provider markets | partner API | historical code removed; rebuild planned | fallback after revalidation |
-| Apollo | people/company/email discovery | provider markets | partner API | historical code removed; rebuild planned | last fallback; found is not verified |
-| OpenAI | bounded interpretation/drafting | global where allowed | paid model API | deterministic fixture only | no live call without budget approval |
+| Prospeo | person/email find and verification | provider markets | partner API | paid_locked; fixture contract planned | demand-gated enrichment candidate |
+| Hunter | email find and verification | provider markets | partner API | paid_locked; fixture contract planned | demand-gated enrichment candidate |
+| Apollo | people/company/email discovery | provider markets | partner API | paid_locked; fixture contract planned | demand-gated; found is not verified |
+| OpenAI / Anthropic / Gemini / local model | structured intake, bounded reasoning and drafting | policy-dependent | model API/local runtime | registry/contract implemented; paid models locked | one founder-selected adapter first; live budget explicit |
 | Yandex Search | regional discovery/context | CIS/RU/BY/KZ | search index/API varies | planned | regional priority; verify access |
 | Yandex Maps/Business | local company/listing/review evidence | CIS/RU | official/public/manual varies | planned/manual_only | concrete evidence, no generic audit |
 | Yandex Webmaster/Wordstat | owner-authorized/search-demand evidence | CIS/RU | official/owner/manual | planned/manual_only | requires authorization where applicable |
@@ -45,6 +45,7 @@ Status values: `implemented`, `fixture_only`, `planned`, `missing_credentials`, 
 
 - Source planning selects a relevant portfolio; it does not call every provider.
 - Free/legal/healthy sources run before paid providers.
+- `paid_locked` providers are ineligible regardless of credentials until a separate founder spend gate changes their state.
 - Contact enrichment begins only after evidence, company and ICP qualification.
 - Provider discovery and independent verification are distinct capabilities.
 - A missing key returns `missing_credentials` and allows an authorized fallback.

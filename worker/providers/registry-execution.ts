@@ -4,123 +4,47 @@ import { ProviderResultSchema } from "./results-schema";
 import {
   ProviderCancelledError,
   ProviderSelectionError,
-  PROVIDER_SCHEMA_VERSION,
   type ProviderBudget,
   type ProviderCallContext,
   type ProviderDescriptor,
   type ProviderExecutionResult,
   type ProviderId,
-  type ProviderReservation,
   type ProviderReservationGrant,
   type ProviderResult,
   type ProviderSelection,
   type ProviderSelectionRequest,
 } from "./contracts";
-import { sha256 } from "./normalization";
 import { errorFor, fail, selectProvider } from "./selection";
-
-interface ReservationState {
-  descriptorFingerprint: string;
-  profileFingerprint: string;
-  capability: ProviderSelectionRequest["capability"];
-  language: string;
-  region: string;
-  jurisdiction: string | null;
-  traceId: string;
-  signal: AbortSignal;
-  requestFingerprint: string;
-  reservedCost: number;
-  consumed: boolean;
-}
-
-const registryReservations = new WeakMap<object, ReservationState>();
+import { authorizeExecutionRequest, validateExecutionResult, validateRelatedResult } from "./execution-policy";
+import { issueProviderReservation, reservationWasConsumed } from "./reservations";
+export { consumeProviderReservation } from "./reservations";
 
 function canonicalFingerprint(value: unknown): string {
   return JSON.stringify(value) ?? "";
 }
 
-function reservationRequestFingerprint(request: ProviderSelectionRequest, selection: ProviderSelection): string {
-  const profile = MarketProfileSchema.parse(request.profile);
-  return canonicalFingerprint({
-    profile,
-    capability: request.capability,
-    language: request.language,
-    region: request.region,
-    jurisdiction: request.jurisdiction,
-    health: request.health,
-    budget: request.budget,
-    descriptors: request.descriptors,
-    nestedDescriptors: request.nestedDescriptors ?? [],
-    allowFallback: request.allowFallback,
-    traceId: request.traceId ?? "provider-registry",
-    excludedProviders: request.excludedProviders ?? [],
-    selected: selection.descriptor,
-    reservedCost: selection.reservedCost,
-  });
-}
-
-function issueProviderReservation(
+async function invokeWithTimeout<T>(
   request: ProviderSelectionRequest,
-  selection: ProviderSelection,
-  signal: AbortSignal,
-): ProviderReservationGrant {
-  const profile = MarketProfileSchema.parse(request.profile);
-  const reservation = Object.freeze({});
-  const requestFingerprint = sha256(reservationRequestFingerprint(request, selection));
-  registryReservations.set(reservation, {
-    descriptorFingerprint: canonicalFingerprint(selection.descriptor),
-    profileFingerprint: canonicalFingerprint(profile),
-    capability: request.capability,
-    language: request.language,
-    region: request.region,
-    jurisdiction: request.jurisdiction,
-    traceId: request.traceId ?? "provider-registry",
-    signal,
-    requestFingerprint,
-    reservedCost: selection.reservedCost,
-    consumed: false,
-  });
-  return { reservation: reservation as ProviderReservation, requestFingerprint };
-}
-
-function rejectInvalidReservation(context: ProviderCallContext): never {
-  throw new ProviderSelectionError({
-    schemaVersion: PROVIDER_SCHEMA_VERSION,
-    code: "POLICY_DENIED",
-    retryable: false,
-    message: "Provider invocation requires a matching unused registry reservation",
-    capability: context.capability,
-    traceId: context.traceId,
-    retryAfterMs: null,
-  });
-}
-
-/** Consumes only registry-issued permits; no reservation constructor is exported. */
-export function consumeProviderReservation(
-  reservation: ProviderReservation | undefined,
   descriptor: ProviderDescriptor,
   context: ProviderCallContext,
-): { reservedCost: number } {
-  if (!reservation || typeof reservation !== "object") return rejectInvalidReservation(context);
-  const state = registryReservations.get(reservation);
-  if (!state || state.consumed) return rejectInvalidReservation(context);
-  state.consumed = true;
-
-  const profile = MarketProfileSchema.safeParse(context.profile);
-  const matches = profile.success
-    && state.descriptorFingerprint === canonicalFingerprint(descriptor)
-    && state.profileFingerprint === canonicalFingerprint(profile.data)
-    && state.capability === context.capability
-    && state.capability === descriptor.capability
-    && state.language === context.language
-    && state.region === context.region
-    && state.jurisdiction === context.jurisdiction
-    && state.traceId === context.traceId
-    && state.signal === context.signal
-    && state.requestFingerprint === context.requestFingerprint
-    && /^[0-9a-f]{64}$/.test(state.requestFingerprint);
-  if (!matches) return rejectInvalidReservation(context);
-  return { reservedCost: state.reservedCost };
+  invoke: (descriptor: ProviderDescriptor, context: ProviderCallContext) => Promise<ProviderResult<T>>,
+  controller: AbortController,
+): Promise<ProviderResult<T>> {
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutHandle = setTimeout(() => {
+      const error = new ProviderSelectionError(
+        errorFor(request, "TIMEOUT", `Provider ${descriptor.id} exceeded the registry timeout`),
+      );
+      controller.abort(error);
+      reject(error);
+    }, request.timeoutMs);
+  });
+  try {
+    return await Promise.race([invoke(descriptor, context), timeout]);
+  } finally {
+    if (timeoutHandle) clearTimeout(timeoutHandle);
+  }
 }
 
 function subtractBudget(budget: ProviderBudget, selection: ProviderSelection): ProviderBudget {
@@ -145,6 +69,10 @@ export async function executeProviderWithFallback<T>(
   let remainingBudget = { ...request.budget };
   let lastOutcome: ProviderResult<T> | null = null;
   const executionSignal = request.signal ?? new AbortController().signal;
+  const authorizationError = authorizeExecutionRequest(request);
+  if (authorizationError) {
+    return { ok: false, error: authorizationError, lastOutcome, attempts, remainingBudget };
+  }
 
   for (;;) {
     if (executionSignal.aborted) throw new ProviderCancelledError();
@@ -162,21 +90,27 @@ export async function executeProviderWithFallback<T>(
       return { ok: false, error: error.capabilityError, lastOutcome, attempts, remainingBudget };
     }
 
+    const attemptController = new AbortController();
+    const abortAttempt = () => attemptController.abort(executionSignal.reason);
+    if (executionSignal.aborted) abortAttempt();
+    else executionSignal.addEventListener("abort", abortAttempt, { once: true });
+    currentRequest = { ...currentRequest, signal: attemptController.signal };
     remainingBudget = subtractBudget(remainingBudget, selection);
-    const reservation = issueProviderReservation(currentRequest, selection, executionSignal);
-    const nestedReservations: ProviderSelection[] = [];
+    const reservation = issueProviderReservation(currentRequest, selection, attemptController.signal);
+    const nestedReservations: Array<{ selection: ProviderSelection; grant: ProviderReservationGrant }> = [];
     const invocationContext: ProviderCallContext = {
       profile: MarketProfileSchema.parse(request.profile),
       traceId: request.traceId ?? "provider-registry",
-      signal: executionSignal,
+      signal: attemptController.signal,
       capability: currentRequest.capability as ProviderDescriptor["capability"],
       language: currentRequest.language,
       region: currentRequest.region,
       jurisdiction: currentRequest.jurisdiction,
+      executionMode: currentRequest.executionMode,
       reservation: reservation.reservation,
       requestFingerprint: reservation.requestFingerprint,
       reserveProvider(descriptor) {
-        if (executionSignal.aborted) throw new ProviderCancelledError();
+        if (attemptController.signal.aborted) throw new ProviderCancelledError();
         const registered = (request.nestedDescriptors ?? []).find(candidate =>
           candidate.id === descriptor.id
           && candidate.version === descriptor.version
@@ -186,36 +120,64 @@ export async function executeProviderWithFallback<T>(
           ...request,
           capability: registered.capability,
           descriptors: [registered],
-          signal: executionSignal,
+          signal: attemptController.signal,
           budget: remainingBudget,
           allowFallback: false,
           excludedProviders: [],
         };
         const nested = selectProvider(nestedRequest);
-        nestedReservations.push(nested);
         remainingBudget = subtractBudget(remainingBudget, nested);
-        return issueProviderReservation(nestedRequest, nested, executionSignal);
+        const grant = issueProviderReservation(nestedRequest, nested, attemptController.signal);
+        nestedReservations.push({ selection: nested, grant });
+        return grant;
       },
     };
-    const outcome = await invoke(selection.descriptor, invocationContext);
+    let outcome: ProviderResult<T>;
+    try {
+      outcome = await invokeWithTimeout(currentRequest, selection.descriptor, invocationContext, invoke, attemptController);
+    } catch (error) {
+      executionSignal.removeEventListener("abort", abortAttempt);
+      if (error instanceof ProviderSelectionError) {
+        return { ok: false, error: error.capabilityError, lastOutcome, attempts, remainingBudget };
+      }
+      throw error;
+    }
+    executionSignal.removeEventListener("abort", abortAttempt);
     ProviderResultSchema.parse(outcome);
-    if (outcome.provider !== selection.descriptor.id || outcome.providerVersion !== selection.descriptor.version) {
+    if (!reservationWasConsumed(reservation)
+      || nestedReservations.some(item => !reservationWasConsumed(item.grant))) {
       return {
         ok: false,
-        error: errorFor(request, "INTERNAL_ERROR", "Provider result does not match the selected descriptor"),
+        error: errorFor(request, "INTERNAL_ERROR", "Provider invocation returned without consuming every registry reservation"),
+        lastOutcome: null,
+        attempts,
+        remainingBudget,
+      };
+    }
+    const validationError = validateExecutionResult(outcome, selection, currentRequest.budget.currency);
+    if (validationError) {
+      return {
+        ok: false,
+        error: errorFor(request, "INTERNAL_ERROR", validationError),
         lastOutcome: null,
         attempts,
         remainingBudget,
       };
     }
     const relatedRuns = outcome.relatedRuns ?? [];
-    if (relatedRuns.length !== nestedReservations.length || relatedRuns.some(run => {
-      const nested = nestedReservations.find(candidate =>
-        candidate.descriptor.id === run.provider && candidate.descriptor.version === run.providerVersion);
-      return !nested
-        || run.cost.configuredAmount !== nested.descriptor.configuredCost.amount
-        || run.cost.reservedAmount !== nested.reservedCost;
-    })) {
+    const unmatchedNested = [...nestedReservations];
+    const uniqueRelatedRunIds = new Set(relatedRuns.map(run => run.providerRunId));
+    const relatedRunsMatch = relatedRuns.every(run => {
+      const index = unmatchedNested.findIndex(candidate =>
+        candidate.selection.descriptor.id === run.provider
+        && candidate.selection.descriptor.version === run.providerVersion
+        && validateRelatedResult(run, candidate.selection, currentRequest.budget.currency));
+      if (index < 0) return false;
+      unmatchedNested.splice(index, 1);
+      return true;
+    });
+    if (relatedRuns.length !== nestedReservations.length
+      || uniqueRelatedRunIds.size !== relatedRuns.length || !relatedRunsMatch || unmatchedNested.length > 0) {
       return {
         ok: false,
         error: errorFor(request, "INTERNAL_ERROR", "Related provider run does not match its registry reservation"),

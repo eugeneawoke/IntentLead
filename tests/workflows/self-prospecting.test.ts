@@ -7,7 +7,7 @@ import type { CompanyCandidate } from "../../worker/providers/contracts";
 import type { ProviderId, ProviderResult } from "../../worker/providers/contracts";
 import { MarketProfileSchema } from "../../lib/domain/schemas/market-profile";
 import { executeProviderWithFallback } from "../../worker/providers/registry";
-import { providerDescriptor, providerRequest } from "../providers/helpers";
+import { consumeFixtureReservation, providerDescriptor, providerRequest } from "../providers/helpers";
 import { DEFAULT_SELF_PROSPECTING_POLICY } from "../../lib/domain/opportunity-policy";
 import {
   companyCandidate, fixtureBrief, fixtureIcp, fixtureIds, fixtureOffer, fixtureProfile, freshSignal, makeCompany,
@@ -252,16 +252,18 @@ describe("Task 7 self-prospecting workflow", () => {
       budget: { currency: "USD", remainingCost: 1, remainingProviderCalls: 2 },
     });
     const attempted: string[] = [];
-    const recovered = await executeProviderWithFallback(request, async descriptor => {
+    const recovered = await executeProviderWithFallback(request, async (descriptor, context) => {
       attempted.push(descriptor.id);
+      consumeFixtureReservation(descriptor, context);
       return descriptor.id === "exa" ? companyRun("exa", "DEPENDENCY_UNAVAILABLE") : companyRun("serper");
     });
     expect(recovered.ok).toBe(true);
     expect(attempted).toEqual(["exa", "serper"]);
 
     attempted.length = 0;
-    const timedOut = await executeProviderWithFallback(request, async descriptor => {
+    const timedOut = await executeProviderWithFallback(request, async (descriptor, context) => {
       attempted.push(descriptor.id);
+      consumeFixtureReservation(descriptor, context);
       return companyRun("exa", "TIMEOUT");
     });
     expect(timedOut.ok).toBe(false);

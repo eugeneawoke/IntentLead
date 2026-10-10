@@ -2,7 +2,7 @@ import { z } from "zod";
 import { CapabilityErrorSchema } from "../../lib/domain/schemas/job";
 import { PROVIDER_SCHEMA_VERSION } from "./contracts";
 
-const ProviderIdSchema = z.enum(["reddit", "hackernews", "exa", "serper", "openai"]);
+const ProviderIdSchema = z.string().regex(/^[a-z0-9][a-z0-9_]{0,63}$/);
 const FailureKindSchema = z.enum([
   "MALFORMED_RESPONSE", "UNAUTHORIZED", "RATE_LIMITED", "TIMEOUT", "UNAVAILABLE", "CANCELLED", "BUDGET_EXCEEDED",
 ]);

@@ -8,7 +8,7 @@ import type {
   ProviderResult,
   ProviderSelectionRequest,
 } from "../../worker/providers/contracts";
-import { providerDescriptor } from "./helpers";
+import { consumeFixtureReservation, providerDescriptor } from "./helpers";
 
 const profile = MarketProfileSchema.parse({
   ...marketProfile,
@@ -25,7 +25,8 @@ function selectionRequest(
     language: "en",
     region: "US",
     jurisdiction: null,
-    health: {},
+    executionMode: "fixture",
+    timeoutMs: 250,
     budget: { currency: "USD", remainingCost: 0, remainingProviderCalls: 3 },
     allowFallback: false,
     descriptors,
@@ -92,8 +93,9 @@ describe("provider registry policy", () => {
     const request = selectionRequest(descriptors, { allowFallback: true });
     const selected = selectProvider(request);
     const calls: string[] = [];
-    const result = await executeProviderWithFallback(request, async (descriptor) => {
+    const result = await executeProviderWithFallback(request, async (descriptor, context) => {
       calls.push(descriptor.id);
+      consumeFixtureReservation(descriptor, context);
       return success(descriptor.id, "EMPTY");
     });
 
@@ -111,9 +113,9 @@ describe("provider registry policy", () => {
       providerDescriptor("exa", "COMPANY_RESOLUTION", { priority: 3 }),
       providerDescriptor("serper", "SOURCE_SEARCH", { priority: 4 }),
     ];
-    const request = selectionRequest(descriptors, {
-      health: { serper: "CIRCUIT_OPEN" },
-    });
+    const request = selectionRequest(descriptors.map(descriptor => descriptor.id === "serper"
+      ? { ...descriptor, operationalState: "error" as const, stateReason: "circuit open" }
+      : descriptor));
 
     expect(() => selectProvider(request)).toThrowError(expect.objectContaining({
       capabilityError: expect.objectContaining({ code: "CAPABILITY_UNAVAILABLE" }),
@@ -130,19 +132,48 @@ describe("provider registry policy", () => {
     }));
   });
 
+  it.each(["paid_locked", "missing_credentials", "disabled", "rate_limited", "error"] as const)(
+    "fails closed for %s providers",
+    operationalState => {
+      const descriptor = providerDescriptor("exa", "SOURCE_SEARCH", {
+        operationalState,
+        stateReason: `fixture ${operationalState}`,
+      });
+      expect(() => selectProvider(selectionRequest([descriptor]))).toThrowError(expect.objectContaining({
+        capabilityError: expect.objectContaining({ code: "CAPABILITY_UNAVAILABLE" }),
+      }));
+    },
+  );
+
+  it("orders a configured free provider before a higher-priority paid provider", () => {
+    const paid = providerDescriptor("exa", "SOURCE_SEARCH", {
+      priority: 1,
+      configuredCost: { amount: 0.1, currency: "USD" },
+    });
+    const free = providerDescriptor("hackernews", "SOURCE_SEARCH", { priority: 50 });
+    const selected = selectProvider(selectionRequest([paid, free], {
+      budget: { currency: "USD", remainingCost: 1, remainingProviderCalls: 2 },
+    }));
+    expect(selected.descriptor.id).toBe("hackernews");
+  });
+
+  it("accepts a validated catalog key without widening a vendor enum", () => {
+    const regional = providerDescriptor("regional_news_by", "SOURCE_SEARCH");
+    expect(selectProvider(selectionRequest([regional])).descriptor.id).toBe("regional_news_by");
+    expect(() => selectProvider(selectionRequest([
+      providerDescriptor("Invalid Provider" as ProviderDescriptor["id"], "SOURCE_SEARCH"),
+    ]))).toThrowError(expect.objectContaining({
+      capabilityError: expect.objectContaining({ code: "INVALID_INPUT" }),
+    }));
+  });
+
   it("returns a stable budget error before invoking an over-budget provider", async () => {
-    let calls = 0;
     const paid = providerDescriptor("exa", "SOURCE_SEARCH", {
       configuredCost: { amount: 0.25, currency: "USD" },
     });
-    const result = await executeProviderWithFallback(
-      selectionRequest([paid], { budget: { currency: "USD", remainingCost: 0.1, remainingProviderCalls: 2 } }),
-      async () => { calls++; return success("exa"); },
-    );
-
-    expectFailure(result);
-    expect(result.error.code).toBe("BUDGET_EXCEEDED");
-    expect(calls).toBe(0);
+    expect(() => selectProvider(selectionRequest([paid], {
+      budget: { currency: "USD", remainingCost: 0.1, remainingProviderCalls: 2 },
+    }))).toThrowError(expect.objectContaining({ capabilityError: expect.objectContaining({ code: "BUDGET_EXCEEDED" }) }));
   });
 
   it("requires an explicit authorized jurisdiction for regional profiles before selecting any provider", async () => {

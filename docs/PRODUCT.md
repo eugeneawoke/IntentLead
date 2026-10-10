@@ -65,6 +65,8 @@ The user-facing target for a complete run is at least **20 confirmed, evidence-b
 
 The source plan is generated from the offer, ICP, business type, geography, language, access policy and budget. IntentLead is not hard-coded to one community or one market.
 
+The primary intake is conversational: a user describes what they sell and whom they want to find in normal language. A bounded LLM converts that input into reviewable structured constraints and explains uncertainties; it does not invent evidence or autonomously choose paid sources.
+
 Initial provider families include:
 
 - community and developer sources;
@@ -76,7 +78,7 @@ Initial provider families include:
 - people and business-contact discovery;
 - email finding and verification.
 
-Global, CIS and local-business markets use the same domain model with different `MarketProfile` capabilities. Free and lawful sources are preferred; expensive enrichment runs only after cheap qualification and only within an explicit budget.
+Global, CIS and local-business markets use the same domain model with different `MarketProfile` capabilities. The initial live portfolio is free and lawful. Expensive search or enrichment remains locked until demand is demonstrated, then runs only after cheap qualification and within an explicit approved budget.
 
 ## Product promises
 

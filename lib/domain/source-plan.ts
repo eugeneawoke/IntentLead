@@ -8,10 +8,16 @@ function languageMatches(supported: string[], requested: string[]): boolean {
 function gapReason(entry: SourcePlan["selected"][number], request: SourcePlanRequest): SourcePlan["gaps"][number]["reason"] | null {
   if (entry.legalStatus === "PROHIBITED") return "PROHIBITED";
   if (entry.legalStatus === "UNASSESSED") return "LEGAL_UNASSESSED";
-  if (entry.state !== "READY") return entry.state;
+  if (entry.state !== "READY" && entry.state !== "DEGRADED") return entry.state;
   const cost = entry.configuredCost;
+  if (cost.amount === null || cost.currency === null) return "BUDGET_EXCEEDED";
   if (cost.currency !== request.budget.currency || cost.amount > request.budget.maxCost) return "BUDGET_EXCEEDED";
   return null;
+}
+
+function executionRank(entry: SourceCatalogEntry): number {
+  if (entry.legalStatus !== "ALLOWED") return 2;
+  return entry.state === "READY" || entry.state === "DEGRADED" ? 0 : 1;
 }
 
 export function buildSourcePlan(requestInput: SourcePlanRequest, catalogInput: SourceCatalogEntry[]): SourcePlan {
@@ -24,7 +30,8 @@ export function buildSourcePlan(requestInput: SourcePlanRequest, catalogInput: S
   ));
 
   const selected = relevant.sort((left, right) => (
-    left.configuredCost.amount - right.configuredCost.amount
+    executionRank(left) - executionRank(right)
+    || (left.configuredCost.amount ?? Number.POSITIVE_INFINITY) - (right.configuredCost.amount ?? Number.POSITIVE_INFINITY)
     || left.priority - right.priority
     || left.providerKey.localeCompare(right.providerKey)
   )).slice(0, request.maxProviders).map(entry => {
@@ -47,11 +54,19 @@ export function buildSourcePlan(requestInput: SourcePlanRequest, catalogInput: S
   });
 
   const gaps: SourcePlan["gaps"] = [];
-  const executable = selected.filter(entry => {
-    const reason = gapReason(entry, request);
+  const executable: SourcePlan["executable"] = [];
+  let remainingCost = request.budget.maxCost;
+  for (const entry of selected) {
+    const reason = gapReason(entry, {
+      ...request,
+      budget: { ...request.budget, maxCost: remainingCost },
+    });
     if (reason) gaps.push({ providerKey: entry.providerKey, reason });
-    return reason === null;
-  });
+    else {
+      executable.push(entry);
+      remainingCost -= entry.configuredCost.amount ?? 0;
+    }
+  }
   const executableFamilies = new Set(executable.map(entry => entry.sourceFamily)).size;
 
   return SourcePlanSchema.parse({

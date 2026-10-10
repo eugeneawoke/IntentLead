@@ -16,6 +16,9 @@ Measure whether IntentLead produces evidence-backed, contact-worthy Opportunity 
 8. Prompt injection cannot alter system policy, create evidence, invoke providers or produce external action.
 9. A short corpus returns `PARTIAL` with funnel counts instead of padding.
 10. No route, capability, provider or worker step can send a message.
+11. Conversational intake preserves user meaning, exposes inferred constraints for review and asks rather than invents when required fields are absent.
+12. Model output cannot create evidence, authorize a paid provider or change budget/source policy.
+13. Paid-locked providers remain unreachable even when credentials are present.
 
 ## Evaluation set
 

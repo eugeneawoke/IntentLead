@@ -6,7 +6,7 @@ import { createHackerNewsAdapter } from "../../worker/providers/hackernews";
 import { createRedditAdapter } from "../../worker/providers/reddit";
 import { executeProviderWithFallback } from "../../worker/providers/registry";
 import type { ProviderCallContext, ProviderDescriptor, ProviderResult, ProviderSelectionRequest } from "../../worker/providers/contracts";
-import { fakeResponse, makeDependencies, providerDescriptor } from "./helpers";
+import { consumeFixtureReservation, fakeResponse, makeDependencies, providerDescriptor } from "./helpers";
 
 const profile = MarketProfileSchema.parse({
   ...marketProfile,
@@ -20,7 +20,8 @@ function request(descriptors: ProviderDescriptor[], overrides: Partial<ProviderS
     language: "en",
     region: "US",
     jurisdiction: null,
-    health: {},
+    executionMode: "fixture",
+    timeoutMs: 250,
     budget: { currency: "USD", remainingCost: 1, remainingProviderCalls: descriptors.length },
     allowFallback: false,
     descriptors,
@@ -90,7 +91,7 @@ describe("opaque provider reservations", () => {
   it.each([
     ["RU profile with US-only descriptor", { marketProfiles: ["CIS_RU"], languages: ["ru"], regions: ["RU"], jurisdictions: ["US"] }, "regional"],
     ["prohibited descriptor", { legalStatus: "PROHIBITED" }, "normal"],
-    ["unavailable descriptor", { available: false }, "normal"],
+    ["disabled descriptor", { operationalState: "disabled", stateReason: "fixture disabled" }, "normal"],
     ["unknown-cost descriptor", { configuredCost: { amount: null, currency: null } }, "normal"],
   ] as Array<[string, Partial<ProviderDescriptor>, "regional" | "normal"]>)("does not let direct adapter calls bypass %s selection", async (_label, overrides, profileKind) => {
     let httpCalls = 0;
@@ -114,7 +115,6 @@ describe("opaque provider reservations", () => {
       language: profileKind === "regional" ? "ru" : "en",
       region: profileKind === "regional" ? "RU" : "US",
       jurisdiction: profileKind === "regional" ? "RU" : null,
-      health: { reddit: "CIRCUIT_OPEN" },
       budget: { currency: "USD", remainingCost: 0, remainingProviderCalls: 0 },
       reservation: Object.freeze({}),
     });
@@ -137,10 +137,9 @@ describe("opaque provider reservations", () => {
     const hackerNewsDescriptor = providerDescriptor("hackernews", "SOURCE_SEARCH");
     const wrongAdapter = createHackerNewsAdapter({ descriptor: hackerNewsDescriptor, dependencies });
 
-    await expect(executeProviderWithFallback(request([redditDescriptor]), async (_descriptor, context) =>
-      wrongAdapter.search({ keywords: ["Acme Example"] }, context))).rejects.toMatchObject({
-      capabilityError: { code: "POLICY_DENIED" },
-    });
+    const result = await executeProviderWithFallback(request([redditDescriptor]), async (_descriptor, context) =>
+      wrongAdapter.search({ keywords: ["Acme Example"] }, context));
+    expect(result).toMatchObject({ ok: false, error: { code: "POLICY_DENIED" } });
     expect(started).toHaveLength(0);
     expect(finished).toHaveLength(0);
     expect(httpCalls).toBe(0);
@@ -155,10 +154,9 @@ describe("opaque provider reservations", () => {
     const descriptor = providerDescriptor("reddit", "SOURCE_SEARCH");
     const provider = createRedditAdapter({ clientId: "fixture-id", clientSecret: "fixture-secret", descriptor, dependencies });
 
-    await expect(executeProviderWithFallback(request([descriptor]), async (_selected, context) =>
-      provider.search({ keywords: ["Acme Example"] }, { ...context, region: "CA" }))).rejects.toMatchObject({
-      capabilityError: { code: "POLICY_DENIED" },
-    });
+    const result = await executeProviderWithFallback(request([descriptor]), async (_selected, context) =>
+      provider.search({ keywords: ["Acme Example"] }, { ...context, region: "CA" }));
+    expect(result).toMatchObject({ ok: false, error: { code: "POLICY_DENIED" } });
     expect(started).toHaveLength(0);
     expect(finished).toHaveLength(0);
     expect(httpCalls).toBe(0);
@@ -198,6 +196,7 @@ describe("opaque provider reservations", () => {
       budget: { currency: "USD", remainingCost: 0, remainingProviderCalls: 2 },
     }), async (descriptor, context) => {
       reservations.push((context as ProviderCallContext & { reservation?: unknown }).reservation);
+      consumeFixtureReservation(descriptor, context);
       return descriptor.id === "reddit" ? failedResult("reddit") : succeededResult("hackernews");
     });
 

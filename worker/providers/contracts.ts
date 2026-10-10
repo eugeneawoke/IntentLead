@@ -2,6 +2,7 @@ import type { CapabilityError } from "../../types/job";
 import type { Capability, MarketProfile } from "../../types/market-profile";
 import type { ProviderRunRecorder } from "./recorder-contracts";
 export type { ProviderRunFinish, ProviderRunRecorder, ProviderRunStart } from "./recorder-contracts";
+export type { EmailFindProvider, EmailVerifyProvider, PersonSearchProvider } from "../../types/provider-research";
 
 export const PROVIDER_SCHEMA_VERSION = 1 as const;
 
@@ -13,10 +14,14 @@ export interface ProviderReservationGrant {
   requestFingerprint: string;
 }
 
-export type ProviderId = "reddit" | "hackernews" | "exa" | "serper" | "openai";
-export type ProviderCapability = Extract<Capability, "SOURCE_SEARCH" | "COMPANY_RESOLUTION">;
+/** Stable catalog key; new providers do not require widening a vendor enum. */
+export type ProviderId = string;
+export type ProviderCapability = Extract<Capability,
+  "SOURCE_SEARCH" | "COMPANY_RESOLUTION" | "PERSON_SEARCH" | "EMAIL_FIND" | "EMAIL_VERIFY">;
 export type ProviderLegalStatus = "ALLOWED" | "RESTRICTED" | "PROHIBITED" | "UNASSESSED";
-export type ProviderHealth = "HEALTHY" | "DEGRADED" | "UNHEALTHY" | "CIRCUIT_OPEN" | "AUTH_FAILED";
+export type ProviderOperationalState =
+  | "configured" | "fixture_only" | "missing_credentials" | "paid_locked" | "planned" | "manual_only"
+  | "disabled" | "unavailable" | "rate_limited" | "degraded" | "error";
 export type ProviderStatus = "SUCCEEDED" | "EMPTY" | "PARTIAL" | "FAILED" | "RATE_LIMITED" | "TIMEOUT";
 export type ProviderRunStatus = "STARTED" | "SUCCEEDED" | "PARTIAL" | "FAILED" | "RATE_LIMITED" | "TIMEOUT";
 export type ProviderFailureKind =
@@ -38,7 +43,10 @@ export interface ProviderDescriptor {
   regions: string[];
   jurisdictions: string[];
   legalStatus: ProviderLegalStatus;
-  available: boolean;
+  operationalState: ProviderOperationalState;
+  stateObservedAt: string;
+  stateReason: string | null;
+  retryAfterMs: number | null;
   configuredCost: { amount: number | null; currency: string | null };
 }
 
@@ -54,7 +62,8 @@ export interface ProviderSelectionRequest {
   language: string;
   region: string;
   jurisdiction: string | null;
-  health: Partial<Record<ProviderId, ProviderHealth>>;
+  executionMode: "fixture" | "live";
+  timeoutMs: number;
   budget: ProviderBudget;
   descriptors: ProviderDescriptor[];
   /** Providers explicitly authorized for nested runs such as company inference. */
@@ -181,6 +190,7 @@ export interface ProviderCallContext {
   language: string;
   region: string;
   jurisdiction: string | null;
+  executionMode: ProviderSelectionRequest["executionMode"];
   reservation: ProviderReservation;
   requestFingerprint: string;
   reserveProvider(descriptor: ProviderDescriptor): ProviderReservationGrant;

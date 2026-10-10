@@ -44,8 +44,9 @@ Code and migrations define current runtime behavior. The documents below define 
 - [ADR-006: Evidence provenance](adr/006-evidence-provenance.md)
 - [ADR-008: Shared database namespace](adr/008-shared-database-namespace.md)
 - [ADR-009: Human-controlled Opportunity package](adr/009-human-controlled-opportunity-package.md)
+- [ADR-010: Free-first provider and model rollout](adr/010-free-first-provider-and-model-rollout.md)
 
-ADR-005 (committed AI Visibility module) and ADR-007 (verified-package credit charging) were removed on 2026-10-06. AI Visibility remains an optional signal provider; pricing/credits are undecided. ADR-009 restores buyer/contact/draft as a human-controlled Opportunity package without reviving credit or sending semantics.
+ADR-005 (committed AI Visibility module) and ADR-007 (verified-package credit charging) were removed on 2026-10-06. AI Visibility remains an optional signal provider; pricing/credits are undecided. ADR-009 restores buyer/contact/draft as a human-controlled Opportunity package without reviving credit or sending semantics. ADR-010 makes the rollout free-first and keeps paid providers locked until demand is demonstrated.
 
 ## Authority rules
 

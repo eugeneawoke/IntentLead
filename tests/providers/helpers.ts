@@ -9,6 +9,7 @@ import type {
 } from "../../worker/providers/contracts";
 import { executeProviderWithFallback } from "../../worker/providers/registry";
 import { ProviderSelectionError } from "../../worker/providers/contracts";
+import { consumeProviderReservation } from "../../worker/providers/registry-execution";
 
 export const TEST_NOW = new Date("2026-10-05T12:00:00.000Z");
 
@@ -31,7 +32,10 @@ export function providerDescriptor(
     regions: ["*"],
     jurisdictions: ["*"],
     legalStatus: "ALLOWED",
-    available: true,
+    operationalState: "fixture_only",
+    stateObservedAt: TEST_NOW.toISOString(),
+    stateReason: null,
+    retryAfterMs: null,
     configuredCost: { amount: 0, currency: null },
     ...overrides,
   };
@@ -48,7 +52,8 @@ export function providerRequest(
     language: "en",
     region: "US",
     jurisdiction: null,
-    health: {},
+    executionMode: "fixture",
+    timeoutMs: 250,
     budget: { currency: "USD", remainingCost: 10, remainingProviderCalls: Math.max(1, descriptors.length) },
     allowFallback: false,
     descriptors,
@@ -64,6 +69,13 @@ export async function runWithProviderReservation<T>(
   if (result.ok) return result.outcome;
   if (result.lastOutcome) return result.lastOutcome;
   throw new ProviderSelectionError(result.error);
+}
+
+export function consumeFixtureReservation(
+  descriptor: ProviderDescriptor,
+  context: Parameters<typeof consumeProviderReservation>[2],
+): void {
+  consumeProviderReservation(context.reservation, descriptor, context);
 }
 
 export function makeRecorder() {

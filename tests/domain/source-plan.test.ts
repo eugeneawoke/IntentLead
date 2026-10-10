@@ -17,19 +17,20 @@ describe("SourcePlan v1", () => {
   it("selects a global SaaS portfolio instead of a single community", () => {
     const plan = buildSourcePlan({
       ...baseRequest,
+      maxProviders: 20,
       marketProfileId: "EN_DISCOVERY_ONLY",
       languages: ["en"],
       businessType: "SAAS",
       signalFamilies: ["EXPRESSED_INTENT", "BUSINESS_EVENT", "DETECTED_PROBLEM"],
     }, DEFAULT_SOURCE_CATALOG);
 
-    expect(plan.status).toBe("PARTIAL");
+    expect(plan.status).toBe("BLOCKED");
     expect(plan.requestedConfirmedSignals).toBe(20);
     expect(plan.selected.map(item => item.providerKey)).toEqual(expect.arrayContaining([
       "official_company_site", "public_web_search", "reddit", "hackernews", "github", "stackexchange",
     ]));
     expect(new Set(plan.selected.map(item => item.sourceFamily)).size).toBeGreaterThan(2);
-    expect(plan.executable.map(item => item.providerKey)).toEqual(["hackernews"]);
+    expect(plan.executable).toEqual([]);
   });
 
   it("uses a regional portfolio for CIS instead of reusing the global tech plan", () => {
@@ -66,7 +67,7 @@ describe("SourcePlan v1", () => {
     expect(plan.selected.map(item => item.providerKey)).not.toContain("reddit");
   });
 
-  it("keeps prohibited, unavailable, missing-credential and paid zero-budget sources out of execution", () => {
+  it("keeps prohibited, unavailable, missing-credential and paid-locked sources out of execution", () => {
     const catalog = DEFAULT_SOURCE_CATALOG.map(item => {
       if (item.providerKey === "reddit") return { ...item, legalStatus: "PROHIBITED" as const };
       if (item.providerKey === "github") return { ...item, state: "MISSING_CREDENTIALS" as const };
@@ -77,6 +78,7 @@ describe("SourcePlan v1", () => {
     });
     const plan = buildSourcePlan({
       ...baseRequest,
+      maxProviders: 20,
       marketProfileId: "EN_DISCOVERY_ONLY",
       languages: ["en"],
       businessType: "SAAS",
@@ -94,12 +96,37 @@ describe("SourcePlan v1", () => {
     ]));
   });
 
-  it("orders zero-cost sources before paid sources when both are authorized", () => {
-    const catalog = DEFAULT_SOURCE_CATALOG.map(item => item.providerKey === "public_web_search"
-      ? { ...item, state: "READY" as const, costClass: "PAID" as const, configuredCost: { amount: 0.1, currency: "USD" } }
-      : item);
+  it("keeps demand-gated paid search providers locked even when the budget could cover them", () => {
+    const paidCatalog = DEFAULT_SOURCE_CATALOG.filter(item => item.providerKey === "exa" || item.providerKey === "serper");
     const plan = buildSourcePlan({
       ...baseRequest,
+      budget: { currency: "USD", maxCost: 10 },
+      maxProviders: 2,
+      marketProfileId: "EN_DISCOVERY_ONLY",
+      languages: ["en"],
+      businessType: "SAAS",
+      signalFamilies: ["EXPRESSED_INTENT"],
+    }, paidCatalog);
+
+    expect(plan.status).toBe("BLOCKED");
+    expect(plan.executable).toEqual([]);
+    expect(plan.gaps).toEqual([
+      { providerKey: "exa", reason: "PAID_LOCKED" },
+      { providerKey: "serper", reason: "PAID_LOCKED" },
+    ]);
+  });
+
+  it("orders zero-cost sources before paid sources when both are authorized", () => {
+    const catalog = DEFAULT_SOURCE_CATALOG.map(item => {
+      if (item.providerKey === "public_web_search") {
+        return { ...item, state: "READY" as const, costClass: "PAID" as const, configuredCost: { amount: 0.1, currency: "USD" } };
+      }
+      if (item.providerKey === "hackernews") return { ...item, state: "READY" as const };
+      return item;
+    });
+    const plan = buildSourcePlan({
+      ...baseRequest,
+      maxProviders: 20,
       budget: { currency: "USD", maxCost: 1 },
       marketProfileId: "EN_DISCOVERY_ONLY",
       languages: ["en"],
@@ -108,9 +135,30 @@ describe("SourcePlan v1", () => {
     }, catalog);
 
     const costs = plan.executable.map(item => item.configuredCost.amount);
-    const firstPaid = costs.findIndex(amount => amount > 0);
+    const firstPaid = costs.findIndex(amount => amount !== null && amount > 0);
     expect(firstPaid).toBeGreaterThan(0);
     expect(costs.slice(0, firstPaid).every(amount => amount === 0)).toBe(true);
+  });
+
+  it("keeps cumulative executable source cost within the plan budget", () => {
+    const catalog = DEFAULT_SOURCE_CATALOG
+      .filter(item => item.providerKey === "public_web_search" || item.providerKey === "github")
+      .map(item => ({
+        ...item,
+        state: "READY" as const,
+        costClass: "PAID" as const,
+        configuredCost: { amount: 0.6, currency: "USD" },
+      }));
+    const plan = buildSourcePlan({
+      ...baseRequest,
+      budget: { currency: "USD", maxCost: 1 },
+      marketProfileId: "EN_DISCOVERY_ONLY",
+      languages: ["en"],
+      businessType: "SAAS",
+      signalFamilies: ["EXPRESSED_INTENT"],
+    }, catalog);
+    expect(plan.executable).toHaveLength(1);
+    expect(plan.gaps).toEqual([expect.objectContaining({ reason: "BUDGET_EXCEEDED" })]);
   });
 
   it("rejects a complete-run target below twenty", () => {
@@ -118,5 +166,20 @@ describe("SourcePlan v1", () => {
       marketProfileId: "EN_DISCOVERY_ONLY", languages: ["en"], businessType: "SAAS",
       signalFamilies: ["EXPRESSED_INTENT"],
     }, DEFAULT_SOURCE_CATALOG)).toThrow();
+  });
+
+  it("does not let a planned high-priority source displace an executable source", () => {
+    const catalog = DEFAULT_SOURCE_CATALOG.map(item => item.providerKey === "hackernews"
+      ? { ...item, state: "READY" as const }
+      : item);
+    const plan = buildSourcePlan({
+      ...baseRequest,
+      maxProviders: 1,
+      marketProfileId: "EN_DISCOVERY_ONLY",
+      languages: ["en"],
+      businessType: "SAAS",
+      signalFamilies: ["EXPRESSED_INTENT"],
+    }, catalog);
+    expect(plan.executable.map(item => item.providerKey)).toEqual(["hackernews"]);
   });
 });

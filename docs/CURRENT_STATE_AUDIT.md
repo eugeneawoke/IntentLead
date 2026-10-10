@@ -1,6 +1,6 @@
 # Current state audit
 
-**Verified:** 2026-10-08 on branch `codex/opportunity-core` after the local Tasks H/I gate.
+**Verified:** 2026-10-08 on branch `codex/opportunity-core` after the local Tasks H/I/J gate.
 
 This document reports current local code, not planned scope and not production state.
 
@@ -26,7 +26,8 @@ Buyer/contact verification and grounded-draft contracts/storage now exist locall
 | Auth and tenancy | Supabase auth helpers, application authorization and RLS foundations | Preserve negative tenant tests |
 | Opportunity contracts | Versioned Evidence, Company, Opportunity, Person, BuyerCandidate, ContactPoint/Verification, ConversationBrief, Draft, SuppressionEntry, review and governance contracts | Keep provider-independent and extend runtime through typed capabilities |
 | Durable jobs | Lease, recovery, cancellation and replay protections use native DiscoveryBrief authority | Preserve through schema cleanup |
-| Provider registry | Capability, provenance, reservation and cost policies implemented; fixture mode is no-network | Keep live adapters disabled |
+| Provider registry | Trusted catalog, explicit activation, capability, provenance, one-time reservation, registry timeout and cost policies implemented; generic fixtures are test-only | Keep live adapters disabled; add free/legal adapters in Task K |
+| Model registry | Provider-neutral capabilities, fixed system/untrusted-user boundary, evidence checks and pre-call token/cost/call reservation implemented | No live model is active; wire conversational intake in Task K2 |
 | Self-prospecting | Explicit fixture-mode worker wiring, DB persistence and network guard implemented locally | Extend with source planning, contact-ready package and a gated free/legal live mode |
 | Human review | List, detail and decision APIs/UI implemented | Use for dogfood quality feedback |
 | Glook | Versioned snapshot consumer exists with contract tests; no active route or direct table read | Keep dormant and optional |
@@ -61,5 +62,6 @@ The corrected critical sequence is therefore:
 - Independent domain, security and frontend review found three gate blockers: no recorded-evidence runtime, incomplete structured quality reasons, and acceptance without active evidence. The fixes add strict external-file authorization/schema checks with a Supabase-only network guard, provenance-preserving capture time and provider/source/PII validation, explicit poor-offer/ICP-fit, low-impact, bad-timing and unsupported-inference reasons, and matching UI/server acceptance guards. Focused evidence after those fixes: recorded runtime/workflow 36/36, review/domain 159/159, review PostgreSQL 13/13, missing-evidence browser regression 1/1 and both relevant typechecks; the already-green full suite was not repeated.
 - The former Task F “external founder input” blocker is superseded. The founder has supplied the target product direction and authorized continued local implementation. Recorded/live evidence is still required later to claim product quality, but it does not block correcting the code, UI, contracts, adapters or eval harness.
 - Tasks H/I gate (2026-10-08): Signal Dark and current workspace surfaces are restored; independent frontend findings on truthfulness/accessibility were resolved. App/worker typechecks pass, 505/505 unit tests pass, focused browser journeys pass 2/2, Task I disposable-PostgreSQL tests pass 5/5, targeted lint has zero errors and the production build passes. Independent security findings on suppression canonicalization, verification chronology/expiry, package binding invalidation, claim coverage, Unicode offsets and research-only job errors were resolved. No live provider call was made.
+- Task J gate (2026-10-08): provider/model contracts, source-plan foundations, trusted activation, reservation, timeout, cost and grounding controls pass the complete local verification command: both typechecks, lint with zero errors and nine pre-existing `fluid-glass.tsx` warnings, 536/536 unit tests and the production build. Independent security review found and drove fixes for pre-call model reservation, test-only fixture execution, authorized evidence IDs and bijective nested-run provenance. The unchanged Task I PostgreSQL gate remains 5/5 and the unchanged Task H browser gate remains 2/2; neither was rerun without a DB/UI change. No network or paid call was made.
 
 No production deployment, production migration, real-source run, real sending or paid API call was performed.

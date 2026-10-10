@@ -5,7 +5,7 @@ import { executeProviderWithFallback } from "../../worker/providers/registry";
 import { createHackerNewsAdapter } from "../../worker/providers/hackernews";
 import { createRedditAdapter } from "../../worker/providers/reddit";
 import type { ProviderDescriptor, ProviderExecutionResult, ProviderResult, ProviderSelectionRequest } from "../../worker/providers/contracts";
-import { makeDependencies, providerDescriptor, waitForAbort } from "./helpers";
+import { consumeFixtureReservation, makeDependencies, providerDescriptor, waitForAbort } from "./helpers";
 
 const profile = MarketProfileSchema.parse({
   ...marketProfile,
@@ -19,7 +19,8 @@ function selectionRequest(descriptors: ProviderDescriptor[], overrides: Partial<
     language: "en",
     region: "US",
     jurisdiction: null,
-    health: {},
+    executionMode: "fixture",
+    timeoutMs: 250,
     budget: { currency: "USD", remainingCost: 0, remainingProviderCalls: 3 },
     allowFallback: false,
     descriptors,
@@ -102,28 +103,26 @@ describe("provider registry execution and fallback", () => {
     const request = selectionRequest(descriptors, {
       allowFallback: true,
       budget: { currency: "USD", remainingCost: 0.25, remainingProviderCalls: 2 },
-      descriptors: [
-        { ...descriptors[0], configuredCost: { amount: 0.1, currency: "USD" } },
-        { ...descriptors[1], configuredCost: { amount: 0.15, currency: "USD" } },
-      ],
     });
     const calls: string[] = [];
-    const result = await executeProviderWithFallback(request, async descriptor => {
+    const result = await executeProviderWithFallback(request, async (descriptor, context) => {
       calls.push(descriptor.id);
+      consumeFixtureReservation(descriptor, context);
       return descriptor.id === "reddit" ? unavailable("reddit") : success("hackernews");
     });
 
     expectSuccess(result);
     expect(calls).toEqual(["reddit", "hackernews"]);
     expect(result.attempts.map(attempt => attempt.providerId)).toEqual(calls);
-    expect(result.remainingBudget).toEqual({ currency: "USD", remainingCost: 0, remainingProviderCalls: 0 });
+    expect(result.remainingBudget).toEqual({ currency: "USD", remainingCost: 0.25, remainingProviderCalls: 0 });
   });
 
   it.each([false, true])("does not fallback after non-retryable authorization (fallback=%s)", async allowFallback => {
     const descriptors = [providerDescriptor("reddit", "SOURCE_SEARCH", { priority: 1 }), providerDescriptor("hackernews", "SOURCE_SEARCH", { priority: 2 })];
     let calls = 0;
-    const result = await executeProviderWithFallback(selectionRequest(descriptors, { allowFallback }), async () => {
+    const result = await executeProviderWithFallback(selectionRequest(descriptors, { allowFallback }), async (descriptor, context) => {
       calls++;
+      consumeFixtureReservation(descriptor, context);
       return forbidden("reddit");
     });
 
@@ -171,6 +170,92 @@ describe("provider registry execution and fallback", () => {
     expectFailure(result);
     expect(result.error.code).toBe("BUDGET_EXCEEDED");
     expect(calls).toBe(0);
+  });
+
+  it("enforces a registry timeout even when a provider ignores its abort signal", async () => {
+    const descriptor = providerDescriptor("hackernews", "SOURCE_SEARCH");
+    const result = await executeProviderWithFallback(
+      selectionRequest([descriptor], { timeoutMs: 5 }),
+      async (_selected, context) => {
+        consumeFixtureReservation(descriptor, context);
+        return new Promise(() => undefined);
+      },
+    );
+    expectFailure(result);
+    expect(result.error.code).toBe("TIMEOUT");
+  });
+
+  it("rejects a callback that returns without consuming its reservation", async () => {
+    const descriptor = providerDescriptor("hackernews", "SOURCE_SEARCH");
+    const result = await executeProviderWithFallback(selectionRequest([descriptor]), async () => success("hackernews"));
+    expectFailure(result);
+    expect(result.error.code).toBe("INTERNAL_ERROR");
+  });
+
+  it("rejects caller-forged live activation before invocation", async () => {
+    const forged = providerDescriptor("exa", "SOURCE_SEARCH", {
+      operationalState: "configured",
+      version: "live-forged",
+    });
+    let calls = 0;
+    const result = await executeProviderWithFallback(selectionRequest([forged], {
+      executionMode: "live",
+    }), async () => { calls++; return success("prospeo"); });
+    expectFailure(result);
+    expect(result.error.code).toBe("POLICY_DENIED");
+    expect(calls).toBe(0);
+  });
+
+  it("does not expose generic fixture execution outside the test environment", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    try {
+      const descriptor = providerDescriptor("hackernews", "SOURCE_SEARCH");
+      let calls = 0;
+      const result = await executeProviderWithFallback(selectionRequest([descriptor]), async () => {
+        calls++;
+        return success("hackernews");
+      });
+      expectFailure(result);
+      expect(result.error.code).toBe("POLICY_DENIED");
+      expect(calls).toBe(0);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("rejects result cost that exceeds its reservation", async () => {
+    const descriptor = providerDescriptor("hackernews", "SOURCE_SEARCH");
+    const result = await executeProviderWithFallback(selectionRequest([descriptor]), async (selected, context) => {
+      consumeFixtureReservation(selected, context);
+      return { ...success("hackernews"), cost: { configuredAmount: 0, reservedAmount: 0, actualAmount: 1, currency: null } };
+    });
+    expectFailure(result);
+    expect(result.error.code).toBe("INTERNAL_ERROR");
+  });
+
+  it("rejects duplicate related-run identities for distinct nested reservations", async () => {
+    const parent = providerDescriptor("exa", "COMPANY_RESOLUTION");
+    const nested = providerDescriptor("openai", "COMPANY_RESOLUTION");
+    const result = await executeProviderWithFallback(selectionRequest([parent], {
+      capability: "COMPANY_RESOLUTION",
+      nestedDescriptors: [nested],
+      budget: { currency: "USD", remainingCost: 0, remainingProviderCalls: 3 },
+    }), async (selected, context) => {
+      consumeFixtureReservation(selected, context);
+      for (let index = 0; index < 2; index++) {
+        const grant = context.reserveProvider(nested);
+        consumeFixtureReservation(nested, {
+          ...context,
+          capability: "COMPANY_RESOLUTION",
+          reservation: grant.reservation,
+          requestFingerprint: grant.requestFingerprint,
+        });
+      }
+      const related = success("openai");
+      return { ...success("exa"), relatedRuns: [related, { ...related }] };
+    });
+    expectFailure(result);
+    expect(result.error.code).toBe("INTERNAL_ERROR");
   });
 });
 

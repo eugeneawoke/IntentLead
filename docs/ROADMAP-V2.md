@@ -41,7 +41,9 @@ ICP → source discovery → signal/problem → company → evidence
 → assessment → buyer → verified contact → grounded draft → human review
 ```
 
-Use existing Reddit, Hacker News, Exa, Serper and historical Prospeo/Hunter/Apollo work where it remains safe. Implement missing capabilities behind the provider registry. Missing keys produce `missing_credentials` and fallbacks, not fake success.
+Use recorded evidence and the prioritized free/legal portfolio first. Existing Exa/Serper and historical Prospeo/Hunter/Apollo work informs contracts only; those paid providers remain locked and make no live calls. Missing keys or unavailable sources produce explicit capability gaps and fallbacks, not fake success.
+
+Add a model-independent conversational layer that converts user language into a reviewable Offer, ICP, market and discovery brief, then performs bounded evidence interpretation and grounded drafting. The model cannot create evidence, authorize providers or perform external actions.
 
 **Gate:** at least 20 confirmed evidence-backed signals in the complete run; unique-company and Opportunity counts reported separately; zero duplicates, zero unsupported material claims, contact provenance visible, no send action and no unapproved spend.
 
@@ -55,9 +57,20 @@ Prioritized capability families:
 2. Reddit, Hacker News, GitHub and Stack Overflow;
 3. jobs/company events via public career pages and legal feeds;
 4. Product Hunt, review/comparison and competitor sources where access permits;
-5. contact discovery/verification fallbacks.
+5. official-site public business contacts and free/authorized contact verification paths.
 
 **Gate:** measured provider funnel, company/buyer/contact accuracy, acceptance, latency and cost per accepted package.
+
+## Stage 2.5 — Demand-gated paid coverage
+
+**Outcome:** paid search or contact enrichment is enabled only for measured coverage gaps after people demonstrate product interest.
+
+- activate providers individually, never as an all-provider fan-out;
+- require current terms, credentials, cost ceiling and founder approval;
+- retain free-first ordering and stop enrichment for rejected Opportunities;
+- compare incremental accepted-package yield against incremental cost.
+
+**Gate:** demonstrated demand, an explicit spend budget and evidence that the provider improves accepted-package yield or contact coverage enough to justify its cost.
 
 ## Stage 3 — CIS and local-business slice
 

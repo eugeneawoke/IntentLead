@@ -16,7 +16,8 @@ export const SourceAccessModeSchema = z.enum([
   "OFFICIAL_API", "SEARCH_INDEX", "PUBLIC_WEB", "PARTNER_API", "MANUAL_ONLY", "UNAVAILABLE",
 ]);
 export const SourceOperationalStateSchema = z.enum([
-  "READY", "MISSING_CREDENTIALS", "DISABLED", "RATE_LIMITED", "ERROR", "MANUAL_ONLY", "UNAVAILABLE", "PLANNED",
+  "READY", "MISSING_CREDENTIALS", "PAID_LOCKED", "DISABLED", "RATE_LIMITED", "DEGRADED", "ERROR",
+  "MANUAL_ONLY", "UNAVAILABLE", "PLANNED",
 ]);
 export const SourceLegalStatusSchema = z.enum(["ALLOWED", "RESTRICTED", "PROHIBITED", "UNASSESSED"]);
 export const SourceCostClassSchema = z.enum(["FREE", "FREE_TIER", "PAID", "UNKNOWN"]);
@@ -28,7 +29,10 @@ export const SourceCatalogEntrySchema = z.object({
   state: SourceOperationalStateSchema,
   legalStatus: SourceLegalStatusSchema,
   costClass: SourceCostClassSchema,
-  configuredCost: z.object({ amount: z.number().finite().nonnegative(), currency: z.string().regex(/^[A-Z]{3}$/) }).strict(),
+  configuredCost: z.object({
+    amount: z.number().finite().nonnegative().nullable(),
+    currency: z.string().regex(/^[A-Z]{3}$/).nullable(),
+  }).strict(),
   marketProfileIds: z.array(MarketProfileIdSchema).nonempty(),
   languages: z.array(NonEmptyStringSchema).nonempty(),
   businessTypes: z.array(z.union([BusinessTypeSchema, z.literal("ALL")])).nonempty(),
@@ -64,8 +68,8 @@ const SelectedSourceSchema = SourceCatalogEntrySchema.pick({
 });
 
 export const SourceGapReasonSchema = z.enum([
-  "PROHIBITED", "LEGAL_UNASSESSED", "MISSING_CREDENTIALS", "DISABLED", "RATE_LIMITED", "ERROR",
-  "MANUAL_ONLY", "UNAVAILABLE", "PLANNED", "BUDGET_EXCEEDED",
+  "PROHIBITED", "LEGAL_UNASSESSED", "MISSING_CREDENTIALS", "PAID_LOCKED", "DISABLED", "RATE_LIMITED",
+  "ERROR", "MANUAL_ONLY", "UNAVAILABLE", "PLANNED", "BUDGET_EXCEEDED",
 ]);
 
 export const SourcePlanSchema = z.object({

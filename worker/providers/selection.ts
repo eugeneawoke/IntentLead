@@ -11,16 +11,22 @@ import {
 import { descriptorSupportsJurisdiction, isValidJurisdiction, profileAllowsJurisdiction } from "./jurisdiction";
 
 const ProviderDescriptorSchema = z.object({
-  id: z.enum(["reddit", "hackernews", "exa", "serper", "openai"]),
+  id: z.string().regex(/^[a-z0-9][a-z0-9_]{0,63}$/),
   version: z.string().min(1),
-  capability: z.enum(["SOURCE_SEARCH", "COMPANY_RESOLUTION"]),
+  capability: z.enum(["SOURCE_SEARCH", "COMPANY_RESOLUTION", "PERSON_SEARCH", "EMAIL_FIND", "EMAIL_VERIFY"]),
   priority: z.number().int(),
   marketProfiles: z.array(z.enum(["EN_DISCOVERY_ONLY", "CIS_RU", "LOCAL_CUSTOM"])),
   languages: z.array(z.string().min(1)),
   regions: z.array(z.string().min(1)),
   jurisdictions: z.array(z.string().min(1)),
   legalStatus: z.enum(["ALLOWED", "RESTRICTED", "PROHIBITED", "UNASSESSED"]),
-  available: z.boolean(),
+  operationalState: z.enum([
+    "configured", "fixture_only", "missing_credentials", "paid_locked", "planned", "manual_only", "disabled", "unavailable",
+    "rate_limited", "degraded", "error",
+  ]),
+  stateObservedAt: z.string().datetime({ offset: true }),
+  stateReason: z.string().min(1).nullable(),
+  retryAfterMs: z.number().int().nonnegative().nullable(),
   configuredCost: z.object({
     amount: z.number().finite().nonnegative().nullable(),
     currency: z.string().regex(/^[A-Z]{3}$/).nullable(),
@@ -82,7 +88,8 @@ function validateSelectionRequest(request: ProviderSelectionRequest): void {
     || !Number.isInteger(request.budget.remainingProviderCalls) || request.budget.remainingProviderCalls < 0
     || !/^[A-Z]{3}$/.test(request.budget.currency)
     || !/^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/.test(request.language)
-    || !request.region.trim()) {
+    || !request.region.trim()
+    || !Number.isInteger(request.timeoutMs) || request.timeoutMs < 1 || request.timeoutMs > 60_000) {
     fail(request, "INVALID_INPUT", "Provider selection context is invalid");
   }
   if (!languageMatches(profile.data.languages, request.language)) {
@@ -124,12 +131,11 @@ export function selectProvider(request: ProviderSelectionRequest): ProviderSelec
     .filter(descriptor => regionMatches(descriptor.regions, request.region))
     .filter(descriptor => !request.jurisdiction || descriptorSupportsJurisdiction(descriptor.jurisdictions, request.jurisdiction))
     .filter(() => request.profile.regions.length === 0 || regionMatches(request.profile.regions, request.region))
-    .filter(descriptor => descriptor.legalStatus === "ALLOWED" && descriptor.available)
+    .filter(descriptor => descriptor.legalStatus === "ALLOWED")
     .filter(descriptor => !excluded.has(descriptor.id))
-    .filter(descriptor => {
-      const health = request.health[descriptor.id] ?? "HEALTHY";
-      return health === "HEALTHY" || health === "DEGRADED";
-    })
+    .filter(descriptor => descriptor.operationalState === "configured"
+      || descriptor.operationalState === "degraded"
+      || (request.executionMode === "fixture" && descriptor.operationalState === "fixture_only"))
     .filter(descriptor => {
       const amount = descriptor.configuredCost.amount;
       if (amount === null) return false;
@@ -140,7 +146,11 @@ export function selectProvider(request: ProviderSelectionRequest): ProviderSelec
       }
       return true;
     })
-    .sort((a, b) => a.priority - b.priority || a.id.localeCompare(b.id));
+    .sort((a, b) => (
+      a.configuredCost.amount! - b.configuredCost.amount!
+      || a.priority - b.priority
+      || a.id.localeCompare(b.id)
+    ));
 
   const descriptor = eligible[0];
   if (!descriptor) {
