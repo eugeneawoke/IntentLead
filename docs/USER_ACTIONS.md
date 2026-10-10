@@ -16,6 +16,7 @@ Only the following external actions require founder involvement:
 |---|---|---|
 | Provider account/API credential | Enable a provider that cannot run anonymously | After adapter/health behavior exists and the provider is selected |
 | Exact OpenAI model, credential and current price confirmation | Activate the implemented Responses API adapter after API/UI and approval wiring are locally complete | Before the first live model call; not needed for fixture/UI development |
+| Server-only review receipt secret (at least 32 UTF-8 bytes) | Sign short-lived conversational reviews before the approval API may use service-role persistence | Before enabling conversational review/approval outside tests; not needed for current local contract work |
 | Live model-call deduplication policy | Prevent duplicate paid inference after process/network retry because the SDK transport does not provide a verified Responses idempotency guarantee | Before changing OpenAI from `paid_locked` |
 | Source terms/legal decision | Confirm an ambiguous commercial-use or regional access path | Before enabling that source live |
 | Non-zero provider budget | Authorize paid search, enrichment, verification or model calls | Before the first paid call |

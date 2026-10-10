@@ -19,6 +19,7 @@ Workspace isolation, Offer/ICP data, discovery briefs, evidence artifacts, compa
 |---|---|---|
 | Cross-tenant access | auth-derived workspace, RLS, owner-checked RPCs | negative two-tenant tests |
 | Service-role bypass | narrow server modules; authorization before access | route/repository tests |
+| Conversational review forgery | short-lived HMAC receipt bound to authenticated user and exact review fingerprint; strict rate limit before service-role persistence | tamper/user/expiry/limiter/RPC tests |
 | Worker replay/forgery | request-bound HMAC, timestamp, nonce and persisted replay claim | auth/replay tests |
 | SSRF and redirect abuse | URL policy, private-address denial and DNS rebinding checks | adversarial fetch tests |
 | Prompt/evidence injection | content treated as data, typed outputs, evidence never model-created | injection fixtures |

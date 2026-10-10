@@ -10,7 +10,7 @@
 - [x] Reintroduce buyer/contact/verification/brief contracts and forward-only tenant-safe schema (2026-10-08).
 - [x] Generalize provider/model registries and explicit activation states; keep paid providers locked (2026-10-08).
 - [x] Add source planning and prioritized free/legal global adapters (2026-10-10; durable no-network portfolio verified, live disabled).
-- [ ] Complete bounded natural-language intake and LLM reasoning behind typed model capabilities (review contracts, prompts, fixture port, lossless human-approval command, service-only persistence and a live-disabled OpenAI Responses adapter complete 2026-10-10; API/UI plus explicit model/pricing/budget activation remain).
+- [ ] Complete bounded natural-language intake and LLM reasoning behind typed model capabilities (review contracts, prompts, fixture port, lossless human-approval command, signed authenticated approval API, service-only persistence and a live-disabled OpenAI Responses adapter complete 2026-10-10; review-generation API/UI plus explicit model/pricing/budget activation remain).
 - [ ] Complete the durable self-prospecting flow through contact-ready package and human review.
 
 ## Next
