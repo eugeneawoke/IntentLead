@@ -4,6 +4,7 @@ import type { ModelAdapter, ModelExecutionRequest } from "../../types/model-runt
 import type { ModelProviderDescriptor } from "../../types/model-provider";
 import { executeModel } from "../../worker/models/registry";
 import { consumeModelReservation } from "../../worker/models/registry";
+import { modelPromptFor } from "../../worker/models/prompts";
 
 const descriptor: ModelProviderDescriptor = {
   id: "local", model: "fixture", version: "fixture-v1",
@@ -42,6 +43,12 @@ function adapter(complete: ModelAdapter["complete"], value: ModelProviderDescrip
 }
 
 describe("model registry execution boundary", () => {
+  it("keeps registry-owned prompts immutable", () => {
+    const prompt = modelPromptFor("STRUCTURE_DISCOVERY_BRIEF");
+    const original = prompt.system;
+    expect(() => { (prompt as { system: string }).system = "mutated"; }).toThrow();
+    expect(modelPromptFor("STRUCTURE_DISCOVERY_BRIEF").system).toBe(original);
+  });
   it("constructs fixed system/user messages and records a bounded run", async () => {
     let roles: string[] = [];
     let user = "";
@@ -55,6 +62,8 @@ describe("model registry execution boundary", () => {
     expect(user).toContain('"trust":"UNTRUSTED_DATA"');
     if (!result.ok) throw new Error("expected model success");
     expect(result.run.evidenceIds).toEqual(["evidence-1"]);
+    expect(result.run).toMatchObject({ promptId: "draft-grounded-copy", promptVersion: "v1" });
+    expect(result.run.latencyMs).toBeGreaterThanOrEqual(0);
     expect(result.remainingBudget).toMatchObject({ remainingCalls: 0, remainingInputTokens: 88, remainingOutputTokens: 46 });
   });
 

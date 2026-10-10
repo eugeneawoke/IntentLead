@@ -101,6 +101,8 @@ Historical commits remain implementation evidence, not current product authority
 
 **Done when:** a user can describe the search in normal language, approve the structured brief and receive explanations grounded only in collected evidence.
 
+**Partial result (2026-10-10):** the first review-only foundation is complete locally: bounded user turns, strict structured output, deterministic missing/ambiguity clarification state, exact user-turn support, immutable versioned prompts, fixture-only execution and model telemetry. The focused 56-test eval passes three deterministic repeats (`pass^3 = 1.00`), and independent architecture/QA reviews pass. No API/UI, persistence, DiscoveryBrief creation, job start, live model, provider/tool authority, paid call, production change or external action was added. Lexical support does not prove semantic interpretation or polarity, so human approval remains mandatory. Task K2 stays in progress and its checklist remains open.
+
 ## Task L — Complete self-prospecting workflow
 
 - [ ] Extend the durable workflow through buyer resolution, contact verification and grounded draft persistence.

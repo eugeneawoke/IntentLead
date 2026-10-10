@@ -52,11 +52,15 @@ export interface ModelRunEnvelope<T> {
   providerId: ModelProviderDescriptor["id"];
   model: string;
   providerVersion: string;
+  promptId: string;
+  promptVersion: string;
+  promptSystemHash: string;
   capability: ModelCapability;
   status: "SUCCEEDED" | "FAILED" | "TIMEOUT";
   output: T | null;
   inputTokens: number;
   outputTokens: number;
+  latencyMs: number;
   cost: { amount: number; currency: string };
   evidenceIds: string[];
   limitations: string[];

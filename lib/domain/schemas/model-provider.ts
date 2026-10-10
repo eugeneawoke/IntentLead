@@ -33,18 +33,25 @@ export const ModelProviderDescriptorSchema = z.object({
 }).strict();
 
 export const StructuredDiscoveryIntakeSchema = z.object({
-  offerSummary: NonEmptyStringSchema.nullable(),
-  desiredOutcomes: z.array(NonEmptyStringSchema),
-  targetCompanyDescription: NonEmptyStringSchema.nullable(),
-  targetBuyerDescription: NonEmptyStringSchema.nullable(),
-  markets: z.array(NonEmptyStringSchema),
-  languages: z.array(NonEmptyStringSchema),
-  exclusions: z.array(NonEmptyStringSchema),
+  offerSummary: z.string().trim().min(1).max(500).nullable(),
+  desiredOutcomes: z.array(z.string().trim().min(1).max(500)).max(20),
+  targetCompanyDescription: z.string().trim().min(1).max(500).nullable(),
+  targetBuyerDescription: z.string().trim().min(1).max(500).nullable(),
+  markets: z.array(z.string().trim().min(1).max(120)).max(10),
+  languages: z.array(z.string().trim().min(1).max(80)).max(10),
+  exclusions: z.array(z.string().trim().min(1).max(500)).max(30),
   requestedConfirmedSignals: z.number().int().min(20).max(500).nullable(),
-  missingRequiredFields: z.array(z.enum(["offer", "target_company", "market"])),
-  assumptionsForReview: z.array(NonEmptyStringSchema),
+  missingRequiredFields: z.array(z.enum(["offer", "target_company", "market"])).max(3),
+  assumptionsForReview: z.array(z.string().trim().min(1).max(500)).max(10),
+  ambiguitiesForClarification: z.array(z.object({
+    field: z.enum(["offer", "target_company", "target_buyer", "market", "language", "exclusions", "target_count"]),
+    description: z.string().trim().min(1).max(500),
+  }).strict()).max(10).default([]),
 }).strict().superRefine((intake, ctx) => {
   const required = new Set(intake.missingRequiredFields);
+  if (required.size !== intake.missingRequiredFields.length) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["missingRequiredFields"], message: "Missing fields must be unique" });
+  }
   if (intake.offerSummary === null && !required.has("offer")) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["missingRequiredFields"], message: "Missing offer must be explicit" });
   }
