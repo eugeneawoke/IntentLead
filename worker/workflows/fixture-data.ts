@@ -1,0 +1,32 @@
+export const SYNTHETIC_SELF_PROSPECTING_FIXTURE = {
+  version: "intentlead-synthetic-self-prospecting-v1",
+  signal: {
+    source: "hackernews" as const,
+    externalId: "synthetic-intentlead-pilot-1",
+    sourceUrl: "https://example.com/intentlead-fixtures/self-prospecting-v1",
+    content: "We are looking for a better way to manage repeated manual vendor checks.",
+    context: "Synthetic deterministic discovery contract fixture",
+    publishedAt: "2026-10-05T12:00:00.000Z",
+  },
+  company: {
+    name: "Acme Example",
+    domain: "acme.example.com",
+    sourceId: "synthetic-company-1",
+    sourceUrl: "https://example.com/intentlead-fixtures/company-v1",
+    title: "Acme Example operations",
+    excerpt: "Acme Example describes its vendor operations workflow.",
+    confidence: 0.94,
+  },
+  assessment: {
+    problemType: "operations",
+    evidenceStrength: 0.9,
+    explicitness: 0.9,
+    urgency: 0.7,
+    commercialImpact: 0.6,
+    icpFit: 0.4,
+    buyerRelevance: 0.5,
+    actionability: 0.65,
+    confidence: 0.72,
+    reviewReasons: ["NEEDS_HUMAN_CONFIRMATION"],
+  },
+} as const;
