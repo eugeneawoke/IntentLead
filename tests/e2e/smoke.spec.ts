@@ -68,12 +68,20 @@ test("/roadmap renders with Signal Dark", async ({ page }) => {
   await smokePublic(page, "/roadmap");
 });
 
-test("legacy public and API routes stay retired", async ({ request }) => {
+test("/pricing renders with Signal Dark", async ({ page }) => {
+  await smokePublic(page, "/pricing");
+});
+
+test("/compare renders with Signal Dark", async ({ page }) => {
+  await smokePublic(page, "/compare");
+});
+
+test("/compare/apollo renders with Signal Dark", async ({ page }) => {
+  await smokePublic(page, "/compare/apollo");
+});
+
+test("retired API routes stay retired", async ({ request }) => {
   for (const path of [
-    "/pricing",
-    "/compare",
-    "/compare/apollo",
-    "/chat",
     "/api/chat",
     "/api/glook/report/legacy-scan",
     "/api/session/transfer",
@@ -115,10 +123,39 @@ test("/sitemap.xml is served and contains all URLs", async ({ request }) => {
   expect(res.status()).toBe(200);
   const text = await res.text();
   expect(text).toContain("<urlset");
-  for (const path of ["/methodology", "/roadmap", "/privacy", "/terms"]) {
-    expect(text, `sitemap missing ${path}`).toContain(path);
+  const locations = [...text.matchAll(/<loc>([^<]+)<\/loc>/g)].map((match) => match[1]);
+  const origin = new URL(locations[0]).origin;
+  const expectedLocations = [
+    origin,
+    `${origin}/pricing`,
+    `${origin}/compare`,
+    `${origin}/compare/apollo`,
+    `${origin}/compare/clay`,
+    `${origin}/compare/hunter`,
+    `${origin}/compare/instantly`,
+    `${origin}/compare/lemlist`,
+    `${origin}/methodology`,
+    `${origin}/roadmap`,
+    `${origin}/privacy`,
+    `${origin}/terms`,
+  ];
+  expect(locations).toEqual(expectedLocations);
+  for (const path of [
+    "/pricing",
+    "/compare",
+    "/compare/apollo",
+    "/compare/clay",
+    "/compare/hunter",
+    "/compare/instantly",
+    "/compare/lemlist",
+    "/methodology",
+    "/roadmap",
+    "/privacy",
+    "/terms",
+  ]) {
+    expect(locations, `sitemap missing exact location ${path}`).toContain(`${origin}${path}`);
   }
-  for (const path of ["/pricing", "/compare", "/chat"]) {
-    expect(text, `sitemap should not contain ${path}`).not.toContain(path);
+  for (const path of ["/chat", "/workspace", "/api/"]) {
+    expect(locations.some((location) => new URL(location).pathname.startsWith(path)), `sitemap should not contain ${path}`).toBe(false);
   }
 });

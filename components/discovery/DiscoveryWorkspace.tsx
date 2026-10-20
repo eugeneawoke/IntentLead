@@ -60,6 +60,7 @@ export default function DiscoveryWorkspace({ basePath = "/workspace" }: { basePa
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState("");
+  const latestBrief = briefs[0] ?? null;
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -133,7 +134,7 @@ export default function DiscoveryWorkspace({ basePath = "/workspace" }: { basePa
   };
 
   return (
-    <div className="workspace-page mx-auto w-full max-w-7xl">
+    <div className="workspace-page mx-auto w-full max-w-7xl" data-visual-language="signal-dark">
       <header className="workspace-page-header mb-8">
         <div className="max-w-3xl">
           <p className="workspace-eyebrow"><span className="workspace-live-dot" aria-hidden="true" /> EN discovery · controlled fixture</p>
@@ -147,6 +148,21 @@ export default function DiscoveryWorkspace({ basePath = "/workspace" }: { basePa
           <span><strong>{market === "GLOBAL_EN" ? "Current pilot" : "Planned profile"}</strong><small>{market === "GLOBAL_EN" ? "Global English fixture · $0 network" : "Saved honestly · not executable yet"}</small></span>
         </div>
       </header>
+
+      <section className="workspace-status-rail" aria-label="Discovery run status">
+        <div>
+          <span>Run state</span>
+          <strong>{latestBrief ? latestBrief.state.toLowerCase().replaceAll("_", " ").replace(/^./, value => value.toUpperCase()) : "Not started"}</strong>
+        </div>
+        <div>
+          <span>Attempts</span>
+          <strong>Attempts not exposed by current API</strong>
+        </div>
+        <div>
+          <span>Limitations</span>
+          <strong>Fixture evidence only</strong>
+        </div>
+      </section>
 
       <form onSubmit={event => void submit(event)} className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <section className="workspace-form-card space-y-4" aria-labelledby="offer-heading">

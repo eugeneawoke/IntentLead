@@ -10,6 +10,7 @@ export default async function WorkspaceLayout({
   return (
     <div
       className="workspace-shell flex min-h-screen flex-col md:h-screen md:flex-row md:overflow-hidden"
+      data-visual-language="signal-dark"
     >
       <Sidebar />
       <main id="workspace-main" className="workspace-main min-w-0 flex-1 md:min-h-0 md:overflow-y-auto">{children}</main>

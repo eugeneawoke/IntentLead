@@ -11,14 +11,14 @@ export default function Sidebar() {
 
   return (
     <aside
-      className="workspace-sidebar flex w-full flex-shrink-0 flex-col border-b md:h-full md:w-[264px] md:border-b-0 md:border-r"
+      className="workspace-sidebar flex w-full flex-shrink-0 flex-col border-b md:h-full md:w-60 md:border-b-0 md:border-r"
     >
       <div className="workspace-brand flex items-center justify-between gap-3 px-4 py-3 md:px-5 md:py-5">
         <Link href="/workspace/discovery" className="flex min-h-11 items-center gap-3 rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2" aria-label="IntentLead workspace">
-          <span className="workspace-brand-mark" aria-hidden="true"><Zap size={17} /></span>
+          <span className="workspace-brand-mark" aria-hidden="true"><Zap size={18} /></span>
           <span>
             <span className="block text-sm font-semibold tracking-tight" style={{ color: "var(--text)" }}>IntentLead</span>
-            <span className="hidden text-[10px] font-medium uppercase tracking-[0.18em] md:block" style={{ color: "var(--text-faint)" }}>Opportunity intelligence</span>
+            <span className="hidden text-[10px] font-medium uppercase tracking-[0.18em] md:block" style={{ color: "var(--text-faint)" }}>Signal workspace</span>
           </span>
         </Link>
         <Link href="/" className="workspace-icon-link md:hidden" aria-label="Open public site"><ArrowUpRight size={17} aria-hidden="true" /></Link>

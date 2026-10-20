@@ -3,7 +3,7 @@ import { ArrowRight, Crosshair, Radar, ShieldCheck } from "lucide-react";
 
 export default function WorkspaceOpportunityEntry() {
   return (
-    <section className="workspace-page" aria-labelledby="workspace-entry-title">
+    <section className="workspace-page" aria-labelledby="workspace-entry-title" data-visual-language="signal-dark">
       <div className="workspace-hero-panel max-w-5xl">
         <p className="workspace-eyebrow"><span className="workspace-live-dot" aria-hidden="true" /> EN discovery workspace</p>
         <h1

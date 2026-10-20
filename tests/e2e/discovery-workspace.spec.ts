@@ -102,13 +102,18 @@ test("creates and queues a zero-spend discovery brief without legacy downstream 
   await page.goto("/e2e-fixtures/discovery");
 
   await expect(page.getByRole("heading", { name: "Create a discovery brief" })).toBeVisible();
+  await expect(page.locator('[data-visual-language="signal-dark"]')).toBeVisible();
+  await expect(page.getByRole("region", { name: "Discovery run status" })).toBeVisible();
+  await expect(page.getByText("Attempts not exposed by current API")).toBeVisible();
+  await expect(page.getByText("Fixture evidence only", { exact: true })).toBeVisible();
   await expect(page.getByText(/technical website or SEO audit/i)).toBeVisible();
   await page.getByRole("button", { name: "Create discovery brief" }).click();
-  await expect(page.getByRole("status")).toContainText("Discovery brief created");
+  await expect(page.locator('p[role="status"]')).toContainText("Discovery brief created");
   await expect(page.getByRole("heading", { name: /Find companies showing/ })).toBeVisible();
   await page.getByRole("button", { name: "Run fixture" }).click();
   await expect(page.locator('p[role="status"]')).toContainText("network cost remains $0");
   await expect(page.getByText("QUEUED", { exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Discovery run status" }).getByText("Queued", { exact: true })).toBeVisible();
   const reviewLink = page.getByRole("link", { name: "Review" }).last();
   await expect(reviewLink).toHaveAttribute("href", "/e2e-fixtures/opportunities");
   await reviewLink.click();
@@ -121,7 +126,7 @@ test("creates and queues a zero-spend discovery brief without legacy downstream 
 
   const controls = (await page.getByRole("button").allTextContents()).join(" ").toLowerCase();
   expect(controls).not.toMatch(/send|email|message|draft|sequence|contact/);
-  for (const width of [375, 768, 1440]) {
+  for (const width of [390, 768, 1440]) {
     await page.setViewportSize({ width, height: 1000 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
   }

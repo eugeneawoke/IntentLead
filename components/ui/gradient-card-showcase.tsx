@@ -4,10 +4,10 @@ import { useLang } from "@/lib/i18n/LangContext";
 
 // ── Static meta — colors stay fixed, text comes from translations ─────────────
 const CARD_META = [
-  { badge: "L1 · Intent Score", gradientFrom: "#A3E635", gradientTo: "#22c55e" },
-  { badge: "L2 · Company",      gradientFrom: "#6BA4FF", gradientTo: "#3b82f6" },
-  { badge: "L3 · Contact",      gradientFrom: "#C084FC", gradientTo: "#8b5cf6" },
-  { badge: "L4 · Email",        gradientFrom: "#34D399", gradientTo: "#06b6d4" },
+  { gradientFrom: "#A3E635", gradientTo: "#22c55e" },
+  { gradientFrom: "#6BA4FF", gradientTo: "#3b82f6" },
+  { gradientFrom: "#C084FC", gradientTo: "#8b5cf6" },
+  { gradientFrom: "#34D399", gradientTo: "#06b6d4" },
 ];
 
 // ── SkewCard — оригинальный компонент ────────────────
@@ -25,7 +25,7 @@ function SkewCard({
   gradientTo: string;
 }) {
   return (
-    <div className="group relative w-[300px] h-[380px] m-[30px_20px] transition-all duration-500 cursor-pointer">
+    <article className="workflow-card group relative m-[30px_20px] h-[380px] w-[min(300px,calc(100vw-40px))] transition-all duration-500">
       {/* Skewed gradient panel */}
       <span
         className="absolute top-0 left-[50px] w-1/2 h-full rounded-lg transform skew-x-[15deg] transition-all duration-500 group-hover:skew-x-0 group-hover:left-[20px] group-hover:w-[calc(100%-90px)]"
@@ -64,14 +64,14 @@ function SkewCard({
         >
           {badge}
         </span>
-        <h2 className="text-xl font-semibold mb-3" style={{ color: "var(--text)" }}>
+        <h3 className="text-xl font-semibold mb-3" style={{ color: "var(--text)" }}>
           {title}
-        </h2>
+        </h3>
         <p className="text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
           {desc}
         </p>
       </div>
-    </div>
+    </article>
   );
 }
 
@@ -80,9 +80,13 @@ export default function GradientCards() {
   const { t } = useLang();
 
   return (
-    <section id="how" className="w-full py-24 overflow-hidden" style={{ background: "linear-gradient(to bottom, var(--bg) 0%, var(--bg) 4%, transparent 12%)" }}>
+    <section id="how" aria-labelledby="how-heading" className="w-full overflow-hidden py-28 lg:py-36" style={{ background: "linear-gradient(to bottom, var(--bg) 0%, var(--bg) 4%, transparent 12%)" }}>
       <div className="text-center mb-12 px-6">
+        <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em]" style={{ color: "var(--accent)" }}>
+          {t.how.badge}
+        </div>
         <h2
+          id="how-heading"
           className="text-4xl font-semibold"
           style={{ color: "var(--text)", letterSpacing: "-0.02em" }}
         >
@@ -100,7 +104,7 @@ export default function GradientCards() {
             <SkewCard
               key={idx}
               title={card.title}
-              badge={meta.badge}
+              badge={card.badge}
               desc={card.description}
               gradientFrom={meta.gradientFrom}
               gradientTo={meta.gradientTo}
@@ -116,6 +120,11 @@ export default function GradientCards() {
         }
         .animate-blob { animation: blob 2s ease-in-out infinite; }
         .animation-delay-1000 { animation-delay: -1s; }
+        @media (prefers-reduced-motion: reduce) {
+          .animate-blob { animation: none; }
+          .workflow-card,
+          .workflow-card * { transition: none !important; }
+        }
       `}</style>
     </section>
   );
