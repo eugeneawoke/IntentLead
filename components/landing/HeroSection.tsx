@@ -1,26 +1,15 @@
 "use client";
 
-import dynamic from "next/dynamic";
-import { Suspense } from "react";
 import LandingComposer from "./LandingComposer";
 import { useLang } from "@/lib/i18n/LangContext";
-
-const DataGridHero = dynamic(
-  () => import("@/components/ui/data-grid-hero"),
-  { ssr: false }
-);
+import DataGridHero from "@/components/ui/data-grid-hero";
 
 export default function HeroSection() {
   const { t } = useLang();
 
   return (
-    <div id="hero" style={{ minHeight: "100vh" }}>
-      <Suspense
-        fallback={
-          <div style={{ minHeight: "100vh", background: "var(--bg)" }} />
-        }
-      >
-        <DataGridHero
+    <section id="hero" aria-labelledby="landing-hero-heading" style={{ minHeight: "100dvh" }}>
+      <DataGridHero
           rows={25}
           cols={35}
           spacing={4}
@@ -32,10 +21,11 @@ export default function HeroSection() {
           opacityMin={0.08}
           opacityMax={0.65}
           background="var(--bg)"
+          ariaLabel={t.hero.regionLabel}
         >
-          <div className="flex flex-col items-center text-center gap-6 max-w-3xl">
-            {/* Headline */}
+          <div className="flex w-full max-w-3xl flex-col items-center gap-6 px-1 text-center sm:px-4">
             <h1
+              id="landing-hero-heading"
               style={{
                 fontSize: "clamp(44px, 6.5vw, 80px)",
                 fontWeight: 800,
@@ -61,11 +51,9 @@ export default function HeroSection() {
               {t.hero.subtitle}
             </p>
 
-            {/* Chat input #1 */}
             <LandingComposer composerId="hero" />
 
-            {/* Trust items */}
-            <div className="flex flex-wrap gap-6 justify-center pt-4 w-full">
+            <div className="flex w-full flex-wrap justify-center gap-x-6 gap-y-3 pt-4">
               {t.hero.trust.map((item) => (
                 <div
                   key={item}
@@ -79,8 +67,8 @@ export default function HeroSection() {
             </div>
           </div>
 
-          {/* Bottom fade-out → плавный переход в How it works */}
           <div
+            aria-hidden="true"
             style={{
               position: "absolute",
               bottom: 0,
@@ -92,8 +80,7 @@ export default function HeroSection() {
               pointerEvents: "none",
             }}
           />
-        </DataGridHero>
-      </Suspense>
-    </div>
+      </DataGridHero>
+    </section>
   );
 }

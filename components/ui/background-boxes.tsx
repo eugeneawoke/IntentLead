@@ -1,8 +1,11 @@
 "use client";
 import React from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useLang } from "@/lib/i18n/LangContext";
+import { TRANSLATIONS } from "@/lib/i18n/translations";
 
 // ── BoxesCore — оригинальный aceternity компонент ────
 export const BoxesCore = ({ className, ...rest }: { className?: string }) => {
@@ -78,32 +81,38 @@ export const Boxes = React.memo(BoxesCore);
 
 // ── Footer с Boxes + Signal Dark контент ─────────────
 export default function BackgroundBoxes() {
-  const { t } = useLang();
+  const { lang, t } = useLang();
+  const pathname = usePathname();
+  const isLocalizedRoute = pathname === "/";
+  const displayText = isLocalizedRoute ? t : TRANSLATIONS.en;
+  const displayLang = isLocalizedRoute ? lang : "en";
 
   const productLinks = [
-    { label: t.footer.howItWorks, href: "/#how" },
-    { label: t.footer.pricing, href: "/#pricing" },
-    { label: t.footer.methodology, href: "/methodology" },
-    { label: t.footer.roadmap, href: "/roadmap" },
+    { label: displayText.footer.howItWorks, href: "/#how" },
+    { label: displayLang === "ru" ? "Доступ к пилоту" : "Pilot Access", href: "/pricing" },
+    { label: displayText.footer.methodology, href: "/methodology" },
+    { label: displayText.footer.roadmap, href: "/roadmap" },
   ];
 
   const compareLinks = [
-    { label: "Workspace", href: "/workspace" },
-    { label: "Discovery", href: "/workspace/discovery" },
-    { label: "Opportunities", href: "/workspace/opportunities" },
-    { label: t.footer.methodology, href: "/methodology" },
-    { label: t.footer.roadmap, href: "/roadmap" },
+    { label: "vs Clay", href: "/compare/clay" },
+    { label: "vs Apollo", href: "/compare/apollo" },
+    { label: "vs Hunter", href: "/compare/hunter" },
+    { label: "vs Instantly", href: "/compare/instantly" },
+    { label: "vs Lemlist", href: "/compare/lemlist" },
   ];
 
   const legalLinks = [
-    { label: t.footer.privacy, href: "/privacy" },
-    { label: t.footer.terms, href: "/terms" },
+    { label: displayText.footer.privacy, href: "/privacy" },
+    { label: displayText.footer.terms, href: "/terms" },
   ];
 
   return (
     <footer
       className="relative w-full overflow-hidden"
       style={{ background: "var(--bg)", minHeight: 400 }}
+      aria-label="Site footer"
+      data-public-shell="footer"
     >
       {/* Boxes grid */}
       <Boxes />
@@ -131,28 +140,28 @@ export default function BackgroundBoxes() {
               className="text-sm max-w-xs leading-relaxed"
               style={{ color: "var(--text-muted)" }}
             >
-              {t.footer.description}
+              {displayText.footer.description}
             </p>
             <p className="text-xs mt-6" style={{ color: "var(--text-faint)" }}>
-              {t.footer.copyright}
+              {displayText.footer.copyright}
             </p>
           </div>
 
           {/* Links — 3 columns */}
-          <div className="grid grid-cols-3 gap-8">
+          <div className="grid grid-cols-2 gap-8 sm:grid-cols-3">
             {/* Product */}
             <div>
               <div
                 className="text-xs font-medium uppercase tracking-widest mb-4"
                 style={{ color: "var(--text-faint)" }}
               >
-                {t.footer.product}
+                {displayText.footer.product}
               </div>
               {productLinks.map(({ label, href }) => (
                 <a
                   key={href}
                   href={href}
-                  className="block text-sm mb-2.5"
+                  className="block text-sm mb-2.5 focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-[var(--accent)]"
                   style={{ color: "var(--text-muted)", textDecoration: "none" }}
                   onMouseEnter={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "var(--text)")}
                   onMouseLeave={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "var(--text-muted)")}
@@ -164,20 +173,20 @@ export default function BackgroundBoxes() {
 
             {/* Compare */}
             <div>
-              <a
-                href="/workspace"
-                className="text-xs font-medium uppercase tracking-widest mb-4 block"
+              <Link
+                href="/compare"
+                className="text-xs font-medium uppercase tracking-widest mb-4 block focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-[var(--accent)]"
                 style={{ color: "var(--text-faint)", textDecoration: "none" }}
                 onMouseEnter={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "var(--text-muted)")}
                 onMouseLeave={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "var(--text-faint)")}
               >
-                {t.footer.compare}
-              </a>
+                {displayText.footer.compare}
+              </Link>
               {compareLinks.map(({ label, href }) => (
                 <a
                   key={href}
                   href={href}
-                  className="block text-sm mb-2.5"
+                  className="block text-sm mb-2.5 focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-[var(--accent)]"
                   style={{ color: "var(--text-muted)", textDecoration: "none" }}
                   onMouseEnter={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "var(--text)")}
                   onMouseLeave={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "var(--text-muted)")}
@@ -193,13 +202,13 @@ export default function BackgroundBoxes() {
                 className="text-xs font-medium uppercase tracking-widest mb-4"
                 style={{ color: "var(--text-faint)" }}
               >
-                {t.footer.legal}
+                {displayText.footer.legal}
               </div>
               {legalLinks.map(({ label, href }) => (
                 <a
                   key={href}
                   href={href}
-                  className="block text-sm mb-2.5"
+                  className="block text-sm mb-2.5 focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-[var(--accent)]"
                   style={{ color: "var(--text-muted)", textDecoration: "none" }}
                   onMouseEnter={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "var(--text)")}
                   onMouseLeave={(e) => ((e.currentTarget as HTMLAnchorElement).style.color = "var(--text-muted)")}

@@ -1,6 +1,6 @@
 "use client";
 import React from "react";
-import { Home, Zap, CreditCard, MessageSquare } from "lucide-react";
+import { Handshake, Home, MessageSquare, Zap } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import { useUser } from "@/lib/auth/UserContext";
 
@@ -21,7 +21,7 @@ function scrollTo(id: string) {
 const NAV_ITEMS = [
   { id: "hero",    label: "Home",         Icon: Home },
   { id: "how",     label: "How it works", Icon: Zap },
-  { id: "pricing", label: "Pricing",      Icon: CreditCard },
+  { id: "pricing", label: "Pilot access", Icon: Handshake },
   { id: "try",     label: "Try for free", Icon: MessageSquare },
 ];
 
@@ -29,7 +29,7 @@ const NAV_ITEMS = [
 function DockIcon({ icon: Icon, label, badge, onClick }: DockIconProps) {
   return (
     <button
-      className="hover-halo group relative grid h-12 w-12 place-items-center rounded-xl ring-1 ring-white/10 backdrop-blur-xl shadow-lg transition-transform duration-200 hover:-translate-y-1 hover:scale-[1.05] sm:h-14 sm:w-14"
+      className="hover-halo group relative grid h-12 w-12 place-items-center rounded-xl ring-1 ring-white/10 backdrop-blur-xl shadow-lg transition-transform duration-200 hover:-translate-y-1 hover:scale-[1.05] focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-[var(--accent)] sm:h-14 sm:w-14"
       style={{
         background: "linear-gradient(to bottom, var(--surface-2), var(--surface))",
       }}
@@ -163,6 +163,7 @@ export default function DockNav() {
         style={{ transform: "translateX(-50%)" }}
         role="navigation"
         aria-label="Page sections"
+        data-public-shell="dock"
       >
         <Dock />
       </nav>

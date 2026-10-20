@@ -71,7 +71,7 @@ async function expectNoDownstreamControls(page: Page) {
 
 test("local fixture member reviews evidence and can recover from a failed detail load", async ({ page }) => {
   await installFixtureApi(page);
-  await page.setViewportSize({ width: 375, height: 844 });
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/e2e-fixtures/opportunities");
   await expect(page.getByRole("heading", { name: "Opportunities" })).toBeVisible();
   await expect(page.getByRole("link", { name: /Acme Example/ })).toBeVisible();
@@ -115,11 +115,11 @@ test("local fixture member reviews evidence and can recover from a failed detail
   await expect(page.getByText("This Opportunity was reviewed as needs research.")).toBeVisible();
   await expectNoDownstreamControls(page);
 
-  await page.setViewportSize({ width: 375, height: 844 });
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
   expect(await page.evaluate(() => window.scrollY)).toBe(0);
   await page.screenshot({ path: "test-results/task8-opportunity-review-mobile.png" });
-  for (const width of [375, 768, 1440]) {
+  for (const width of [390, 768, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
   }

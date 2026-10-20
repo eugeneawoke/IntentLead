@@ -5,6 +5,7 @@ export interface Translations {
   header: {
     signIn: string;
     getStarted: string;
+    pilotAccess: string;
     workspace: string;
   };
 
@@ -12,7 +13,18 @@ export interface Translations {
   hero: {
     headline: string;
     subtitle: string;
+    regionLabel: string;
     trust: string[];
+  };
+
+  composer: {
+    label: string;
+    placeholders: string[];
+    modeLabel: string;
+    modes: Array<{ value: string; label: string; description: string }>;
+    microphoneUnavailable: string;
+    submit: string;
+    siteHint: string;
   };
 
   // GradientCards (How it works)
@@ -21,19 +33,19 @@ export interface Translations {
     heading: string;
     description: string;
     learnMore: string;
-    cards: Array<{ title: string; description: string }>;
+    cards: Array<{ badge: string; title: string; description: string }>;
   };
 
-  // PricingSection (landing) + PricingCards (/pricing page)
+  // Pilot Access narrative on the landing page
   pricing: {
     heading: string;
     description: string;
-    billingMonthly: string;
-    billingAnnual: string;
-    billingSave: string;
-    earlyAccess: string;
-    plans: Array<{ note: string; cta: string; features: string[] }>;
-    mostPopular: string;
+    eyebrow: string;
+    freeTitle: string;
+    freeDescription: string;
+    points: Array<{ label: string; title: string; description: string }>;
+    terms: string;
+    noSending: string;
   };
 
   // "Try for free" section (landing)
@@ -66,6 +78,7 @@ export const TRANSLATIONS: Record<Lang, Translations> = {
     header: {
       signIn: "Sign In",
       getStarted: "Get Started",
+      pilotAccess: "Pilot Access",
       workspace: "Workspace",
     },
 
@@ -73,12 +86,31 @@ export const TRANSLATIONS: Record<Lang, Translations> = {
       headline: "Find the right opportunity.",
       subtitle:
         "Turn public commercial evidence into a reviewable company, buyer, verified contact, and grounded conversation draft.",
+      regionLabel: "Opportunity discovery introduction",
       trust: [
         "Evidence attached",
         "Multi-source discovery",
         "Human review",
         "No automatic sending",
       ],
+    },
+
+    composer: {
+      label: "Describe your offer and ideal customer",
+      placeholders: [
+        "Who are you selling to and what pain do you solve?",
+        "Describe your ideal customer...",
+        "Which commercial evidence would make an opportunity relevant?",
+      ],
+      modeLabel: "Discovery mode",
+      modes: [
+        { value: "discover", label: "Discover", description: "Find evidence-backed opportunities" },
+        { value: "refine", label: "Refine", description: "Clarify your offer and ideal customer" },
+        { value: "research", label: "Research", description: "Structure a broader discovery brief" },
+      ],
+      microphoneUnavailable: "Voice input is not available yet",
+      submit: "Continue to conversational discovery",
+      siteHint: "Have a site? Paste its URL for business context only.",
     },
 
     how: {
@@ -89,21 +121,25 @@ export const TRANSLATIONS: Record<Lang, Translations> = {
       learnMore: "Learn more",
       cards: [
         {
+          badge: "01 · Evidence",
           title: "Commercial evidence found",
           description:
             "Discovery gathers public evidence of pains, changes, questions, and active searches that fit your offer and ICP.",
         },
         {
+          badge: "02 · Company",
           title: "Company resolved",
           description:
             "Evidence is connected to a company only when the available facts support that relationship.",
         },
         {
+          badge: "03 · Buyer",
           title: "Buyer resolved",
           description:
             "The workflow identifies a relevant buyer role and verifies contact data where reliable sources are available.",
         },
         {
+          badge: "04 · Brief",
           title: "Grounded brief prepared",
           description:
             "A concise opportunity brief and draft are grounded in the collected evidence and left for human review.",
@@ -112,58 +148,35 @@ export const TRANSLATIONS: Record<Lang, Translations> = {
     },
 
     pricing: {
-      heading: "Pilot access",
+      heading: "Pilot Access",
       description:
-        "Commercial plans are not published yet. The first controlled pilot is focused on proving useful opportunities and delivery economics.",
-      billingMonthly: "Pilot",
-      billingAnnual: "Planned",
-      billingSave: "In validation",
-      earlyAccess: "Design partner",
-      plans: [
+        "A closed, founder-managed program for proving useful Opportunity work before agreeing any continuation.",
+      eyebrow: "A diagnostic engagement, not a plan",
+      freeTitle: "The first diagnostic pilot is free",
+      freeDescription:
+        "We clarify your offer, ICP, market and evidence standard, then run the authorized source portfolio and review the result together.",
+      points: [
         {
-          note: "Inspect the workflow",
-          cta: "Open workspace",
-          features: [
-            "Structured discovery brief",
-            "Evidence-first opportunity view",
-            "Human review controls",
-            "No automatic outreach",
-          ],
+          label: "Complete run",
+          title: "20+ confirmed signals is the target",
+          description:
+            "A complete run targets at least 20 evidence-backed signals when current source and backend coverage permits.",
         },
         {
-          note: "Controlled first engagement",
-          cta: "Discuss pilot",
-          features: [
-            "Multi-source discovery",
-            "Company and buyer resolution",
-            "Verified contact when available",
-            "Grounded brief and draft",
-            "CSV export",
-          ],
+          label: "Honest coverage",
+          title: "Partial means partial",
+          description:
+            "If the available portfolio is exhausted first, we report the actual result, shortfall and source gaps instead of padding the count.",
         },
         {
-          note: "For a repeatable team workflow",
-          cta: "Join waitlist",
-          features: [
-            "Shared opportunity review",
-            "Evidence and decision history",
-            "Buyer and contact verification",
-            "Grounded drafts",
-            "CSV export",
-          ],
-        },
-        {
-          note: "Future high-volume workflow",
-          cta: "Talk to us",
-          features: [
-            "Custom source portfolio",
-            "Team review workflow",
-            "Export and integration options",
-            "No unattended sending",
-          ],
+          label: "Continuation",
+          title: "Paid work is agreed individually",
+          description:
+            "Continuation may combine later runs, recurring discovery and agreed source expansion, with scope and terms set together.",
         },
       ],
-      mostPopular: "FIRST PILOT",
+      terms: "No published plans, checkout, credits or automatic billing.",
+      noSending: "IntentLead prepares evidence and grounded material. It never sends messages.",
     },
 
     try: {
@@ -171,7 +184,7 @@ export const TRANSLATIONS: Record<Lang, Translations> = {
       subheading: "Start with an offer and ICP. The workflow will structure a reviewable discovery brief.",
     },
 
-    pricingCta: "See pilot access →",
+    pricingCta: "How Pilot Access works →",
 
     footer: {
       privacy: "Privacy",
@@ -193,6 +206,7 @@ export const TRANSLATIONS: Record<Lang, Translations> = {
     header: {
       signIn: "Войти",
       getStarted: "Начать",
+      pilotAccess: "Обсудить пилот",
       workspace: "Кабинет",
     },
 
@@ -200,12 +214,31 @@ export const TRANSLATIONS: Record<Lang, Translations> = {
       headline: "Найдите подходящую возможность.",
       subtitle:
         "Превратите публичные коммерческие свидетельства в проверяемый пакет: компания, buyer, контакт и grounded draft.",
+      regionLabel: "Введение в поиск коммерческих возможностей",
       trust: [
         "Свидетельства приложены",
         "Много источников",
         "Решение принимает человек",
         "Без автоотправки",
       ],
+    },
+
+    composer: {
+      label: "Опишите предложение и идеального клиента",
+      placeholders: [
+        "Кому вы продаёте и какую проблему решаете?",
+        "Опишите идеального клиента...",
+        "Какие коммерческие свидетельства сделают opportunity релевантной?",
+      ],
+      modeLabel: "Режим discovery",
+      modes: [
+        { value: "discover", label: "Найти", description: "Найти opportunities с подтверждёнными evidence" },
+        { value: "refine", label: "Уточнить", description: "Уточнить offer и идеального клиента" },
+        { value: "research", label: "Исследовать", description: "Собрать более широкий discovery brief" },
+      ],
+      microphoneUnavailable: "Голосовой ввод пока недоступен",
+      submit: "Перейти к диалогу о discovery",
+      siteHint: "Есть сайт? Вставьте URL только для бизнес-контекста.",
     },
 
     how: {
@@ -216,21 +249,25 @@ export const TRANSLATIONS: Record<Lang, Translations> = {
       learnMore: "Подробнее",
       cards: [
         {
+          badge: "01 · Evidence",
           title: "Найдено коммерческое свидетельство",
           description:
             "Discovery собирает публичные свидетельства боли, изменений, вопросов и активного поиска, совпадающие с вашим offer и ICP.",
         },
         {
+          badge: "02 · Компания",
           title: "Компания установлена",
           description:
             "Свидетельство связывается с компанией только тогда, когда доступные факты подтверждают эту связь.",
         },
         {
+          badge: "03 · Buyer",
           title: "Buyer определён",
           description:
             "Workflow определяет релевантную роль и проверяет контактные данные, если есть надёжные источники.",
         },
         {
+          badge: "04 · Brief",
           title: "Grounded brief подготовлен",
           description:
             "Opportunity brief и draft опираются на собранные свидетельства и остаются на проверку человеку.",
@@ -239,58 +276,35 @@ export const TRANSLATIONS: Record<Lang, Translations> = {
     },
 
     pricing: {
-      heading: "Доступ к пилоту",
+      heading: "Pilot Access",
       description:
-        "Коммерческие тарифы ещё не опубликованы. Первый контролируемый пилот проверяет полезность opportunities и экономику delivery.",
-      billingMonthly: "Пилот",
-      billingAnnual: "Позже",
-      billingSave: "В валидации",
-      earlyAccess: "Дизайн-партнёр",
-      plans: [
+        "Закрытая программа под управлением основателя: сначала проверяем полезность Opportunity-работы, затем обсуждаем продолжение.",
+      eyebrow: "Диагностическая работа, а не тариф",
+      freeTitle: "Первый диагностический пилот — бесплатно",
+      freeDescription:
+        "Вместе уточняем offer, ICP, рынок и стандарт evidence, запускаем разрешённый портфель источников и разбираем результат.",
+      points: [
         {
-          note: "Изучить workflow",
-          cta: "Открыть workspace",
-          features: [
-            "Структурированный discovery brief",
-            "Opportunity с исходными evidence",
-            "Решение принимает человек",
-            "Без автоотправки",
-          ],
+          label: "Полный запуск",
+          title: "Цель — 20+ подтверждённых сигналов",
+          description:
+            "Полный запуск нацелен минимум на 20 сигналов с evidence, когда это допускает текущее покрытие источников и backend.",
         },
         {
-          note: "Первое контролируемое внедрение",
-          cta: "Обсудить пилот",
-          features: [
-            "Multi-source discovery",
-            "Company и buyer resolution",
-            "Проверенный контакт, если доступен",
-            "Grounded brief и draft",
-            "Экспорт CSV",
-          ],
+          label: "Честное покрытие",
+          title: "Partial остаётся partial",
+          description:
+            "Если доступные источники исчерпаны раньше, показываем фактический результат, дефицит и пробелы, а не дополняем счётчик слабыми находками.",
         },
         {
-          note: "Для повторяемого team workflow",
-          cta: "В список ожидания",
-          features: [
-            "Совместная проверка opportunities",
-            "История evidence и решений",
-            "Buyer и contact verification",
-            "Grounded drafts",
-            "Экспорт CSV",
-          ],
-        },
-        {
-          note: "Будущий high-volume workflow",
-          cta: "Связаться",
-          features: [
-            "Настраиваемый портфель источников",
-            "Командная проверка",
-            "Экспорт и интеграции",
-            "Без автономной отправки",
-          ],
+          label: "Продолжение",
+          title: "Платная работа согласуется индивидуально",
+          description:
+            "Продолжение может объединять следующие запуски, регулярный discovery и согласованное расширение источников; объём и условия определяем вместе.",
         },
       ],
-      mostPopular: "ПЕРВЫЙ ПИЛОТ",
+      terms: "Без опубликованных тарифов, checkout, кредитов и автоматического биллинга.",
+      noSending: "IntentLead готовит evidence и grounded-материалы, но никогда не отправляет сообщения.",
     },
 
     try: {
@@ -298,7 +312,7 @@ export const TRANSLATIONS: Record<Lang, Translations> = {
       subheading: "Начните с offer и ICP. Workflow соберёт из них проверяемый discovery brief.",
     },
 
-    pricingCta: "Доступ к пилоту →",
+    pricingCta: "Как устроен Pilot Access →",
 
     footer: {
       privacy: "Конфиденциальность",

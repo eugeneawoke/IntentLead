@@ -56,7 +56,7 @@ export default function OpportunityReviewListPage({ basePath = "/workspace/oppor
   };
 
   return (
-    <div className="workspace-page mx-auto w-full max-w-7xl">
+    <div className="workspace-page mx-auto w-full max-w-7xl" data-visual-language="signal-dark">
       <header className="workspace-page-header mb-8">
         <div className="max-w-2xl">
           <p className="workspace-eyebrow"><span className="workspace-live-dot" aria-hidden="true" /> Human review queue</p>
@@ -75,7 +75,7 @@ export default function OpportunityReviewListPage({ basePath = "/workspace/oppor
       {data && data.items.length > 0 && (
         <div className="workspace-summary-strip mb-5" aria-label="Current review page summary">
           <div><span>Loaded</span><strong>{data.items.length}</strong></div>
-          <div><span>Awaiting review</span><strong>{data.items.filter(item => !item.latestReview).length}</strong></div>
+          <div><span>Pending decisions</span><strong>{data.items.filter(item => !item.latestReview).length}</strong></div>
           <div><span>Evidence complete</span><strong>{data.items.filter(item => item.evidenceStatus === "COMPLETE").length}</strong></div>
         </div>
       )}
@@ -92,7 +92,7 @@ export default function OpportunityReviewListPage({ basePath = "/workspace/oppor
           </button>
         </section>
       ) : loading && !data ? (
-        <div className="grid gap-4 lg:grid-cols-2" role="status" aria-label="Loading Opportunities">{[0, 1, 2, 3].map(item => <div key={item} className="workspace-opportunity-card min-h-52"><span className="workspace-skeleton h-3 w-24" /><span className="workspace-skeleton mt-6 h-5 w-48" /><span className="workspace-skeleton mt-4 h-3 w-72 max-w-full" /></div>)}</div>
+        <div className="grid gap-4 lg:grid-cols-2" role="status" aria-label="Loading Opportunities"><p className="sr-only">Loading Opportunities…</p>{[0, 1, 2, 3].map(item => <div key={item} className="workspace-opportunity-card min-h-52"><span className="workspace-skeleton h-3 w-24" /><span className="workspace-skeleton mt-6 h-5 w-48" /><span className="workspace-skeleton mt-4 h-3 w-72 max-w-full" /></div>)}</div>
       ) : data?.items.length === 0 ? (
         <section className="workspace-empty-state">
           <CircleDot size={24} aria-hidden="true" style={{ color: "var(--text-faint)" }} />
@@ -110,13 +110,21 @@ export default function OpportunityReviewListPage({ basePath = "/workspace/oppor
                   {statusLabel(item.state, item.latestReview?.decision)}
                 </span>
               </div>
-              <div className="mt-6 grid grid-cols-2 gap-px overflow-hidden rounded-xl border" style={{ borderColor: "var(--border)", background: "var(--border)" }}>
-                <div className="workspace-card-metric"><CircleDot size={14} aria-hidden="true" /><span>Signal</span><strong>{item.signal.subtype.replaceAll("_", " ")}</strong></div>
-                <div className="workspace-card-metric"><ShieldCheck size={14} aria-hidden="true" /><span>Evidence</span><strong>{item.evidenceCount} active · {item.evidenceStatus.toLowerCase()}</strong></div>
+              <div className="workspace-opportunity-condition">
+                <span>Observed condition</span>
+                <p>Open the evidence to inspect the source fact.</p>
+                <small>{item.assessment?.problemStatement ? `Model interpretation · ${item.assessment.problemStatement}` : `${item.signal.family.replaceAll("_", " ")} · ${item.signal.subtype.replaceAll("_", " ")}`}</small>
               </div>
-              {item.assessment && (
-                <div className="mt-4 flex items-center gap-2 text-xs" style={{ color: "var(--text-muted)" }}><Building2 size={14} aria-hidden="true" /><span>Model assessment: {item.assessment.decision.toLowerCase()} · human review remains separate</span></div>
-              )}
+              <div className="workspace-opportunity-metrics">
+                <div className="workspace-card-metric"><CircleDot size={14} aria-hidden="true" /><span>Signal</span><strong>{item.signal.subtype.replaceAll("_", " ")}</strong></div>
+                <div className="workspace-card-metric"><ShieldCheck size={14} aria-hidden="true" /><span>Evidence / freshness</span><strong>{item.evidenceCount} active · {item.evidenceStatus.toLowerCase()}{item.assessment ? ` · ${Math.round(item.assessment.freshness * 100)}%` : ""}</strong></div>
+                <div className="workspace-card-metric"><Building2 size={14} aria-hidden="true" /><span>Fit / assessment</span><strong>{item.assessment ? `${Math.round(item.assessment.icpFit * 100)}% · ${item.assessment.decision.toLowerCase()}` : "Not assessed"}</strong></div>
+                <div className="workspace-card-metric"><CircleDot size={14} aria-hidden="true" /><span>Confidence / limitations</span><strong>{item.assessment ? `${Math.round(item.assessment.confidence * 100)}% · inspect detail` : "Not available"}</strong></div>
+              </div>
+              <div className="workspace-readiness-row" aria-label="Review and contact readiness">
+                <span><strong>Human review</strong>{item.latestReview ? statusLabel(item.state, item.latestReview.decision) : "Awaiting decision"}</span>
+                <span><strong>Contact readiness</strong>Not available in current review data</span>
+              </div>
               <div className="mt-5 flex items-center justify-between border-t pt-4 text-xs" style={{ borderColor: "var(--border)", color: "var(--text-faint)" }}><span>{item.latestReview ? `Reviewed: ${item.latestReview.decision.toLowerCase()}` : "Open evidence before deciding"}</span><span className="inline-flex items-center gap-1 transition-transform group-hover:translate-x-0.5" style={{ color: "var(--accent)" }}>Inspect <ArrowRight size={14} aria-hidden="true" /></span></div>
             </Link>
           ))}

@@ -1,73 +1,22 @@
 import type { Metadata } from "next";
+import { CheckCircle, Circle, Clock } from "lucide-react";
 import { Footer } from "@/components/layout/Footer";
 
-export const metadata: Metadata = {
-  title: "Roadmap — IntentLead AI",
-  description: "The validation sequence for IntentLead Opportunity Intelligence.",
-};
+export const metadata: Metadata = { title: "Roadmap — IntentLead AI", description: "The evidence-gated validation sequence for IntentLead Opportunity Intelligence." };
 
-const PHASES = [
-  {
-    status: "FOUNDATION",
-    title: "Opportunity Core",
-    body: "Versioned evidence, company, assessment, job, cost and human-review foundations. Legacy lead and outreach surfaces are being removed.",
-  },
-  {
-    status: "CURRENT",
-    title: "Self-prospecting discovery",
-    body: "Run IntentLead's own offer and ICP through a zero-spend EN_DISCOVERY_ONLY workflow and measure Opportunity quality.",
-  },
-  {
-    status: "NEXT",
-    title: "Quality calibration",
-    body: "Improve evidence sufficiency, entity resolution, deduplication and explainable rejection on a larger controlled sample.",
-  },
-  {
-    status: "LATER",
-    title: "Design-partner workflow",
-    body: "Let a small cohort define bounded discovery briefs, inspect evidence packages and record outcomes they consider worth acting on.",
-  },
-  {
-    status: "EVIDENCE-GATED",
-    title: "Domain and market expansion",
-    body: "Add one detector or market only when measured customer demand, source legality, evidence quality and economics justify it.",
-  },
+type Status = "foundation" | "current" | "next" | "later";
+const phases = [
+  { status:"foundation" as Status, title:"Stage 0 — Truth and visual recovery", body:"Keep one Opportunity model, the established Signal Dark experience and no-send product boundary aligned across UI, docs and tests.", items:["Canonical Opportunity/evidence language","Durable jobs and human review foundations","Retired lead, credit and send semantics stay absent"] },
+  { status:"current" as Status, title:"Stage 1 — Complete self-prospecting slice", body:"Extend one reproducible EN_DISCOVERY_ONLY run through buyer, verified contact, grounded draft and human review.", items:["At least 20 confirmed signals for a complete run","PARTIAL when authorized coverage is exhausted","Zero unsupported claims, sending or unapproved spend"] },
+  { status:"next" as Status, title:"Stage 2 — Multi-source global quality", body:"Choose sources from the user brief and market instead of treating any one community as the product.", items:["Public web and official company sources","Community, developer, job, event and review families","Measured provider funnel and resolution accuracy"] },
+  { status:"next" as Status, title:"Stage 2.5 — Demand-gated paid coverage", body:"Enable one paid search or contact provider only after measured coverage gaps and explicit founder approval.", items:["Current terms and credentials revalidated","A visible cost ceiling","Incremental accepted-package yield measured"] },
+  { status:"later" as Status, title:"Stage 3 — CIS and local-business slice", body:"Prove the same core in one regional profile through legal, available sources without forking the domain model.", items:["One selected market and category","Quickly verifiable local evidence","Useful packages without automated sending"] },
+  { status:"later" as Status, title:"Stages 4–6 — Partners, domains, stable capabilities", body:"Expand only after repeat use and quality evidence, then expose stable typed capabilities without bypassing human control.", items:["Design-partner repeat usage","One intelligence domain at a time","API/MCP only after contracts stabilize"] },
 ];
 
-export default function RoadmapPage() {
-  return (
-    <main style={{ background: "var(--bg)", color: "var(--text)", minHeight: "100vh" }}>
-      <section className="mx-auto max-w-4xl px-6 pb-24 pt-40">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em]" style={{ color: "var(--accent)" }}>Validation roadmap</p>
-        <h1 className="mt-4 text-4xl font-semibold sm:text-6xl" style={{ letterSpacing: "-0.045em" }}>
-          Prove Opportunity quality before expanding.
-        </h1>
-        <p className="mt-6 max-w-2xl text-lg leading-8" style={{ color: "var(--text-muted)" }}>
-          Each phase must improve the ability to find a business with a concrete, defensible reason to consider the user&apos;s offer.
-        </p>
+const style: Record<Status,{label:string;color:string;bg:string;icon:typeof Circle}> = { foundation:{label:"Foundation",color:"#a3e635",bg:"rgba(163,230,53,.1)",icon:CheckCircle}, current:{label:"Current",color:"#f5c451",bg:"rgba(245,196,81,.1)",icon:Clock}, next:{label:"Next",color:"#6ba4ff",bg:"rgba(107,164,255,.1)",icon:Circle}, later:{label:"Evidence-gated",color:"#8b95a5",bg:"rgba(139,149,165,.1)",icon:Circle} };
 
-        <div className="mt-14 space-y-4">
-          {PHASES.map((phase) => (
-            <article key={phase.title} className="grid gap-4 rounded-2xl border p-6 sm:grid-cols-[130px_1fr] sm:p-8" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-              <span className="text-xs font-semibold tracking-[0.12em]" style={{ color: phase.status === "CURRENT" ? "var(--accent)" : "var(--text-faint)" }}>
-                {phase.status}
-              </span>
-              <div>
-                <h2 className="text-xl font-semibold">{phase.title}</h2>
-                <p className="mt-3 text-sm leading-7" style={{ color: "var(--text-muted)" }}>{phase.body}</p>
-              </div>
-            </article>
-          ))}
-        </div>
-
-        <div className="mt-10 rounded-2xl border p-6" style={{ background: "var(--surface-2)", borderColor: "var(--border)" }}>
-          <h2 className="text-base font-semibold">Not on this roadmap</h2>
-          <p className="mt-2 text-sm leading-6" style={{ color: "var(--text-muted)" }}>
-            Automated or assisted sending, mailbox operation, sequences, contact databases and generic website audits are permanent non-goals. AI Visibility remains deferred research, not a first-stage feature.
-          </p>
-        </div>
-      </section>
-      <Footer />
-    </main>
-  );
-}
+export default function RoadmapPage() { return <main className="min-h-screen overflow-hidden" style={{ background:"var(--bg)",color:"var(--text)" }}><style>{`@keyframes road-in{from{opacity:0;transform:translateX(-18px)}to{opacity:1;transform:translateX(0)}}.road-entry{animation:road-in .6s cubic-bezier(.22,1,.36,1) both}.road-entry:nth-child(2){animation-delay:.08s}.road-entry:nth-child(3){animation-delay:.16s}.road-entry:nth-child(4){animation-delay:.24s}.road-entry:nth-child(5){animation-delay:.32s}.road-entry:nth-child(6){animation-delay:.4s}@media(prefers-reduced-motion:reduce){.road-entry{animation:none}}`}</style>
+  <section className="relative mx-auto max-w-3xl px-6 pb-16 pt-40"><div aria-hidden className="absolute -left-48 top-10 h-96 w-96 rounded-full blur-3xl" style={{ background:"rgba(107,164,255,.08)" }}/><div className="relative"><p className="text-xs font-semibold uppercase tracking-[.16em]" style={{ color:"var(--accent)" }}>Evidence-gated sequence</p><h1 className="mt-4 text-4xl font-bold tracking-[-.05em] sm:text-6xl">Prove quality before expanding.</h1><p className="mt-6 max-w-2xl text-lg leading-8" style={{ color:"var(--text-muted)" }}>The roadmap follows product evidence, source legality and delivery economics. It does not promise unavailable providers, automated outreach or legacy lead-volume features.</p></div></section>
+  <div className="mx-auto max-w-3xl px-6 pb-16">{phases.map((phase) => {const s=style[phase.status],Icon=s.icon;return <section key={phase.title} className="road-entry grid grid-cols-[32px_1fr] gap-5"><div className="flex flex-col items-center"><div className="flex h-8 w-8 items-center justify-center rounded-full" style={{ background:s.bg,border:`1px solid ${s.color}55`,color:s.color }}><Icon size={15}/></div><div className="mt-2 w-px flex-1" style={{ background:"var(--border)" }}/></div><div className="pb-10"><div className="mb-3 flex flex-wrap items-center gap-3"><h2 className="text-lg font-semibold">{phase.title}</h2><span className="rounded-md border px-2 py-1 text-[10px] font-semibold uppercase tracking-wider" style={{ color:s.color,borderColor:`${s.color}45`,background:s.bg }}>{s.label}</span></div><article className="rounded-2xl border p-6" style={{ borderColor:phase.status==="current"?"rgba(245,196,81,.22)":"var(--border)",background:"var(--surface)" }}><p className="text-sm leading-7" style={{ color:"var(--text-muted)" }}>{phase.body}</p><ul className="mt-5 divide-y" style={{ borderColor:"var(--border)" }}>{phase.items.map((item) => <li key={item} className="flex gap-3 py-3 text-sm" style={{ color:"var(--text-muted)" }}><Icon size={15} className="mt-0.5 shrink-0" style={{ color:s.color }}/>{item}</li>)}</ul></article></div></section>})}</div>
+  <section className="mx-auto max-w-3xl px-6 pb-24"><div className="rounded-2xl border p-7" style={{ borderColor:"rgba(248,113,113,.18)",background:"rgba(248,113,113,.035)" }}><p className="text-xs font-semibold uppercase tracking-widest" style={{ color:"#f87171" }}>Permanent boundary</p><h2 className="mt-3 text-xl font-semibold">Not waiting on the horizon</h2><p className="mt-3 text-sm leading-7" style={{ color:"var(--text-muted)" }}>No automatic or assisted sending, mailbox connection, sequences, follow-ups, delivery tracking, illegal scraping, invented commercial facts or universal website auditing. External automation cannot bypass this boundary.</p></div></section><Footer /></main>; }

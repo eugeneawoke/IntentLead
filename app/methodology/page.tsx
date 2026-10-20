@@ -1,63 +1,25 @@
 import type { Metadata } from "next";
+import { AlertTriangle, ArrowRight, Check, SearchCheck } from "lucide-react";
+import Link from "next/link";
 import { Footer } from "@/components/layout/Footer";
 
-export const metadata: Metadata = {
-  title: "Method — IntentLead AI",
-  description: "How IntentLead turns public business evidence into reviewable Opportunities.",
-};
+export const metadata: Metadata = { title: "Method — IntentLead AI", description: "How IntentLead turns public business evidence into reviewable Opportunities." };
 
-const STAGES = [
-  {
-    title: "1. Define the offer and ICP",
-    body: "Record what the user sells, who can benefit, the relevant market and explicit exclusions. A website can supply business identity and positioning context, but IntentLead does not audit its technical, SEO or AI-readiness quality.",
-  },
-  {
-    title: "2. Discover business evidence",
-    body: "Search permitted public sources for observable events, expressed needs, operational problems or market changes. A signal is a research lead, not proof of purchase intent.",
-  },
-  {
-    title: "3. Resolve the company",
-    body: "Connect the evidence to a real organization, retain source URLs and timestamps, and reject candidates whose identity cannot be defended.",
-  },
-  {
-    title: "4. Assess the commercial reason",
-    body: "Compare the evidence with the offer and ICP. Produce QUALIFY, REVIEW or REJECT together with supporting facts, counter-evidence and uncertainty.",
-  },
-  {
-    title: "5. Human review",
-    body: "A person inspects the evidence package and records a decision. Rejection reasons become quality feedback for discovery and assessment policies.",
-  },
+const stages = [
+  { code: "01", color: "#a3e635", title: "Define the offer and ICP", summary: "Record what the user sells, who can benefit, the relevant market and explicit exclusions.", details: ["Offer, ICP, geography and language stay reviewable", "A website can supply identity and positioning context", "No universal technical, SEO or AI-readiness audit"], reject: "Ambiguous positioning or missing market constraints trigger clarification rather than invented assumptions." },
+  { code: "02", color: "#6ba4ff", title: "Discover business evidence", summary: "Search permitted public sources for observable events, expressed needs, operational problems or market changes.", details: ["Source URL, capture time and provenance are retained", "The source plan follows the market and authorized portfolio", "A signal is a research lead, never proof of purchase intent"], reject: "Weak, inaccessible, stale or unsupported evidence does not become an Opportunity." },
+  { code: "03", color: "#c084fc", title: "Resolve the company", summary: "Connect evidence to a defensible organization without guessing through ambiguous identity.", details: ["Entity resolution exposes confidence", "Duplicate companies and evidence are consolidated", "Unresolved identity remains uncertainty, not a fabricated company"], reject: "A candidate is rejected or held for review when the organization cannot be defended from evidence." },
+  { code: "04", color: "#f5c451", title: "Assess commercial relevance", summary: "Compare evidence with the approved offer and ICP, separating known facts from inference.", details: ["Commercial reason and timing are explained", "Counter-evidence and uncertainty stay visible", "Insufficient evidence is a valuable outcome"], reject: "Poor fit, weak impact, bad timing or unsupported inference produces REVIEW or REJECT—not inflated confidence." },
+  { code: "05", color: "#34d399", title: "Resolve buyer and contact", summary: "Identify the relevant buyer and verify an available public business contact only when sources support it.", details: ["Buyer role and confidence are explicit", "Contact source and verification state remain visible", "Missing contact is reported honestly"], reject: "No person, role or address is invented to complete a package." },
+  { code: "06", color: "#fb7185", title: "Prepare and review", summary: "Draft a grounded brief or opening angle that cites the underlying evidence, then require a human decision.", details: ["Material claims map back to referenced evidence", "The reviewer can accept, reject or record reasons", "Copy/export is allowed; automated sending is not"], reject: "Unsupported claims stop the draft. IntentLead never turns approval into automatic outreach." },
 ];
 
 export default function MethodologyPage() {
-  return (
-    <main style={{ background: "var(--bg)", color: "var(--text)", minHeight: "100vh" }}>
-      <section className="mx-auto max-w-4xl px-6 pb-24 pt-40">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em]" style={{ color: "var(--accent)" }}>Method</p>
-        <h1 className="mt-4 text-4xl font-semibold sm:text-6xl" style={{ letterSpacing: "-0.045em" }}>
-          Evidence-backed Opportunity discovery
-        </h1>
-        <p className="mt-6 max-w-2xl text-lg leading-8" style={{ color: "var(--text-muted)" }}>
-          IntentLead is designed to find companies with a concrete reason to consider an offer. It does not build contact lists, write sequences or send messages.
-        </p>
-
-        <div className="mt-14 space-y-4">
-          {STAGES.map((stage) => (
-            <article key={stage.title} className="rounded-2xl border p-6 sm:p-8" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-              <h2 className="text-xl font-semibold">{stage.title}</h2>
-              <p className="mt-3 text-sm leading-7" style={{ color: "var(--text-muted)" }}>{stage.body}</p>
-            </article>
-          ))}
-        </div>
-
-        <aside className="mt-10 rounded-2xl border p-6" style={{ borderColor: "rgba(245,196,81,0.24)", background: "rgba(245,196,81,0.05)" }}>
-          <h2 className="text-base font-semibold">Current pilot boundary</h2>
-          <p className="mt-2 text-sm leading-6" style={{ color: "var(--text-muted)" }}>
-            The first pilot is IntentLead self-prospecting in EN_DISCOVERY_ONLY, using recorded authorized evidence and zero provider spend. Personal contacts, drafts, sending and AI Visibility are outside this stage.
-          </p>
-        </aside>
-      </section>
-      <Footer />
-    </main>
-  );
+  return <main className="min-h-screen overflow-hidden" style={{ background: "var(--bg)", color: "var(--text)" }}>
+    <style>{`@keyframes method-in{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}.method-card{animation:method-in .65s cubic-bezier(.22,1,.36,1) both}.method-card:nth-child(2){animation-delay:.06s}.method-card:nth-child(3){animation-delay:.12s}.method-card:nth-child(4){animation-delay:.18s}.method-card:nth-child(5){animation-delay:.24s}.method-card:nth-child(6){animation-delay:.3s}@media(prefers-reduced-motion:reduce){.method-card{animation:none}}`}</style>
+    <section className="relative mx-auto max-w-5xl px-6 pb-20 pt-40 text-center"><div aria-hidden className="absolute left-1/2 top-0 h-[500px] w-[900px] -translate-x-1/2" style={{ background: "radial-gradient(circle,rgba(163,230,53,.1),transparent 65%)" }} /><div className="relative"><span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[.14em]" style={{ borderColor:"rgba(163,230,53,.3)",background:"rgba(163,230,53,.07)",color:"var(--accent)" }}><SearchCheck size={14}/> Evidence-first method</span><h1 className="mt-6 text-4xl font-bold tracking-[-.05em] sm:text-6xl">From public evidence to a reviewable Opportunity</h1><p className="mx-auto mt-6 max-w-2xl text-lg leading-8" style={{ color:"var(--text-muted)" }}>Every stage protects the same boundary: facts remain traceable, inference remains visible, uncertainty is not hidden, and a person decides what happens next.</p></div></section>
+    <div className="mx-auto flex max-w-5xl flex-col gap-6 px-6 pb-20">{stages.map((stage) => <section key={stage.code} className="method-card rounded-3xl border p-6 sm:p-8" style={{ borderColor:"var(--border)",background:"var(--surface)" }}><div className="grid gap-6 sm:grid-cols-[64px_1fr]"><div className="flex h-14 w-14 items-center justify-center rounded-2xl text-sm font-bold" style={{ background:`${stage.color}16`,border:`1px solid ${stage.color}35`,color:stage.color }}>{stage.code}</div><div><h2 className="text-2xl font-semibold tracking-[-.025em]">{stage.title}</h2><p className="mt-3 leading-7" style={{ color:"var(--text-muted)" }}>{stage.summary}</p><div className="mt-6 rounded-2xl border p-5" style={{ borderColor:"var(--border)",background:"var(--surface-2)" }}><p className="text-[11px] font-semibold uppercase tracking-[.14em]" style={{ color:stage.color }}>What must remain true</p><ul className="mt-4 space-y-3">{stage.details.map((detail) => <li key={detail} className="flex gap-3 text-sm leading-6" style={{ color:"var(--text-muted)" }}><Check size={16} className="mt-1 shrink-0" style={{ color:stage.color }}/>{detail}</li>)}</ul></div><div className="mt-4 flex gap-3 rounded-2xl border p-4 text-sm leading-6" style={{ borderColor:"rgba(251,146,60,.2)",background:"rgba(251,146,60,.055)",color:"rgba(251,146,60,.9)" }}><AlertTriangle size={17} className="mt-1 shrink-0"/><p><strong>Stop condition: </strong>{stage.reject}</p></div></div></div></section>)}</div>
+    <section className="mx-auto max-w-5xl px-6 pb-24"><div className="grid gap-5 md:grid-cols-3">{[{label:"Evidence",value:"Inspectable",body:"Material facts keep their source and capture context."},{label:"Inference",value:"Explicit",body:"Commercial interpretation never masquerades as observed fact."},{label:"Action",value:"Human",body:"The product prepares; it does not send or run a sequence."}].map((item) => <article key={item.label} className="rounded-2xl border p-6" style={{ borderColor:"var(--border)",background:"var(--surface-2)" }}><p className="text-xs uppercase tracking-widest" style={{ color:"var(--text-faint)" }}>{item.label}</p><h2 className="mt-3 text-xl font-semibold" style={{ color:"var(--accent)" }}>{item.value}</h2><p className="mt-2 text-sm leading-6" style={{ color:"var(--text-muted)" }}>{item.body}</p></article>)}</div><div className="mt-10 text-center"><Link href="/roadmap" className="inline-flex items-center gap-2 text-sm font-semibold no-underline" style={{ color:"var(--accent)" }}>See how the method is being validated <ArrowRight size={15}/></Link></div></section>
+    <Footer />
+  </main>;
 }

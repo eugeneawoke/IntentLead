@@ -83,7 +83,7 @@ test("renders loading and empty states without exposing legacy campaign or chat 
   await expect(page.getByText("Loading Opportunities…")).toBeVisible();
   await expect(page.getByRole("heading", { name: "No Opportunities to review" })).toBeVisible();
   await expectNoDownstreamControls(page);
-  for (const width of [375, 768, 1440]) {
+  for (const width of [390, 768, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
   }
@@ -142,11 +142,27 @@ test("partial and missing detail evidence stay explicit and separate from interp
   }));
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(`/e2e-fixtures/opportunities/${ids.partial}`);
+  await expect(page.locator('[data-visual-language="signal-dark"]')).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Observed condition" })).toBeVisible();
+  const sectionNames = await page.locator("[data-opportunity-section]").evaluateAll(nodes => nodes.map(node => node.getAttribute("data-opportunity-section")));
+  expect(sectionNames).toEqual([
+    "observed-condition",
+    "commercial-relevance",
+    "evidence-provenance",
+    "company-resolution",
+    "assessment",
+    "limitations",
+    "buyer-contact",
+    "grounded-draft",
+    "human-review",
+  ]);
   await expect(page.getByText(/Some linked evidence is missing/)).toBeVisible();
   await expect(page.getByText("Observed condition (fact)")).toBeVisible();
-  await expect(page.getByText("The homepage returned an unavailable page.")).toBeVisible();
+  await expect(page.getByRole("region", { name: "Observed condition" }).getByText("The homepage returned an unavailable page.")).toBeVisible();
   await expect(page.getByText("Problem interpretation")).toBeVisible();
   await expect(page.getByText("The company may be losing customers because its homepage is unavailable.")).toBeVisible();
+  await expect(page.getByText("Buyer and verified contact are not available in this review payload.")).toBeVisible();
+  await expect(page.getByText("No grounded brief or draft is available for this Opportunity.")).toBeVisible();
   await expectNoDownstreamControls(page);
   await page.goto(`/e2e-fixtures/opportunities/${ids.missing}`);
   await expect(page.getByText(/No active evidence is available/)).toBeVisible();

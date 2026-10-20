@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ArrowLeft, ShieldCheck } from "lucide-react";
 import { Footer } from "@/components/layout/Footer";
 
 export const metadata: Metadata = {
@@ -11,22 +12,22 @@ const UPDATED = "October 6, 2026";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section>
-      <h2 className="text-base font-semibold">{title}</h2>
-      <div className="mt-3 space-y-3 text-sm leading-7" style={{ color: "var(--text-muted)" }}>{children}</div>
+    <section className="rounded-2xl border p-6 sm:p-7" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
+      <h2 className="text-lg font-semibold tracking-[-.015em]">{title}</h2>
+      <div className="mt-4 space-y-3 text-sm leading-7" style={{ color: "var(--text-muted)" }}>{children}</div>
     </section>
   );
 }
 
 export default function PrivacyPage() {
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)" }}>
-      <main className="mx-auto max-w-3xl px-6 pb-24 pt-36">
-        <Link href="/" className="text-sm" style={{ color: "var(--text-muted)", textDecoration: "none" }}>← Back</Link>
-        <h1 className="mt-10 text-4xl font-semibold" style={{ letterSpacing: "-0.04em" }}>Privacy</h1>
-        <p className="mt-2 text-sm" style={{ color: "var(--text-muted)" }}>Effective date: {UPDATED}</p>
+    <div className="overflow-hidden" style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)" }}>
+      <main className="relative mx-auto max-w-3xl px-6 pb-24 pt-36">
+        <div aria-hidden className="pointer-events-none absolute -right-64 top-16 h-96 w-96 rounded-full blur-3xl" style={{ background: "rgba(107,164,255,.08)" }} />
+        <Link href="/" className="relative inline-flex items-center gap-2 text-sm no-underline" style={{ color: "var(--text-muted)" }}><ArrowLeft size={15} /> Back</Link>
+        <div className="relative mt-10 border-b pb-10" style={{ borderColor: "var(--border)" }}><div className="flex h-11 w-11 items-center justify-center rounded-xl" style={{ background: "rgba(107,164,255,.1)", color: "#6ba4ff" }}><ShieldCheck size={21} /></div><h1 className="mt-6 text-4xl font-semibold sm:text-5xl" style={{ letterSpacing: "-0.045em" }}>Privacy</h1><p className="mt-3 text-sm" style={{ color: "var(--text-muted)" }}>Effective date: {UPDATED}</p><p className="mt-5 max-w-2xl text-base leading-7" style={{ color: "var(--text-muted)" }}>How the controlled Opportunity Intelligence pilot handles user inputs, public evidence and workspace records.</p></div>
 
-        <div className="mt-14 space-y-10">
+        <div className="relative mt-10 space-y-5">
           <Section title="1. Current product boundary">
             <p>IntentLead is an Opportunity Intelligence pilot. It processes business context and public evidence to produce company-level Opportunities for human review.</p>
             <p>The current product does not enrich personal contacts, find email addresses, generate outreach sequences, send messages or operate mailboxes.</p>
